@@ -16,7 +16,7 @@
     "acorn": "^8.18.0",
     "svelte": "^5.57.0",
     "svelte-check": "^4.7.6",
-    "vite": "^8.2.2"
+    "vite": "^8.3.0"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

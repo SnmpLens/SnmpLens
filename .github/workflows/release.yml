@@ -51,7 +51,7 @@ jobs:
         # bindings and drives the build, so letting it float means a future
         # release can change the output — or drift from the library it is
         # generating against — with nothing in this repository changing.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
 
       # Linux dependencies
       - name: Install Linux dependencies

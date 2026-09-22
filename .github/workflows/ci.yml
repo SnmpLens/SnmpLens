@@ -74,7 +74,7 @@ jobs:
         # change the output — or drift from the library it generates against —
         # with nothing in this repository changing. The release workflow pins
         # the same version.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
 
       # Deliberately `wails build` and not a bare `go build`: the CLI
       # regenerates the JS bindings and builds the frontend before compiling, so

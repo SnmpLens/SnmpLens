@@ -37,12 +37,15 @@ import (
 // but NOT authenticated. (A var rather than a const so the empty-default branch
 // is not flagged as dead code before a key is configured.)
 var updaterPublicKeys = []string{
-	// From the rotation of 2026-09: the key CI signs with once the release
-	// below has been adopted.
+	// From the rotation of 2026-09, and IN SERVICE since v1.6.1: the key CI
+	// signs with. Step 3 happened when v1.6.0 had had its week of adoption.
 	"TPh8H92qyRkMFpc1CXCJKp/G5jf4OTqlHd6Mx0BHljs=",
-	// The original key, which every copy published so far trusts — and the one
-	// the transition release is signed with. It goes when those copies have
-	// moved on.
+	// The original key. It signed every release up to and including v1.6.0, the
+	// transition one, and nothing after it. It is kept as the way BACK: while it
+	// is here, a release can still be signed with it and every copy accepts it,
+	// which is what makes the switch above reversible. Step 4 — dropping this
+	// entry — closes that door, and is due once v1.6.1 has been adopted in its
+	// turn.
 	"svOWbkIuFQTiebt+DKzaohFFdeANV8NjcdX3cQiybPw=",
 }
 

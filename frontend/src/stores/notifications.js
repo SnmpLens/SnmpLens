@@ -1,5 +1,4 @@
 import { writable } from 'svelte/store';
-import { capNewestFirst } from '../utils/burst';
 
 // Toasts are ephemeral by definition, and this list had no ceiling: a trap
 // flood with the Traps panel hidden raised one per trap, each with its own

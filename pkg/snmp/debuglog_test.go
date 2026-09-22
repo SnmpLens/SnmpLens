@@ -9,8 +9,6 @@ import (
 
 	"SnmpLens/pkg/simulator"
 	"SnmpLens/pkg/simulator/simtest"
-
-	"github.com/gosnmp/gosnmp"
 )
 
 // The debug log used to carry the community string.
@@ -19,25 +17,16 @@ import (
 // PACKET despite its name, and unmarshalling logs "Parsed community %s". Both
 // landed in the ring buffer that SnmpGetDebugLog hands to the debug panel,
 // where Anonymous Mode masked IP addresses and nothing else.
-
-func TestScrubRemovesTheCommunityFromWhatGosnmpPrints(t *testing.T) {
-	// The real shapes, copied from gosnmp v1.45.0 marshal.go.
-	lines := []string{
-		"SENDING PACKET: Version:2c, MsgFlags:NoAuthNoPriv, SecurityModel:UserSecurityModel, " +
-			"SecurityParameters:, ContextEngineID:, ContextName:, Community:s3cr3t-community, " +
-			"PDUType:GetRequest, MsgID:0, RequestID:1836429849, MsgMaxSize:0, Error:NoError, Variables:[]",
-		"Parsed community s3cr3t-community",
-	}
-	for _, line := range lines {
-		got := scrubSecrets(line, []string{"s3cr3t-community", "", ""})
-		if strings.Contains(got, "s3cr3t-community") {
-			t.Errorf("the community survived scrubbing:\n%s", got)
-		}
-		if !strings.Contains(got, redacted) {
-			t.Errorf("nothing was marked as redacted:\n%s", got)
-		}
-	}
-}
+//
+// The lines below are written by hand, which is right for the cases gosnmp
+// will not produce on demand: a community with a comma in it, a two-character
+// one, a passphrase in a line gosnmp does not log today. Whether the PATTERNS
+// still match what gosnmp really prints is a separate question, and a copied
+// sample cannot answer it -- the one that used to sit here claimed
+// "SecurityModel:UserSecurityModel" long after gosnmp had started printing
+// "SecurityModel:SnmpV3SecurityModel(0)", and nothing noticed, because the
+// redaction keys on the Community field either way. That question is answered
+// against gosnmp's own output in gosnmpcontract_test.go.
 
 // A community this writer was never told about — a trap sender's, or one from
 // a request built elsewhere — must still be removed.
@@ -190,8 +179,6 @@ func TestDebugLogNeverHoldsTheCommunity(t *testing.T) {
 	}
 	t.Logf("%d entries, none carrying the community in either form", len(entries))
 }
-
-var _ = gosnmp.Version2c
 
 // A trap arrives from the network with a community we never configured, and
 // the listener used to print it to stdout unconditionally — not through the

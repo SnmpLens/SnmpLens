@@ -68,13 +68,22 @@ Go unit tests live beside the code they cover (`go test ./...`, run in CI). They
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.
 
-One of them guards prose rather than logic. This repository states gosnmp's behaviour — the serial receive
-loop, a USM table that validates nothing, a `SafeString` that prints the community — and cites the version each
-was read in, which is what lets the next reader check it. Two bumps carried gosnmp from v1.43.2 to v1.45.0 with
-every citation left naming the old one and nothing failing anywhere, since a bump touches `go.mod` alone. A
-cited observation that has quietly become a guess reads as evidence, so `pkg/snmp/citedversion_test.go` pins
-every `gosnmp vX.Y.Z` in the tree to what `go.mod` requires: an upgrade fails there, which is the moment to
-re-read the cited source and confirm the claim before moving the number.
+Two of them guard what gosnmp does, in the two ways that are available. This repository states gosnmp's
+behaviour rather than assuming it, and most of those statements can be ASSERTED against gosnmp itself:
+`pkg/snmp/gosnmpcontract_test.go` pins the debug log's wording, the version strings the Traps tab filters by, and
+a user table that accepts a user which can never authenticate, the way `informack_test.go` already pinned a
+handler's right to decline an acknowledgement. A test beats a citation wherever one is possible, because it is
+re-checked on every commit and fails on the upgrade rather than on whoever next reads the paragraph — and because
+a sample copied into a comment rots invisibly: the one that stood in for `SafeString` claimed
+`SecurityModel:UserSecurityModel` long after gosnmp had started printing `SecurityModel:SnmpV3SecurityModel(0)`,
+and nothing noticed, since the redaction keys on the Community field either way.
+
+What cannot be reached through the exported API stays a cited observation — that the receive loop is one
+goroutine, that `listenUDP` dereferences a failed type assertion anyway — and those rot just as quietly: two
+bumps carried gosnmp from v1.43.2 to v1.45.0 with every citation left naming the old one and nothing failing,
+since a bump touches `go.mod` alone. So `pkg/snmp/citedversion_test.go` pins every `gosnmp vX.Y.Z` in the tree to
+what `go.mod` requires. An upgrade fails there, which is the moment to re-read the cited source and confirm the
+claim before moving the number.
 
 The frontend tests are `cd frontend && npm test`. Three of them check a contract that crosses a language
 boundary and has no other symptom: `presetkeys.test.mjs` (every `errf` message and widget kind `pkg/preset` emits
@@ -297,8 +306,10 @@ other was dropped with nothing on screen. Three facts about gosnmp v1.45.0 decid
   it is a nil-pointer panic on gosnmp's own goroutine at the first v3 trap, which no recover of ours covers
   (`TestATableNeverTravelsWithoutSecurityParameters`).
 - `Table.Add` localises keys and validates nothing, so `checkTrapUser` refuses what would be added and then
-  authenticate nothing — an AuthNoPriv user with no protocol — and names what gosnmp would report as
-  "hashPassword: password is empty". A refused user is reported by name, and the listener starts with the others:
+  authenticate nothing — an AuthNoPriv user with no protocol, or one with no passphrase — and names what gosnmp
+  would report as "hashPassword: password is empty". That one is CHECKED rather than cited:
+  `TestGosnmpsUserTableAcceptsAUserThatCanNeverAuthenticate` hands both users to gosnmp's own table and fails
+  the day it starts refusing them itself. A refused user is reported by name, and the listener starts with the others:
   receiving nothing over one stale profile is worse than receiving from everyone else.
 - The table can be ADDED to while the listener reads it and never removed from, so `UpdateTrapUsers` RESTARTS the
   listener on its port — and only when the accepted set changed, compared as a set of what receiving uses (`trapUser`

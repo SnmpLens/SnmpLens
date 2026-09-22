@@ -6,7 +6,7 @@ toolchain go1.26.7
 
 require (
 	fyne.io/systray v1.12.2
-	github.com/gosnmp/gosnmp v1.44.0
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/minio/selfupdate v0.6.0
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/sleepinggenius2/gosmi v0.4.4

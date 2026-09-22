@@ -21,7 +21,7 @@ import (
 // where Anonymous Mode masked IP addresses and nothing else.
 
 func TestScrubRemovesTheCommunityFromWhatGosnmpPrints(t *testing.T) {
-	// The real shapes, copied from gosnmp v1.43.2 marshal.go.
+	// The real shapes, copied from gosnmp v1.45.0 marshal.go.
 	lines := []string{
 		"SENDING PACKET: Version:2c, MsgFlags:NoAuthNoPriv, SecurityModel:UserSecurityModel, " +
 			"SecurityParameters:, ContextEngineID:, ContextName:, Community:s3cr3t-community, " +

@@ -68,6 +68,14 @@ Go unit tests live beside the code they cover (`go test ./...`, run in CI). They
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.
 
+One of them guards prose rather than logic. This repository states gosnmp's behaviour — the serial receive
+loop, a USM table that validates nothing, a `SafeString` that prints the community — and cites the version each
+was read in, which is what lets the next reader check it. Two bumps carried gosnmp from v1.43.2 to v1.45.0 with
+every citation left naming the old one and nothing failing anywhere, since a bump touches `go.mod` alone. A
+cited observation that has quietly become a guess reads as evidence, so `pkg/snmp/citedversion_test.go` pins
+every `gosnmp vX.Y.Z` in the tree to what `go.mod` requires: an upgrade fails there, which is the moment to
+re-read the cited source and confirm the claim before moving the number.
+
 The frontend tests are `cd frontend && npm test`. Three of them check a contract that crosses a language
 boundary and has no other symptom: `presetkeys.test.mjs` (every `errf` message and widget kind `pkg/preset` emits
 has an `en.json` key, with the placeholders the `Args` map supplies), `dashboard.test.mjs` (the widget dispatch
@@ -282,7 +290,7 @@ targets on the defaults.
 
 **The trap listener accepts every SNMPv3 user at once** — the default v3 block and every v3 profile, each unless
 it was opted out — through gosnmp's `SnmpV3SecurityParametersTable` (`pkg/snmp/usm.go`). It used to take one user, so a device sending as any
-other was dropped with nothing on screen. Three facts about gosnmp v1.43.2 decide the shape:
+other was dropped with nothing on screen. Three facts about gosnmp v1.45.0 decide the shape:
 
 - `listenUDP` asserts `Params.SecurityParameters` to `*UsmSecurityParameters` for EVERY v3 packet to compare engine
   IDs, logs when the assertion fails, and dereferences the result anyway. A table with no SecurityParameters beside
@@ -478,7 +486,7 @@ loaded, so the probe reported a failure that was not real and `internal/app/mibe
 
 A trap arrives on gosnmp's UDP receive loop, and that loop is **strictly serial**: one goroutine,
 `ReadFromUDP` then handler then the next read, with no goroutine per datagram (verified in gosnmp
-v1.43.2 `trap.go`). Every millisecond the handler spends is a millisecond not reading the socket, and what
+v1.45.0 `trap.go`). Every millisecond the handler spends is a millisecond not reading the socket, and what
 does not fit the socket buffer is dropped by the KERNEL before Go sees it — no error, no journal entry,
 nothing to count. Three things follow, and each is load-bearing.
 
@@ -554,7 +562,7 @@ the alert permanently.
 The trap listener is stopped FIRST in `App.shutdown`, before any consumer. `Client.trapListener` is behind
 a mutex (three goroutines wrote it), the listen goroutine clears the field only if it is still ITS
 listener, and the stop WAITS for `Listening()` before closing: gosnmp's `Close` returns early doing nothing
-while `conn` is nil, having already set `finish`, so a stop landing in the bind window reported success and
+while `listenCloser` is nil, having already set `finish`, so a stop landing in the bind window reported success and
 left a listener nothing could stop — measured, still running 2.1 s after `Close` returned in 73 ms.
 
 ## The simulator

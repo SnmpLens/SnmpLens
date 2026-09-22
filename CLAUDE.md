@@ -68,6 +68,23 @@ Go unit tests live beside the code they cover (`go test ./...`, run in CI). They
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.
 
+Two of them guard what gosnmp does, in the two ways that are available. This repository states gosnmp's
+behaviour rather than assuming it, and most of those statements can be ASSERTED against gosnmp itself:
+`pkg/snmp/gosnmpcontract_test.go` pins the debug log's wording, the version strings the Traps tab filters by, and
+a user table that accepts a user which can never authenticate, the way `informack_test.go` already pinned a
+handler's right to decline an acknowledgement. A test beats a citation wherever one is possible, because it is
+re-checked on every commit and fails on the upgrade rather than on whoever next reads the paragraph — and because
+a sample copied into a comment rots invisibly: the one that stood in for `SafeString` claimed
+`SecurityModel:UserSecurityModel` long after gosnmp had started printing `SecurityModel:SnmpV3SecurityModel(0)`,
+and nothing noticed, since the redaction keys on the Community field either way.
+
+What cannot be reached through the exported API stays a cited observation — that the receive loop is one
+goroutine, that `listenUDP` dereferences a failed type assertion anyway — and those rot just as quietly: two
+bumps carried gosnmp from v1.43.2 to v1.45.0 with every citation left naming the old one and nothing failing,
+since a bump touches `go.mod` alone. So `pkg/snmp/citedversion_test.go` pins every `gosnmp vX.Y.Z` in the tree to
+what `go.mod` requires. An upgrade fails there, which is the moment to re-read the cited source and confirm the
+claim before moving the number.
+
 The frontend tests are `cd frontend && npm test`. Three of them check a contract that crosses a language
 boundary and has no other symptom: `presetkeys.test.mjs` (every `errf` message and widget kind `pkg/preset` emits
 has an `en.json` key, with the placeholders the `Args` map supplies), `dashboard.test.mjs` (the widget dispatch
@@ -282,15 +299,17 @@ targets on the defaults.
 
 **The trap listener accepts every SNMPv3 user at once** — the default v3 block and every v3 profile, each unless
 it was opted out — through gosnmp's `SnmpV3SecurityParametersTable` (`pkg/snmp/usm.go`). It used to take one user, so a device sending as any
-other was dropped with nothing on screen. Three facts about gosnmp v1.43.2 decide the shape:
+other was dropped with nothing on screen. Three facts about gosnmp v1.45.0 decide the shape:
 
 - `listenUDP` asserts `Params.SecurityParameters` to `*UsmSecurityParameters` for EVERY v3 packet to compare engine
   IDs, logs when the assertion fails, and dereferences the result anyway. A table with no SecurityParameters beside
   it is a nil-pointer panic on gosnmp's own goroutine at the first v3 trap, which no recover of ours covers
   (`TestATableNeverTravelsWithoutSecurityParameters`).
 - `Table.Add` localises keys and validates nothing, so `checkTrapUser` refuses what would be added and then
-  authenticate nothing — an AuthNoPriv user with no protocol — and names what gosnmp would report as
-  "hashPassword: password is empty". A refused user is reported by name, and the listener starts with the others:
+  authenticate nothing — an AuthNoPriv user with no protocol, or one with no passphrase — and names what gosnmp
+  would report as "hashPassword: password is empty". That one is CHECKED rather than cited:
+  `TestGosnmpsUserTableAcceptsAUserThatCanNeverAuthenticate` hands both users to gosnmp's own table and fails
+  the day it starts refusing them itself. A refused user is reported by name, and the listener starts with the others:
   receiving nothing over one stale profile is worse than receiving from everyone else.
 - The table can be ADDED to while the listener reads it and never removed from, so `UpdateTrapUsers` RESTARTS the
   listener on its port — and only when the accepted set changed, compared as a set of what receiving uses (`trapUser`
@@ -478,7 +497,7 @@ loaded, so the probe reported a failure that was not real and `internal/app/mibe
 
 A trap arrives on gosnmp's UDP receive loop, and that loop is **strictly serial**: one goroutine,
 `ReadFromUDP` then handler then the next read, with no goroutine per datagram (verified in gosnmp
-v1.43.2 `trap.go`). Every millisecond the handler spends is a millisecond not reading the socket, and what
+v1.45.0 `trap.go`). Every millisecond the handler spends is a millisecond not reading the socket, and what
 does not fit the socket buffer is dropped by the KERNEL before Go sees it — no error, no journal entry,
 nothing to count. Three things follow, and each is load-bearing.
 
@@ -554,7 +573,7 @@ the alert permanently.
 The trap listener is stopped FIRST in `App.shutdown`, before any consumer. `Client.trapListener` is behind
 a mutex (three goroutines wrote it), the listen goroutine clears the field only if it is still ITS
 listener, and the stop WAITS for `Listening()` before closing: gosnmp's `Close` returns early doing nothing
-while `conn` is nil, having already set `finish`, so a stop landing in the bind window reported success and
+while `listenCloser` is nil, having already set `finish`, so a stop landing in the bind window reported success and
 left a listener nothing could stop — measured, still running 2.1 s after `Close` returned in 73 ms.
 
 ## The simulator

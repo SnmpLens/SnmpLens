@@ -125,7 +125,7 @@ type trapSecurity struct {
 	// fails, and dereferences the result anyway. With a table and no
 	// SecurityParameters the first v3 trap to arrive is a nil-pointer panic on
 	// gosnmp's own goroutine, which no recover of ours covers, and the process
-	// ends (gosnmp v1.43.2, trap.go, listenUDP).
+	// ends (gosnmp v1.45.0, trap.go, listenUDP).
 	first *gosnmp.UsmSecurityParameters
 	flags gosnmp.SnmpV3MsgFlags
 	info  TrapListenerInfo

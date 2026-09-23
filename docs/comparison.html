@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1e1e1e" media="(prefers-color-scheme: dark)" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SnmpLens compared with iReasoning, ManageEngine and SnmpB</title>
+<meta name="description" content="Four desktop SNMP MIB browsers side by side: licence, platforms, SNMPv3, MIB limits, traps, monitoring and simulators — every cell sourced from the vendor's own page and dated." />
+<meta name="robots" content="max-image-preview:large" />
+<link rel="canonical" href="https://snmplens.com/comparison.html" />
+<link rel="icon" type="image/png" sizes="48x48" href="assets/img/favicon-48.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="SnmpLens" />
+<meta property="og:locale" content="en_GB" />
+<meta property="og:title" content="SnmpLens compared with iReasoning, ManageEngine and SnmpB" />
+<meta property="og:description" content="Four desktop SNMP MIB browsers side by side: licence, platforms, SNMPv3, MIB limits, traps, monitoring and simulators — every cell sourced from the vendor's own page and dated." />
+<meta property="og:url" content="https://snmplens.com/comparison.html" />
+<meta property="og:image" content="https://snmplens.com/assets/img/og-card-docs.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="A table comparing SnmpLens with three other SNMP MIB browsers." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="SnmpLens compared with iReasoning, ManageEngine and SnmpB" />
+<meta name="twitter:description" content="Four desktop SNMP MIB browsers side by side: licence, platforms, SNMPv3, MIB limits, traps, monitoring and simulators — every cell sourced from the vendor's own page and dated." />
+<meta name="twitter:image" content="https://snmplens.com/assets/img/og-card-docs.png" />
+<meta name="twitter:image:alt" content="A table comparing SnmpLens with three other SNMP MIB browsers." />
+<link rel="sitemap" type="application/xml" href="https://snmplens.com/sitemap.xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+<script>
+/* Stamp the chosen theme on <html> BEFORE the stylesheet is parsed.
+   Synchronous and inline on purpose: anything deferred paints one theme and
+   then corrects it, which is the flash this exists to prevent. Absent or
+   unreadable storage means "follow the system", which is the default the
+   stylesheet already implements — so this does nothing at all for most
+   readers, and that is the correct amount. */
+try {
+  var t = localStorage.getItem('snmplens-theme');
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+} catch (e) {}
+</script>
+<!-- One WebPage node and its trail. The SoftwareApplication entity is
+     REFERENCED by @id, never restated: a second copy would give one entity two
+     conflicting url values and a second hand-maintained version number, and it
+     would buy no rich result. Breadcrumbs are not a ranking factor; this is
+     desktop-SERP presentation. -->
+<!-- A TechArticle, and deliberately NOT a FAQPage. documentation.html already
+     marks up "A MIB will not load" as an FAQ entry, and the same question and
+     answer marked up on two URLs is the shape Google treats as duplicated
+     structured data. The FAQ keeps that entry; this page is the article it
+     points to. -->
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@graph": [
+  {
+   "@type": "TechArticle",
+   "@id": "https://snmplens.com/comparison.html",
+   "url": "https://snmplens.com/comparison.html",
+   "headline": "Why a MIB will not load",
+   "description": "Four desktop SNMP MIB browsers side by side: licence, platforms, SNMPv3, MIB limits, traps, monitoring and simulators — every cell sourced from the vendor's own page and dated.",
+   "inLanguage": "en-GB",
+   "isPartOf": { "@id": "https://snmplens.com/#website" },
+   "about": { "@id": "https://snmplens.com/#app" },
+   "author": { "@type": "Person", "name": "Geoffrey Lecoq" },
+   "proficiencyLevel": "Beginner",
+   "image": "https://snmplens.com/assets/img/og-card-docs.png"
+  },
+  {
+   "@type": "BreadcrumbList",
+   "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "SnmpLens", "item": "https://snmplens.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Documentation", "item": "https://snmplens.com/documentation.html" },
+    { "@type": "ListItem", "position": 3, "name": "Why a MIB will not load", "item": "https://snmplens.com/comparison.html" }
+   ]
+  }
+ ]
+}
+</script>
+<link rel="stylesheet" href="assets/site.css" />
+<style>
+  /* Local to this page: the comparison table is the only place these appear. */
+  .compare th[scope="row"] { text-align: left; font-weight: 600; white-space: normal; }
+  .compare td { vertical-align: top; }
+  .compare thead th a { text-decoration: none; }
+  /* Colour REINFORCES the words, never replaces them: every cell still reads
+     "Yes", "No" or "Not listed" with the stylesheet off. */
+  .compare td[data-kind="yes"]     { color: var(--good); }
+  .compare td[data-kind="no"]      { color: var(--bad); }
+  .compare td[data-kind="partial"] { color: var(--warn); }
+  .compare td[data-kind="unknown"] { color: var(--ink-3); }
+  .sources { color: var(--ink-3); font-size: 0.95rem; }
+  .strengths dt { font-weight: 700; margin-top: 1.1rem; }
+  .strengths dd { margin: 0.3rem 0 0; }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="assets/img/favicon-48.png" alt="" width="26" height="26" />SnmpLens</a>
+    <nav class="nav" aria-label="Main">
+      <a href="documentation.html">Documentation</a>
+      <a href="download.html">Download</a>
+      <a href="demo.html">Demo</a>
+      <a href="comparison.html" aria-current="page" class="hide-sm">Comparison</a>
+      <a href="changelog.html" class="hide-sm">Changelog</a>
+      <a href="contributing.html" class="hide-sm">Contributing</a>
+      <a class="gh" href="https://github.com/SnmpLens/SnmpLens">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+      <div data-theme-toggle hidden></div>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap" style="padding-block:3.5rem 2rem">
+
+  <p class="eyebrow">Comparison</p>
+  <h1 style="margin-bottom:0.3em">How SnmpLens compares</h1>
+  <p class="lede">
+    There are three desktop SNMP tools most people reach for before this one: the commercial
+    reference, a large vendor's free tool, and the open-source browser that has been around for
+    years. Here is what separates them, with every claim taken from each product's own page
+    and dated, because a table like this stops being true quietly.
+  </p>
+
+  <div class="note">
+    <p style="margin:0">
+      <strong>How to read this.</strong> Nothing below is measured by us or inferred. Where a
+      vendor's own feature list does not mention something, the cell says <em>Not listed</em>
+      rather than <em>No</em> &mdash; the first is a fact about their documentation, the second
+      would be a claim about their software. The date the pages were read is stated under the
+      table; if it has aged, trust their site over ours.
+    </p>
+  </div>
+
+  <!-- comparison:start -->
+      <!-- Generated by tools/comparison.mjs from tools/comparison.json — do not edit by hand. -->
+      <div class="table-scroll">
+        <table class="compare">
+          <caption class="visually-hidden">SnmpLens compared with iReasoning MIB Browser, ManageEngine MIB Browser, SnmpB, as each product's own documentation described it on 2026-09-23</caption>
+          <thead>
+            <tr>
+              <th scope="col">&nbsp;</th>
+              <th scope="col"><a href="https://github.com/SnmpLens/SnmpLens">SnmpLens</a></th>
+          <th scope="col"><a href="https://www.ireasoning.com/mibbrowser.shtml">iReasoning MIB Browser</a></th>
+          <th scope="col"><a href="https://www.manageengine.com/products/mibbrowser-free-tool/">ManageEngine MIB Browser</a></th>
+          <th scope="col"><a href="https://sourceforge.net/projects/snmpb/">SnmpB</a></th>
+            </tr>
+          </thead>
+          <tbody>
+          <tr>
+            <th scope="row">Licence</th>
+            <td>MIT, open source</td>
+            <td>Proprietary</td>
+            <td>Proprietary</td>
+            <td>GPLv2, open source</td>
+          </tr>
+          <tr>
+            <th scope="row">Price</th>
+            <td data-kind="yes">Free</td>
+            <td>Personal free; Professional $495; Enterprise $895</td>
+            <td data-kind="yes">Free</td>
+            <td data-kind="yes">Free</td>
+          </tr>
+          <tr>
+            <th scope="row">The free version may be used at work</th>
+            <td data-kind="yes">Yes</td>
+            <td data-kind="no">No — the Personal Edition is “intended exclusively for private use on a single workstation” and “may not be used for commercial or professional purposes”</td>
+            <td data-kind="yes">Yes — licensed free in perpetuity, resale excluded</td>
+            <td data-kind="yes">Yes</td>
+          </tr>
+          <tr>
+            <th scope="row">Windows / macOS / Linux</th>
+            <td data-kind="yes">All three</td>
+            <td data-kind="yes">All three</td>
+            <td data-kind="partial">Windows and Linux</td>
+            <td data-kind="yes">All three, and BSD</td>
+          </tr>
+          <tr>
+            <th scope="row">SNMPv3 in the version you can use for free</th>
+            <td data-kind="yes">Yes</td>
+            <td data-kind="no">No — Professional and above</td>
+            <td data-kind="yes">Yes</td>
+            <td data-kind="yes">Yes</td>
+          </tr>
+          <tr>
+            <th scope="row">MIB modules the free version loads</th>
+            <td data-kind="yes">No limit</td>
+            <td data-kind="no">10</td>
+            <td>No stated limit</td>
+            <td>No stated limit</td>
+          </tr>
+          <tr>
+            <th scope="row">Trap receiver</th>
+            <td data-kind="yes">Yes, traps and acknowledged INFORMs</td>
+            <td data-kind="yes">Yes</td>
+            <td data-kind="yes">Yes</td>
+            <td data-kind="yes">Yes</td>
+          </tr>
+          <tr>
+            <th scope="row">MIB editor</th>
+            <td data-kind="yes">Yes, with line-and-column syntax errors and a semantic pass</td>
+            <td data-kind="unknown">Not listed</td>
+            <td data-kind="unknown">Not listed</td>
+            <td data-kind="yes">Yes</td>
+          </tr>
+          <tr>
+            <th scope="row">Monitoring that continues with the window closed</th>
+            <td data-kind="yes">Yes — a tray icon, an optional login entry, and history in SQLite</td>
+            <td data-kind="partial">Service mode in the Enterprise Edition</td>
+            <td data-kind="unknown">Not listed</td>
+            <td data-kind="unknown">Not listed</td>
+          </tr>
+          <tr>
+            <th scope="row">Alerts routed to syslog, a webhook or email</th>
+            <td data-kind="yes">All three, with a durable outbox that survives a closed window</td>
+            <td data-kind="partial">Email trap forwarding, Professional and above</td>
+            <td data-kind="partial">Alert emails</td>
+            <td data-kind="unknown">Not listed</td>
+          </tr>
+          <tr>
+            <th scope="row">Device simulator for testing without hardware</th>
+            <td data-kind="yes">Built in — fourteen models answering v1, v2c and v3 on loopback</td>
+            <td data-kind="partial">A separate product, SNMP Agent Simulator</td>
+            <td data-kind="unknown">Not listed</td>
+            <td data-kind="unknown">Not listed</td>
+          </tr>
+          <tr>
+            <th scope="row">Source code available</th>
+            <td data-kind="yes">Yes, MIT</td>
+            <td data-kind="no">No</td>
+            <td data-kind="no">No</td>
+            <td data-kind="yes">Yes, GPLv2</td>
+          </tr>
+          <tr>
+            <th scope="row">Latest release the project itself dates</th>
+            <td>v1.6.1, September 2026</td>
+            <td data-kind="unknown">Not dated on the product page</td>
+            <td data-kind="unknown">Not dated on the product page</td>
+            <td>0.9, June 2019</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="sources">
+        Every cell about another product is what that product's own documentation stated on
+        <time datetime="2026-09-23">2026-09-23</time>:
+        <a href="https://www.ireasoning.com/mibbrowser.shtml">ireasoning.com</a>, <a href="https://www.manageengine.com/products/mibbrowser-free-tool/">manageengine.com</a>, <a href="https://sourceforge.net/projects/snmpb/">sourceforge.net</a>.
+        <strong>“Not listed”</strong> means their feature list does not mention it — a fact about
+        their documentation, not a claim about their software.
+      </p>
+
+      <h2 id="stronger">Where each of the others is stronger</h2>
+      <p>
+        A comparison in which one column wins every row is an advertisement. These are the
+        reasons to choose one of the others, and they are real ones.
+      </p>
+      <dl class="strengths">
+        <dt><a href="https://www.ireasoning.com/mibbrowser.shtml">iReasoning MIB Browser</a></dt>
+        <dd>The widest feature list of the four, and the only one of them sold with support: a switch port mapper, a rule engine, device snapshots, a web client and a service mode, none of which SnmpLens has. If you need one of those, this is where it is.</dd>
+          <dt><a href="https://www.manageengine.com/products/mibbrowser-free-tool/">ManageEngine MIB Browser</a></dt>
+        <dd>Part of a large suite. If you already run OpUtils or OpManager, the MIB Browser sits beside tooling you have, with one vendor answering for all of it.</dd>
+          <dt><a href="https://sourceforge.net/projects/snmpb/">SnmpB</a></dt>
+        <dd>Small, native Qt, packaged by several Linux distributions, and it has done the core job — browse, query, edit MIBs, receive traps — for years. If that is all you need, it is a fraction of the download.</dd>
+      </dl>
+
+      <h2 id="net-snmp">And none of them replaces Net-SNMP</h2>
+      <p>None of these replaces Net-SNMP. <code>snmpwalk</code>, <code>snmpget</code> and <code>snmptrapd</code> are the reference implementation, they are already on the machine, and they are scriptable in a way no window is. SnmpLens is what you reach for when you want to read a MIB tree, see a table decoded by its INDEX, watch a value over time or receive a trap without writing a pipeline — not a replacement for the command line.</p>
+      <!-- comparison:end -->
+
+  <h2 id="why">What SnmpLens is built around</h2>
+  <p>
+    Two of the rows above are the reason it exists at all. A conceptual table is pivoted and
+    split by its INDEX following RFC&nbsp;2578&nbsp;&sect;7.7, so a
+    <code>tcpConnTable</code> row reads as four index fields rather than one opaque
+    sub-identifier &mdash; and a MIB that fails to load is
+    <a href="mib-not-loading.html">explained rather than reported</a>, because
+    <code>Could not load module</code> is the same sentence for a missing file, a PDF and a
+    syntax error on line 412.
+  </p>
+  <p>
+    The rest follows from being a desktop application you leave running: monitoring that
+    continues with the window closed, alerts routed to syslog, a webhook or email through an
+    outbox that survives a restart, dashboards drawn from
+    <a href="documentation.html">shareable presets</a>, and a
+    <a href="documentation.html">simulator</a> so that all of it can be tried without a device.
+  </p>
+
+  <div class="btn-row">
+    <a class="btn btn-primary" href="download.html">Download SnmpLens</a>
+    <a class="btn" href="demo.html">Try it in your browser</a>
+  </div>
+
+</main>
+
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="./" style="margin-bottom:0.6rem"><img src="assets/img/favicon-48.png" alt="" width="26" height="26" />SnmpLens</a>
+        <p class="muted small" style="max-width:34ch">A desktop SNMP MIB browser, editor and alert router. MIT licensed, built in the open.</p>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="documentation.html">Documentation</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="changelog.html">Changelog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Contribute</h2>
+        <ul>
+          <li><a href="contributing.html">Contributing guide</a></li>
+          <li><a href="security.html">Security policy</a></li>
+          <li><a href="https://github.com/SnmpLens/SnmpLens/issues">Issue tracker</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Source</h2>
+        <ul>
+          <li><a href="https://github.com/SnmpLens/SnmpLens">Repository</a></li>
+          <li><a href="https://github.com/SnmpLens/SnmpLens/releases">Releases</a></li>
+          <li><a href="https://github.com/SnmpLens/SnmpLens/blob/main/LICENSE">MIT licence</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="colophon">
+      <p>© 2026 Geoffrey Lecoq · Released under the MIT licence.</p>
+      <p>Built with <a href="https://wails.io/">Wails</a>, <a href="https://go.dev/">Go</a> and <a href="https://svelte.dev/">Svelte</a>.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>

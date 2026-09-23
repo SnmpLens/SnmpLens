@@ -51,7 +51,13 @@ const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 
 // A pipe inside a cell ends the column early and silently shifts every cell
 // after it one to the left, which reads as a data error rather than a syntax one.
-const escapeMd = (s) => s.replace(/\|/g, '\\|');
+//
+// The BACKSLASH is escaped FIRST, and the order is the whole of it. Escaping the
+// pipe alone turns `a\|b` into `a\\|b`, which Markdown reads as an escaped
+// backslash followed by a live column separator — so the pipe comes back as
+// exactly the thing the escape existed to prevent. CodeQL names this
+// js/incomplete-sanitization, and it was right.
+const escapeMd = (s) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 
 function renderHtml() {
   const head = products
@@ -188,7 +194,7 @@ export function outOfDate() {
   return targets().filter((t) => splice(t.file, t.block) !== readFileSync(t.file, 'utf8'));
 }
 
-export { data };
+export { data, escapeMd };
 
 // Run as a command rather than imported. `process.argv[1]` is the script node
 // was given; comparing the resolved paths is what tells the two apart.

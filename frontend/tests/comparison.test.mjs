@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { data, outOfDate } from '../../tools/comparison.mjs';
+import { data, escapeMd, outOfDate } from '../../tools/comparison.mjs';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^[/]([A-Za-z]:)/, '$1');
 
@@ -31,7 +31,9 @@ const check = (name, ok, extra = '') => {
 
 const read = (rel) => readFileSync(join(root, rel), 'utf8');
 
-const [us, ...others] = data.products;
+// Everything after the first product: the ones this table makes claims about,
+// and therefore the ones the rules below are written for.
+const others = data.products.slice(1);
 
 // ---------------------------------------------------------------- published twice
 
@@ -54,6 +56,17 @@ check(
   'the table states the date it was read',
   /^\d{4}-\d{2}-\d{2}$/.test(data.checked ?? ''),
   String(data.checked),
+);
+
+// A cell that escapes the pipe but not the backslash is not escaped at all:
+// `a\|b` becomes `a\\|b`, which Markdown reads as an escaped backslash and then
+// a LIVE column separator, so the pipe returns and every cell after it shifts
+// one column left. Found by CodeQL as js/incomplete-sanitization, pinned here.
+const escaped = escapeMd('a\\|b');
+check(
+  'escaping a Markdown cell survives a backslash before the pipe',
+  escaped === 'a\\\\\\|b',
+  JSON.stringify(escaped),
 );
 
 // Every row answers for every product: a blank cell renders as an empty box,

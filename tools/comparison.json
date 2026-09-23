@@ -1,0 +1,217 @@
+{
+  "_comment": [
+    "The comparison table, as DATA, because it is published in two places and a table",
+    "kept twice by hand disagrees with itself within a release. tools/comparison.mjs",
+    "writes both; frontend/tests/comparison.test.mjs fails when either drifts.",
+    "",
+    "Every cell about another product is what THAT PRODUCT'S OWN page states, read on",
+    "the date below and linked from the page. Nothing here is measured by us, and",
+    "nothing is inferred: where a vendor's feature list does not mention something, the",
+    "cell says 'Not listed' rather than 'No'. The difference matters — one is a fact",
+    "about their documentation, the other is a claim about their software.",
+    "",
+    "When you re-check, move 'checked' in the same edit. A date that never moves is",
+    "worse than no date, because it is believed once and then discounted."
+  ],
+
+  "checked": "2026-09-23",
+
+  "products": [
+    {
+      "id": "snmplens",
+      "name": "SnmpLens",
+      "tagline": "This application",
+      "href": "https://github.com/SnmpLens/SnmpLens",
+      "sourceLabel": "this repository"
+    },
+    {
+      "id": "ireasoning",
+      "name": "iReasoning MIB Browser",
+      "tagline": "The commercial reference",
+      "href": "https://www.ireasoning.com/mibbrowser.shtml",
+      "sourceLabel": "ireasoning.com"
+    },
+    {
+      "id": "manageengine",
+      "name": "ManageEngine MIB Browser",
+      "tagline": "A vendor's free tool",
+      "href": "https://www.manageengine.com/products/mibbrowser-free-tool/",
+      "sourceLabel": "manageengine.com"
+    },
+    {
+      "id": "snmpb",
+      "name": "SnmpB",
+      "tagline": "The open-source peer",
+      "href": "https://sourceforge.net/projects/snmpb/",
+      "sourceLabel": "sourceforge.net"
+    }
+  ],
+
+  "rows": [
+    {
+      "label": "Licence",
+      "cells": {
+        "snmplens": "MIT, open source",
+        "ireasoning": "Proprietary",
+        "manageengine": "Proprietary",
+        "snmpb": "GPLv2, open source"
+      }
+    },
+    {
+      "label": "Price",
+      "cells": {
+        "snmplens": { "text": "Free", "kind": "yes" },
+        "ireasoning": {
+          "text": "Personal free; Professional $495; Enterprise $895",
+          "short": "Free / $495 / $895"
+        },
+        "manageengine": { "text": "Free", "kind": "yes" },
+        "snmpb": { "text": "Free", "kind": "yes" }
+      }
+    },
+    {
+      "label": "The free version may be used at work",
+      "cells": {
+        "snmplens": { "text": "Yes", "kind": "yes" },
+        "ireasoning": {
+          "text": "No — the Personal Edition is “intended exclusively for private use on a single workstation” and “may not be used for commercial or professional purposes”",
+          "short": "No — private use only",
+          "kind": "no"
+        },
+        "manageengine": {
+          "text": "Yes — licensed free in perpetuity, resale excluded",
+          "short": "Yes",
+          "kind": "yes"
+        },
+        "snmpb": { "text": "Yes", "kind": "yes" }
+      }
+    },
+    {
+      "label": "Windows / macOS / Linux",
+      "cells": {
+        "snmplens": { "text": "All three", "kind": "yes" },
+        "ireasoning": { "text": "All three", "kind": "yes" },
+        "manageengine": { "text": "Windows and Linux", "kind": "partial" },
+        "snmpb": { "text": "All three, and BSD", "kind": "yes" }
+      }
+    },
+    {
+      "label": "SNMPv3 in the version you can use for free",
+      "cells": {
+        "snmplens": { "text": "Yes", "kind": "yes" },
+        "ireasoning": { "text": "No — Professional and above", "kind": "no" },
+        "manageengine": { "text": "Yes", "kind": "yes" },
+        "snmpb": { "text": "Yes", "kind": "yes" }
+      }
+    },
+    {
+      "label": "MIB modules the free version loads",
+      "cells": {
+        "snmplens": { "text": "No limit", "kind": "yes" },
+        "ireasoning": { "text": "10", "kind": "no" },
+        "manageengine": "No stated limit",
+        "snmpb": "No stated limit"
+      }
+    },
+    {
+      "label": "Trap receiver",
+      "cells": {
+        "snmplens": { "text": "Yes, traps and acknowledged INFORMs", "short": "Yes", "kind": "yes" },
+        "ireasoning": { "text": "Yes", "kind": "yes" },
+        "manageengine": { "text": "Yes", "kind": "yes" },
+        "snmpb": { "text": "Yes", "kind": "yes" }
+      }
+    },
+    {
+      "label": "MIB editor",
+      "cells": {
+        "snmplens": {
+          "text": "Yes, with line-and-column syntax errors and a semantic pass",
+          "short": "Yes, with diagnostics",
+          "kind": "yes"
+        },
+        "ireasoning": { "text": "Not listed", "kind": "unknown" },
+        "manageengine": { "text": "Not listed", "kind": "unknown" },
+        "snmpb": { "text": "Yes", "kind": "yes" }
+      }
+    },
+    {
+      "label": "Monitoring that continues with the window closed",
+      "cells": {
+        "snmplens": {
+          "text": "Yes — a tray icon, an optional login entry, and history in SQLite",
+          "short": "Yes",
+          "kind": "yes"
+        },
+        "ireasoning": { "text": "Service mode in the Enterprise Edition", "short": "Enterprise", "kind": "partial" },
+        "manageengine": { "text": "Not listed", "kind": "unknown" },
+        "snmpb": { "text": "Not listed", "kind": "unknown" }
+      }
+    },
+    {
+      "label": "Alerts routed to syslog, a webhook or email",
+      "cells": {
+        "snmplens": {
+          "text": "All three, with a durable outbox that survives a closed window",
+          "short": "All three",
+          "kind": "yes"
+        },
+        "ireasoning": { "text": "Email trap forwarding, Professional and above", "short": "Email (Pro)", "kind": "partial" },
+        "manageengine": { "text": "Alert emails", "short": "Email", "kind": "partial" },
+        "snmpb": { "text": "Not listed", "kind": "unknown" }
+      }
+    },
+    {
+      "label": "Device simulator for testing without hardware",
+      "cells": {
+        "snmplens": {
+          "text": "Built in — fourteen models answering v1, v2c and v3 on loopback",
+          "short": "Built in, 14 models",
+          "kind": "yes"
+        },
+        "ireasoning": {
+          "text": "A separate product, SNMP Agent Simulator",
+          "short": "Separate product",
+          "kind": "partial"
+        },
+        "manageengine": { "text": "Not listed", "kind": "unknown" },
+        "snmpb": { "text": "Not listed", "kind": "unknown" }
+      }
+    },
+    {
+      "label": "Source code available",
+      "cells": {
+        "snmplens": { "text": "Yes, MIT", "kind": "yes" },
+        "ireasoning": { "text": "No", "kind": "no" },
+        "manageengine": { "text": "No", "kind": "no" },
+        "snmpb": { "text": "Yes, GPLv2", "kind": "yes" }
+      }
+    },
+    {
+      "label": "Latest release the project itself dates",
+      "cells": {
+        "snmplens": "v1.6.1, September 2026",
+        "ireasoning": { "text": "Not dated on the product page", "kind": "unknown" },
+        "manageengine": { "text": "Not dated on the product page", "kind": "unknown" },
+        "snmpb": "0.9, June 2019"
+      }
+    }
+  ],
+
+  "strengths": [
+    {
+      "product": "ireasoning",
+      "text": "The widest feature list of the four, and the only one of them sold with support: a switch port mapper, a rule engine, device snapshots, a web client and a service mode, none of which SnmpLens has. If you need one of those, this is where it is."
+    },
+    {
+      "product": "manageengine",
+      "text": "Part of a large suite. If you already run OpUtils or OpManager, the MIB Browser sits beside tooling you have, with one vendor answering for all of it."
+    },
+    {
+      "product": "snmpb",
+      "text": "Small, native Qt, packaged by several Linux distributions, and it has done the core job — browse, query, edit MIBs, receive traps — for years. If that is all you need, it is a fraction of the download."
+    }
+  ],
+
+  "baseline": "None of these replaces Net-SNMP. `snmpwalk`, `snmpget` and `snmptrapd` are the reference implementation, they are already on the machine, and they are scriptable in a way no window is. SnmpLens is what you reach for when you want to read a MIB tree, see a table decoded by its INDEX, watch a value over time or receive a trap without writing a pipeline — not a replacement for the command line."
+}

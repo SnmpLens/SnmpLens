@@ -12,7 +12,7 @@
     "check": "svelte-check --tsconfig ./jsconfig.json --fail-on-warnings"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "acorn": "^8.18.0",
     "esbuild": "^0.28.2",
     "svelte": "^5.57.1",

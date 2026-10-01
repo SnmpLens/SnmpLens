@@ -177,6 +177,22 @@ jobs:
       - name: Sitemap dates match git
         run: node tools/sitemap-lastmod.mjs --check
 
+      # One action, one SHA -- and pinned by commit, never by tag.
+      #
+      # codeql-action/init writes a configuration file that codeql-action/analyze
+      # reads back, and the two compare versions, so a bump moving one and not
+      # the other ends on "Loaded a configuration file for version '4.38.1', but
+      # running version '4.38.2'". Dependabot sees two `uses:` lines and raises
+      # two pull requests; each is red on its own and green on everything else,
+      # which reads as a flaky upgrade rather than a pair that cannot be split.
+      # It happened at 4.37.9 to 4.38.0 and again at 4.38.1 to 4.38.2.
+      #
+      # It does NOT check that a pin is the newest release. That is Dependabot's
+      # job, and a check failing because something newer exists is a check that
+      # fails on a commit which changed nothing.
+      - name: Action pins move together
+        run: node tools/actionpins.mjs
+
       # main.go carries `//go:embed all:frontend/dist`, and frontend/dist is
       # gitignored, so anything compiling the main package fails with
       # "pattern all:frontend/dist: no matching files found" before it analyses a

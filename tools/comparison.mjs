@@ -167,16 +167,30 @@ at, is on [the comparison page](https://snmplens.com/comparison.html).
 ${END}`;
 }
 
+/** A file's content with its line endings normalised, and which kind it used.
+ *
+ *  Comparing raw bytes was wrong on Windows and silently so. git checks these
+ *  files out with CRLF under core.autocrlf, the blocks here are written with
+ *  LF, and the comparison then calls both publications stale on a tree where
+ *  `git diff` reports nothing at all — so `npm test` failed after any checkout,
+ *  for a reason the message did not name. It passed in CI only because the
+ *  runners are Linux. The rendering is compared, never the line endings; the
+ *  write puts back whatever the file already used. */
+function read(file) {
+  const raw = readFileSync(file, 'utf8');
+  return { text: raw.replace(/\r\n/g, '\n'), crlf: raw.includes('\r\n') };
+}
+
 /** Replace the region between the markers, and refuse a file that has none:
  *  appending the table to a file that lost its markers would publish it twice. */
 function splice(file, block) {
-  const body = readFileSync(file, 'utf8');
-  const from = body.indexOf(START);
-  const to = body.indexOf(END);
+  const { text } = read(file);
+  const from = text.indexOf(START);
+  const to = text.indexOf(END);
   if (from < 0 || to < 0) {
     throw new Error(`${file} has no ${START} … ${END} markers`);
   }
-  return body.slice(0, from) + block + body.slice(to + END.length);
+  return text.slice(0, from) + block + text.slice(to + END.length);
 }
 
 /** The two publications, each with the block it should currently hold.
@@ -191,7 +205,7 @@ export function targets() {
 
 /** Which publications no longer match the data. Empty means both are current. */
 export function outOfDate() {
-  return targets().filter((t) => splice(t.file, t.block) !== readFileSync(t.file, 'utf8'));
+  return targets().filter((t) => splice(t.file, t.block) !== read(t.file).text);
 }
 
 export { data, escapeMd };
@@ -208,7 +222,11 @@ if (invoked) {
     if (check) {
       console.error(`comparison: ${t.name} is out of date`);
     } else {
-      writeFileSync(t.file, splice(t.file, t.block));
+      const next = splice(t.file, t.block);
+      // Put the file's own line endings back, so that writing on Windows does
+      // not turn a CRLF working copy into an LF one and show every line as
+      // changed to whoever opens it next.
+      writeFileSync(t.file, read(t.file).crlf ? next.replace(/\n/g, '\r\n') : next);
       console.log(`comparison: wrote ${t.name}`);
     }
   }

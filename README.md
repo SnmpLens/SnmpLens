@@ -114,9 +114,9 @@ copy and [the one on the site](https://snmplens.com/comparison.html) cannot disa
 | **Alerts routed to syslog, a webhook or email** | All three | Email (Pro) | Email | Not listed |
 | **Device simulator for testing without hardware** | Built in, 14 models | Separate product | Not listed | Not listed |
 | **Source code available** | Yes, MIT | No | No | Yes, GPLv2 |
-| **Latest release the project itself dates** | v1.6.1, September 2026 | Not dated on the product page | Not dated on the product page | 0.9, June 2019 |
+| **Latest release the project itself dates** | v1.6.2, October 2026 | Not dated on the product page | Not dated on the product page | 0.9, June 2019 |
 
-Every cell about another product is what that product's own documentation stated on **2026-09-23**:
+Every cell about another product is what that product's own documentation stated on **2026-10-13**:
 [ireasoning.com](https://www.ireasoning.com/mibbrowser.shtml), [manageengine.com](https://www.manageengine.com/products/mibbrowser-free-tool/), [sourceforge.net](https://sourceforge.net/projects/snmpb/). "Not listed" means their feature list does not mention it — a fact about their
 documentation, not a claim about their software. The long form, with what each of them is better
 at, is on [the comparison page](https://snmplens.com/comparison.html).

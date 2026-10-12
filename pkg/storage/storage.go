@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,7 +15,7 @@ import (
 
 	"SnmpLens/pkg/preset"
 
-	_ "modernc.org/sqlite"
+	sqlite "modernc.org/sqlite"
 )
 
 // Storage manages SQLite persistence for monitoring data.
@@ -594,11 +595,102 @@ func (s *Storage) flushBatch() {
 	s.batch = nil
 	s.mu.Unlock()
 
-	if err := s.writePoints(points); err != nil {
+	err := s.writePoints(points)
+	if err == nil {
+		return
+	}
+
+	// Transient: keep them, which is what the put-back is for.
+	if !permanentWrite(err) {
 		log.Printf("storage: %d data points could not be written (%v); keeping them "+
 			"for the next flush", len(points), err)
 		s.restoreBatch(points)
+		return
 	}
+
+	// Permanent: one row has poisoned the batch, and putting it back poisons
+	// every batch after it. See writeSalvaging.
+	written, dropped, serr := s.writeSalvaging(points)
+	if serr != nil {
+		log.Printf("storage: %d data points could not be written (%v); keeping them "+
+			"for the next flush", len(points), serr)
+		s.restoreBatch(points)
+		return
+	}
+	log.Printf("storage: %d data points the database refuses permanently were dropped "+
+		"(%v); %d written", dropped, err, written)
+}
+
+// SQLITE_CONSTRAINT, the primary result code every constraint failure extends.
+// A foreign key violation arrives as 787, whose low byte is this.
+const sqliteConstraint = 19
+
+// permanentWrite reports whether a write will fail the same way for ever.
+//
+// Decided on the CODE, never on the text -- the rule pkg/notify already follows
+// for deciding whether a delivery is worth retrying, and for the same reason:
+// the message ends with whatever the engine wrote, and matching on it is how a
+// retryable failure gets discarded or an unretryable one gets retried for ever.
+//
+// A constraint failure is the permanent case: the row will be refused on every
+// attempt. Everything else -- SQLITE_BUSY above all, which is ordinary on a
+// machine where the trap listener and the router are also writing -- is
+// transient, and keeping those points is the whole point of the put-back.
+func permanentWrite(err error) bool {
+	var e *sqlite.Error
+	if !errors.As(err, &e) {
+		return false
+	}
+	return e.Code()&0xff == sqliteConstraint
+}
+
+// writeSalvaging writes a batch one row at a time, dropping only the rows the
+// database refuses permanently, and reports how many of each.
+//
+// It exists because the batch is written as ONE transaction, which is right: a
+// partial batch is a chart with a hole in it. But pairing that with a put-back
+// on EVERY failure had a hole of its own. A data point whose session has been
+// deleted violates `data_points.session_id REFERENCES sessions(id)`, the whole
+// transaction is refused, every point goes back into the buffer, and the next
+// flush fails on the same row. Nothing is ever persisted again, for ANY
+// session, until the process restarts -- while the charts keep drawing from
+// memory and look perfectly healthy. Observed in the wild: 234 points, and one
+// line in a log nobody reads.
+//
+// Row by row is slow, and is paid only here, after a batch has already failed.
+// A statement refused inside a SQLite transaction does not abort the
+// transaction, so the rows around it still commit.
+func (s *Storage) writeSalvaging(points []DataPoint) (written, dropped int, err error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT INTO data_points (session_id, target, timestamp, value, delta, rate, response_time_ms, error, snmp_type, oid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer stmt.Close()
+
+	for _, p := range points {
+		if _, err := stmt.Exec(p.SessionID, p.Target, p.Timestamp, p.Value, p.Delta,
+			p.Rate, p.ResponseTimeMs, nullableString([]byte(p.Error)),
+			nullableString([]byte(p.SnmpType)), nullableString([]byte(p.OID))); err != nil {
+			// Transient here means the database went busy mid-salvage: give the
+			// whole batch back rather than committing a part of it.
+			if !permanentWrite(err) {
+				return 0, 0, err
+			}
+			dropped++
+			continue
+		}
+		written++
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+	return written, dropped, nil
 }
 
 // restoreBatch puts unwritten points back at the front of the buffer.

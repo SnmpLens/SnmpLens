@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -285,5 +286,82 @@ func TestUpdateSessionConn(t *testing.T) {
 	sessions, _ := st.ListSessions()
 	if sessions[0].Conn == nil || sessions[0].Conn.Port != 1161 || sessions[0].Conn.TimeoutSec != 9 {
 		t.Errorf("profile not updated: %+v", sessions[0].Conn)
+	}
+}
+
+// One data point whose session no longer exists must not stop every other
+// session being recorded.
+//
+// data_points.session_id REFERENCES sessions(id), the pragma is on, and a batch
+// is written as ONE transaction — all three deliberate. Together they had a
+// hole: the orphan makes the transaction fail, the put-back returns the WHOLE
+// batch to the buffer, and the next flush fails on the same row. Nothing is
+// persisted again, for any session, until the process restarts, while the
+// charts keep drawing from memory and look healthy. Seen in the wild as
+// "234 data points could not be written (FOREIGN KEY constraint failed (787))".
+//
+// The put-back itself is right and stays: a SQLITE_BUSY is ordinary here and
+// losing a batch to one is what it was written for. What this pins is the
+// difference between the two — decided on the result CODE, never on the text.
+func TestAnOrphanedPointDoesNotPoisonTheBatch(t *testing.T) {
+	st := newTestStorage(t)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	id, err := st.CreateSession("", "1.3.6.1.2.1.1.3.0", []string{"10.0.0.1"}, 5000, "v2c", now, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	// The orphan sits in the MIDDLE: a batch that fails on its first or last row
+	// would pass a fix that simply gave up at the first refusal.
+	st.QueueDataPoints([]DataPoint{
+		{SessionID: id, Target: "10.0.0.1", Timestamp: now, Value: f64(1), OID: "1.3.6.1.2.1.1.3.0"},
+		{SessionID: "a-session-that-was-deleted", Target: "10.0.0.9", Timestamp: now, Value: f64(99), OID: "1.3.6.1.2.1.1.3.0"},
+		{SessionID: id, Target: "10.0.0.1", Timestamp: now, Value: f64(2), OID: "1.3.6.1.2.1.1.3.0"},
+	})
+	st.flushBatch()
+
+	points, err := st.QueryDataPoints(id, "", "", 0)
+	if err != nil {
+		t.Fatalf("QueryDataPoints: %v", err)
+	}
+	if len(points) != 2 {
+		t.Fatalf("the good points were lost with the orphan: got %d, want 2", len(points))
+	}
+
+	// And the buffer is drained, or the next flush fails on the same row again.
+	st.mu.Lock()
+	buffered := len(st.batch)
+	st.mu.Unlock()
+	if buffered != 0 {
+		t.Errorf("%d points kept for a retry that can never succeed", buffered)
+	}
+
+	// A second round must still record, which is the failure this is about:
+	// after the poisoning, nothing was ever written again.
+	st.QueueDataPoints([]DataPoint{
+		{SessionID: id, Target: "10.0.0.1", Timestamp: now, Value: f64(3), OID: "1.3.6.1.2.1.1.3.0"},
+	})
+	st.flushBatch()
+	if points, err := st.QueryDataPoints(id, "", "", 0); err != nil {
+		t.Fatalf("QueryDataPoints: %v", err)
+	} else if len(points) != 3 {
+		t.Errorf("recording stopped after the orphan: got %d points, want 3", len(points))
+	}
+}
+
+// Only a result code makes a failure permanent. Without this, a fix for the
+// orphan could just as well drop everything on any error, which is the defect
+// the put-back was written to remove -- and the text of a lock failure reads
+// far more final than it is.
+func TestOnlyAResultCodeMakesAFailurePermanent(t *testing.T) {
+	for _, e := range []error{
+		errors.New("database is locked"),
+		errors.New("FOREIGN KEY constraint failed"),
+		context.DeadlineExceeded,
+	} {
+		if permanentWrite(e) {
+			t.Errorf("%q was read as permanent; the decision must come from the code", e)
+		}
 	}
 }

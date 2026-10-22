@@ -29,3 +29,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # init writes a configuration file that analyze reads back and refuses
+      # when the versions differ. Ungrouped, every release arrived as two pull
+      # requests, each red on its own and fixed only by a third written by hand
+      # — four times, from 4.38.0 to 4.39.0. tools/actionpins.mjs fails when an
+      # action used under several paths is not covered by one pattern here.
+      codeql-action:
+        patterns:
+          - github/codeql-action*

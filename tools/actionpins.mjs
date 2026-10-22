@@ -2,17 +2,26 @@
 //
 //   node tools/actionpins.mjs
 //
-// Two rules about the way `.github/workflows` pins third-party actions, both of
-// which have already been broken once.
+// Three rules about the way `.github/workflows` pins third-party actions, each
+// of which has already been broken.
 //
 // ONE ACTION, ONE SHA. `github/codeql-action/init` writes a configuration file
 // that `github/codeql-action/analyze` reads back, and the two compare versions:
 // with one bumped and not the other the run ends on "Loaded a configuration
 // file for version '4.38.1', but running version '4.38.2'". Dependabot sees two
-// `uses:` lines, raises two pull requests, and has no way to know they are one
-// pin — so each is red on its own and green on everything else, which reads as
-// a flaky upgrade rather than a pair that must move together. It happened at
-// 4.37.9 to 4.38.0 and again at 4.38.1 to 4.38.2.
+// `uses:` lines and raises two pull requests — so each is red on its own and
+// green on everything else, which reads as a flaky upgrade rather than a pair
+// that must move together. It happened at 4.37.9 to 4.38.0 and again at 4.38.1
+// to 4.38.2.
+//
+// ONE ACTION, ONE DEPENDABOT GROUP. The rule above catches the split; it does
+// not stop the next one, and it kept recurring — 4.38.3, then 4.39.0, each
+// fixed by a third pull request written by hand. Dependabot treats every path
+// as a separate dependency unless a `groups` pattern in .github/dependabot.yml
+// covers them all, and then it raises one pull request that moves them
+// together. So an action used under more than one path must be covered by a
+// single pattern there; this fails on the commit that adds the second path,
+// not on the release that splits them weeks later.
 //
 // PINNED BY SHA. The repository's rule is that actions are pinned by commit,
 // not by tag: a tag is a moving pointer the owner can repoint, so `@v4` is a
@@ -80,10 +89,63 @@ for (const [repo, group] of byRepo) {
   );
 }
 
+// The group patterns of the github-actions entry in .github/dependabot.yml,
+// read without a YAML parser: the repository has no dependency to parse it
+// with, and the file is ours. A list item under `patterns:` is collected only
+// inside that ecosystem's entry, since a Go module group cannot move an action.
+function groupPatterns() {
+  const lines = readFileSync(join(root, '.github', 'dependabot.yml'), 'utf8').split(/\r?\n/);
+  const patterns = [];
+  let ecosystem = '';
+  let indent = -1;
+  for (const line of lines) {
+    const eco = /^\s*-?\s*package-ecosystem:\s*["']?([\w-]+)/.exec(line);
+    if (eco) {
+      ecosystem = eco[1];
+      indent = -1;
+      continue;
+    }
+    const key = /^(\s*)patterns:\s*$/.exec(line);
+    if (key) {
+      indent = key[1].length;
+      continue;
+    }
+    if (indent < 0 || line.trim() === '' || line.trim().startsWith('#')) continue;
+    // YAML allows the items at the key's own indentation, hence `>=`.
+    const item = /^(\s*)-\s*["']?([^"'\s#]+)["']?\s*(#.*)?$/.exec(line);
+    if (item && item[1].length >= indent) {
+      if (ecosystem === 'github-actions') patterns.push(item[2]);
+      continue;
+    }
+    indent = -1;
+  }
+  return patterns;
+}
+
+// Dependabot's patterns know one wildcard, `*`, for any run of characters.
+const glob = (p) =>
+  new RegExp('^' + p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+
+const patterns = groupPatterns().map((p) => ({ p, re: glob(p) }));
+let split = 0;
+for (const [repo, group] of byRepo) {
+  const paths = [...new Set(group.map((r) => r.path))];
+  if (paths.length === 1) continue;
+  split++;
+  if (patterns.some(({ re }) => paths.every((path) => re.test(path)))) continue;
+  fail(
+    `${repo} is used under ${paths.length} paths (${paths.join(', ')}) and no single group ` +
+      `pattern in .github/dependabot.yml covers them all, so each release arrives as ` +
+      `${paths.length} pull requests that cannot pass one at a time.\n` +
+      `  Add a group to the github-actions entry with a pattern such as "${repo}*".`,
+  );
+}
+
 if (failures) {
   process.exit(1);
 }
 
 console.log(
-  `actionpins: ${refs.length} references over ${byRepo.size} actions, each pinned to one commit.`,
+  `actionpins: ${refs.length} references over ${byRepo.size} actions, each pinned to one commit; ` +
+    `${split} used under several paths, each moved by one Dependabot group.`,
 );

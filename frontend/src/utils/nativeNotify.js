@@ -1,4 +1,5 @@
 import { InitializeNotifications, SendNotification, IsNotificationAvailable } from '../../wailsjs/runtime/runtime';
+import { notificationText } from './notifyText';
 
 let initialized = false;
 let available = false;
@@ -32,11 +33,12 @@ export async function sendNativeNotification(title, body, subtitle) {
   if (!initialized || !available) return;
 
   try {
+    // Part of this text comes from the network; see utils/notifyText.js.
     await SendNotification({
       id: `snmplens-${++counter}`,
-      title,
-      body: body || '',
-      subtitle: subtitle || '',
+      title: notificationText(title),
+      body: notificationText(body),
+      subtitle: notificationText(subtitle),
     });
   } catch (e) {
     console.warn('Failed to send native notification:', e);

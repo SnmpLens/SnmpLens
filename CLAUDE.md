@@ -64,6 +64,11 @@ found" and exits 0.
 fails a commit that changed nothing when a new check lands; a vulnerability scanner that is pinned reports an
 old world. Dependabot does not see versions inside a `run:` step, so staticcheck is bumped by hand.
 
+The **Wails CLI** sits in the same blind spot (`go install …/cmd/wails@vX` in `ci.yml` and `release.yml`) and
+costs more there: it generates `frontend/wailsjs/runtime`, the JavaScript half of the bridge whose Go half is the
+library in `go.mod`, and on a mismatch `wails build` prints a warning and builds anyway. Dependabot moves the
+library alone, so `internal/app/wailscli_test.go` fails until every install names the version `go.mod` requires.
+
 Go unit tests live beside the code they cover (`go test ./...`, run in CI). They are deliberately few and target
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.

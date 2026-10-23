@@ -7,6 +7,7 @@ import { settingsStore, settingsReady } from './settingsStore';
 import { buildTrapListenerRequest } from '../utils/snmpParams';
 import { getState } from '../utils/crypto';
 import { sendNativeNotification } from '../utils/nativeNotify';
+import { trapOidText } from '../utils/notifyText';
 import { createBurstGate } from '../utils/burst';
 
 // What a trap flood used to do to the window that is supposed to show it.
@@ -166,8 +167,9 @@ function createTrapStore() {
           (v.oid && v.oid.endsWith('.1.6.3.1.1.4.1.0'))
         );
         let body = '';
-        if (trapOidVar) {
-          const oidValue = String(trapOidVar.value).replace(/^\./, '');
+        // The sender types this varbind; only a real OID is repeated on the desktop.
+        const oidValue = trapOidVar ? trapOidText(trapOidVar.value) : '';
+        if (oidValue) {
           try {
             const details = await GetOidDetails(oidValue);
             body = details.name ? `${details.name} (${oidValue})` : oidValue;

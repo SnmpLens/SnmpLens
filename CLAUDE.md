@@ -69,6 +69,13 @@ costs more there: it generates `frontend/wailsjs/runtime`, the JavaScript half o
 library in `go.mod`, and on a mismatch `wails build` prints a warning and builds anyway. Dependabot moves the
 library alone, so `internal/app/wailscli_test.go` fails until every install names the version `go.mod` requires.
 
+The three Linux jobs of `ci.yml` install GTK and WebKit through `.github/linux-deps.sh`, from the Actions cache
+when it holds the packages. The Ubuntu mirror took 21-41 s on an ordinary day and 172 s to 26 minutes on others,
+with more runs cancelled. The key carries the runner IMAGE version, so a replay with `dpkg -i` meets the same
+installed packages apt chose for, and a failed replay falls back to apt. `release.yml` deliberately does not use
+it: a cache entry can be written by any code running in a CI job on `main`, and `dpkg` does not re-check what apt
+verified, so the job that builds the signed binaries installs from the mirror every time.
+
 Go unit tests live beside the code they cover (`go test ./...`, run in CI). They are deliberately few and target
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.

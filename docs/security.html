@@ -130,7 +130,9 @@ try {
   <p>
     Fixes go into the next release from <code>main</code>. There are no long-term support
     branches; the application updates itself, and the answer to “am I affected” is normally
-    “update”.
+    “update”. Published advisories, with the versions each one affects and the release that
+    fixes it, are under
+    <a href="https://github.com/SnmpLens/SnmpLens/security/advisories">Security → Advisories</a>.
   </p>
 
   <hr />
@@ -178,6 +180,16 @@ try {
     <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> — since a device's own
     description can begin that way.
   </p>
+  <p>
+    Desktop notifications carry network text too: a trap's notification names its trap OID,
+    whose value the sender chooses. Every notification goes through one function that drops
+    control characters, the XML CDATA terminator and the characters PowerShell expands, and
+    bounds the length; the trap OID is shown only when it is a numeric OID. Up to 1.6.3, on
+    Windows, a notification the toast API failed to show fell back to a PowerShell script that
+    evaluated its text —
+    <a href="https://github.com/SnmpLens/SnmpLens/security/advisories/GHSA-h94r-fc56-vp8v">GHSA-h94r-fc56-vp8v</a>,
+    fixed in 1.6.4 by that cleaning and by Wails 2.17, which removed the fallback.
+  </p>
 
   <h3>Dashboard presets</h3>
   <p>
@@ -214,9 +226,12 @@ try {
   <h3>Releases</h3>
   <p>
     Each release carries a SHA-256 manifest and an Ed25519 signature over it. The application
-    verifies the signature against a key compiled into the binary before it trusts the
-    manifest, and a build whose signature is missing refuses the update rather than applying
-    it. See <a href="download.html#verify">verifying a download</a>.
+    verifies the signature against the public keys compiled into the binary before it trusts
+    the manifest, and a build whose signature is missing refuses the update rather than
+    applying it. There are two keys while the signing key is rotated: releases since 1.6.1 are
+    signed with the new one, and the old one is accepted only until a release removes it. The
+    manifest's first line names its own release, so an older signed manifest cannot be served
+    in place of a newer one. See <a href="download.html#verify">verifying a download</a>.
   </p>
 
   <h3>Privileges</h3>

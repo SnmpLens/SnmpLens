@@ -17,7 +17,7 @@
     "esbuild": "^0.28.2",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.7",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

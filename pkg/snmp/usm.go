@@ -119,13 +119,13 @@ func checkTrapUser(u V3Params, sp *gosnmp.UsmSecurityParameters, level gosnmp.Sn
 type trapSecurity struct {
 	table *gosnmp.SnmpV3SecurityParametersTable
 	// first also becomes the listener's own SecurityParameters, and that is
-	// not optional once a table is in use. gosnmp's receive loop asserts
-	// t.Params.SecurityParameters to *UsmSecurityParameters for EVERY v3
-	// notification in order to compare engine IDs, logs when the assertion
-	// fails, and dereferences the result anyway. With a table and no
-	// SecurityParameters the first v3 trap to arrive is a nil-pointer panic on
-	// gosnmp's own goroutine, which no recover of ours covers, and the process
-	// ends (gosnmp v1.45.0, trap.go, listenUDP).
+	// not optional once a table is in use: it carries the listener's engine ID
+	// (SetTrapEngineID), which gosnmp's receive loop compares with EVERY v3
+	// notification's. With none, gosnmp v1.47.0 has no engine ID of its own
+	// and drops what it would have reported on (trap.go, listenUDP). Before
+	// v1.47.0 it was worse: the loop dereferenced the failed type assertion,
+	// and the first v3 trap to arrive was a nil-pointer panic on gosnmp's own
+	// goroutine, which no recover of ours covers (GHSA-w96x-5v55-24xx).
 	first *gosnmp.UsmSecurityParameters
 	flags gosnmp.SnmpV3MsgFlags
 	info  TrapListenerInfo

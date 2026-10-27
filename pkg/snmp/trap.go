@@ -85,7 +85,7 @@ func (c *Client) startTrapListener(port int, users []V3Params) (TrapListenerInfo
 		sec.first.AuthoritativeEngineID = c.trapEngineID
 		// Both, never the table alone: see trapSecurity.first.
 		params.SecurityParameters = sec.first
-		params.TrapSecurityParametersTable = sec.table
+		params.SetTrapSecurityParametersTable(sec.table)
 	}
 
 	listener := gosnmp.NewTrapListener()

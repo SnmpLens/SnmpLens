@@ -190,7 +190,7 @@
     {
       "label": "Latest release the project itself dates",
       "cells": {
-        "snmplens": "v1.6.3, October 2026",
+        "snmplens": "v1.6.4, October 2026",
         "ireasoning": { "text": "Not dated on the product page", "kind": "unknown" },
         "manageengine": { "text": "Not dated on the product page", "kind": "unknown" },
         "snmpb": "0.9, June 2019"

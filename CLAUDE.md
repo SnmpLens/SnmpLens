@@ -311,12 +311,12 @@ targets on the defaults.
 
 **The trap listener accepts every SNMPv3 user at once** — the default v3 block and every v3 profile, each unless
 it was opted out — through gosnmp's `SnmpV3SecurityParametersTable` (`pkg/snmp/usm.go`). It used to take one user, so a device sending as any
-other was dropped with nothing on screen. Three facts about gosnmp v1.45.0 decide the shape:
+other was dropped with nothing on screen. Three facts about gosnmp v1.47.0 decide the shape:
 
-- `listenUDP` asserts `Params.SecurityParameters` to `*UsmSecurityParameters` for EVERY v3 packet to compare engine
-  IDs, logs when the assertion fails, and dereferences the result anyway. A table with no SecurityParameters beside
-  it is a nil-pointer panic on gosnmp's own goroutine at the first v3 trap, which no recover of ours covers
-  (`TestATableNeverTravelsWithoutSecurityParameters`).
+- `listenUDP` compares EVERY v3 packet's engine ID with the one `Params.SecurityParameters` carries, so the table
+  never travels without them, holding the listener's engine ID (`TestATableNeverTravelsWithoutSecurityParameters`).
+  Before v1.47.0 a table alone was a nil-pointer panic on gosnmp's own goroutine at the first v3 trap, which no
+  recover of ours covers: the loop dereferenced the failed type assertion anyway.
 - `Table.Add` localises keys and validates nothing, so `checkTrapUser` refuses what would be added and then
   authenticate nothing — an AuthNoPriv user with no protocol, or one with no passphrase — and names what gosnmp
   would report as "hashPassword: password is empty". That one is CHECKED rather than cited:
@@ -326,8 +326,19 @@ other was dropped with nothing on screen. Three facts about gosnmp v1.45.0 decid
 - The table can be ADDED to while the listener reads it and never removed from, so `UpdateTrapUsers` RESTARTS the
   listener on its port — and only when the accepted set changed, compared as a set of what receiving uses (`trapUser`
   drops the context and anything above the level). Updated in place, a deleted user would keep authenticating and a
-  rotated passphrase would work in both forms. `trapLife` serialises start, stop and update, and a stop now WAITS for
-  the listen goroutine to let go of the field; otherwise a start straight after it is refused as "already running".
+  rotated passphrase would work in both forms. gosnmp can now REPLACE the whole table under a running listener
+  (`SetTrapSecurityParametersTable`), and the restart stays anyway: the listener's own SecurityParameters and
+  MsgFlags are built from the first accepted user, and a swap would leave them describing the old set. `trapLife`
+  serialises start, stop and update, and a stop now WAITS for the listen goroutine to let go of the field; otherwise
+  a start straight after it is refused as "already running".
+
+**A v3 trap is checked at the level its user is configured with, never the level the message claims.** Up to
+v1.46.0, gosnmp took the level from the message whenever a table was in use, so a trap naming a configured user
+with the authentication flag cleared was delivered without any digest checked, and a malformed
+`msgAuthenticationParameters` naming one was a slice-bounds panic on the receive goroutine — one unauthenticated
+datagram ended the process, poll clock and alerting with it (GHSA-w96x-5v55-24xx, fixed in v1.47.0). The first is
+now part of `TestTheTrapListenerAcceptsEveryUserItIsGiven`: an unauthenticated trap under alice's name must not
+be journalled.
 
 The accepted users are remembered in `pkg/secrets` under `TrapUsersRef()` on every start and every update, because
 the listener can be started at login with no window to hand them over: `internal/app/service.go` passed an empty `V3Params`
@@ -509,7 +520,7 @@ loaded, so the probe reported a failure that was not real and `internal/app/mibe
 
 A trap arrives on gosnmp's UDP receive loop, and that loop is **strictly serial**: one goroutine,
 `ReadFromUDP` then handler then the next read, with no goroutine per datagram (verified in gosnmp
-v1.45.0 `trap.go`). Every millisecond the handler spends is a millisecond not reading the socket, and what
+v1.47.0 `trap.go`). Every millisecond the handler spends is a millisecond not reading the socket, and what
 does not fit the socket buffer is dropped by the KERNEL before Go sees it — no error, no journal entry,
 nothing to count. Three things follow, and each is load-bearing.
 
@@ -603,7 +614,9 @@ binds EVERY interface. The rule is Go's, not a form default: a device file is JS
 behaviours are wrong for an agent: it re-localises its keys to whatever engine ID a message names, so a message
 addressed to another engine authenticates; asked to trust the message's parameters, it takes the security level
 from the message too, so a noAuthNoPriv message naming an authPriv user is checked for nothing; and an empty user
-with an empty engine ID skips authentication whatever the flags say. `peekV3` reads the header with a small BER
+with an empty engine ID skips authentication whatever the flags say. The last two were fixed upstream in v1.47.0
+(GHSA-w96x-5v55-24xx), and the checks stay: deciding them is the agent's job, and each refusal is a Report naming
+its counter. `peekV3` reads the header with a small BER
 reader (fuzzed, `FuzzPeek`), and the engine ID, the user and the level are settled in RFC 3414 3.2's order before
 gosnmp sees a byte. Each refusal is a Report naming its counter, sent only to a message that asked for one, and
 unauthenticated except `notInTimeWindow` — signed, so a manager can trust the clock it resynchronises to.

@@ -135,6 +135,11 @@ func TestTheTrapListenerAcceptsEveryUserItIsGiven(t *testing.T) {
 	wrong := alice
 	wrong.AuthPass = "not-alices-passphrase"
 	sendV3Trap(t, port, wrong, engineA, "1.3.6.1.4.1.99999.0.4")
+	// alice's name and no authentication at all. Before v1.47.0, gosnmp took
+	// the security level from the message whenever a table was in use, and
+	// delivered this without checking any digest (GHSA-w96x-5v55-24xx).
+	unsigned := V3Params{User: alice.User, SecLevel: "NoAuthNoPriv"}
+	sendV3Trap(t, port, unsigned, engineA, "1.3.6.1.4.1.99999.0.5")
 
 	if !got.waitFor("1.3.6.1.4.1.99999.0.1", 3*time.Second) {
 		t.Error("the first user's trap (AuthPriv, SHA/AES) was not received")
@@ -149,6 +154,9 @@ func TestTheTrapListenerAcceptsEveryUserItIsGiven(t *testing.T) {
 	}
 	if got.has("1.3.6.1.4.1.99999.0.4") {
 		t.Error("a trap signed with the wrong passphrase was accepted")
+	}
+	if got.has("1.3.6.1.4.1.99999.0.5") {
+		t.Error("an unauthenticated trap naming a user who requires authentication was accepted")
 	}
 }
 
@@ -194,8 +202,9 @@ func TestAnUnusableUserIsRefusedAndTheOthersStillWork(t *testing.T) {
 }
 
 // A table must never reach the listener without SecurityParameters beside it:
-// gosnmp's receive loop dereferences them for every v3 notification, and a nil
-// there is a panic on a goroutine no recover of ours covers.
+// they carry the engine ID gosnmp's receive loop compares every v3
+// notification with. Before v1.47.0 a nil there was also a panic on a
+// goroutine no recover of ours covers.
 func TestATableNeverTravelsWithoutSecurityParameters(t *testing.T) {
 	for _, users := range [][]V3Params{
 		{alice},

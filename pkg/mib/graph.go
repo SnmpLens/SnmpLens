@@ -1,6 +1,7 @@
 package mib
 
 import (
+	"os"
 	"sort"
 	"strings"
 
@@ -52,10 +53,10 @@ type GraphNode struct {
 // files does not need it, and holding it across a four-hundred-file directory
 // scan would stop every OID translation in every other tab for the duration.
 func (s *Service) ModuleGraph() ([]GraphNode, error) {
-	files, err := ListMibFiles(s.path)
-	if err != nil {
+	if _, err := os.Stat(s.path); err != nil {
 		return nil, err
 	}
+	lib := s.library()
 
 	nodes := map[string]*GraphNode{}
 	get := func(module string) *GraphNode {
@@ -67,11 +68,8 @@ func (s *Service) ModuleGraph() ([]GraphNode, error) {
 		return n
 	}
 
-	for _, file := range files {
-		path, err := SafeMibPath(s.path, file)
-		if err != nil {
-			continue
-		}
+	for _, file := range lib.order {
+		path := lib.files[file]
 		module, imports := readImports(path)
 		if module == "" {
 			// The file name is what gosmi searches by, so it is the better

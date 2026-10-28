@@ -86,7 +86,7 @@ func (s *Service) Rebuild(fileNames []string) Reloaded {
 
 	gosmi.Exit()
 	gosmi.Init()
-	mountLocked(s.path)
+	mountLocked(s.library())
 
 	// The core modules first: everything else imports from them, and loading
 	// them explicitly makes a broken one show up as itself rather than as a

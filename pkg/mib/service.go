@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/sleepinggenius2/gosmi"
 	"github.com/sleepinggenius2/gosmi/types"
@@ -38,6 +39,9 @@ type Node struct {
 // Service handles MIB loading and parsing.
 type Service struct {
 	path string
+	// extra are the folders added beside the MIB folder (library.go).
+	mu    sync.Mutex
+	extra []string
 }
 
 // NewService creates a new MIB service that operates on the given path.
@@ -57,15 +61,16 @@ func (s *Service) LoadAll() ([]*Node, error) {
 	// the bundled standard MIBs do not have — they are extension-less files
 	// named after their module — so "load everything" loaded none of them and
 	// the tree came back empty with only a line in the log.
-	files, err := ListMibFiles(s.path)
-	if err != nil {
+	if _, err := os.Stat(s.path); err != nil {
 		return nil, fmt.Errorf("could not read MIB directory %s: %v", s.path, err)
 	}
+	lib := s.library()
+	files := lib.order
 
 	// The loaded set is about to change, whatever the outcome: a partial load
 	// changes it too.
 	invalidateCatalogue()
-	mountLocked(s.path)
+	mountLocked(s.library())
 
 	loadedModuleNames := []string{}
 	for _, fileName := range files {
@@ -95,7 +100,7 @@ func InitPath(path string) {
 	gosmiMu.Lock()
 	defer gosmiMu.Unlock()
 	gosmi.Init()
-	mountLocked(path)
+	mountLocked(newLibrary(path, nil))
 	invalidateCatalogue()
 }
 
@@ -132,7 +137,7 @@ func (s *Service) LoadSpecific(fileNames []string) ([]*Node, error) {
 	}
 
 	invalidateCatalogue()
-	mountLocked(s.path)
+	mountLocked(s.library())
 
 	loadedModuleNames := []string{}
 	for _, fileName := range fileNames {
@@ -297,7 +302,7 @@ func (s *Service) loadWithDiagnosticsLocked(fileNames []string) MibLoadResponse 
 	// fallback quietly loaded nothing and looked correct.
 
 	invalidateCatalogue()
-	fsys := mountLocked(s.path)
+	fsys := mountLocked(s.library())
 
 	// Shared across every diagnosis this loop triggers: the directory listing
 	// is the same for all of them.

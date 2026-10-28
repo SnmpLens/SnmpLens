@@ -257,6 +257,12 @@ func (s *Service) resolve(fileName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s: %v", fileName, err)
 	}
+	// A file of an added folder, when the MIB folder has none of that name.
+	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+		if p, ok := s.library().path(fileName); ok {
+			path = p
+		}
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -455,22 +461,15 @@ func (s *Service) missingImports(module *parser.Module, ctx *diagContext) []Miss
 // name-only check would report FOO-MIB as absent while it sits right there.
 func (s *Service) availableModules() map[string]string {
 	out := map[string]string{}
-	files, err := ListMibFiles(s.path)
-	if err != nil {
-		return out
-	}
-	for _, f := range files {
+	lib := s.library()
+	for _, f := range lib.order {
 		// The file name is the cheap answer and usually the right one.
 		if base := moduleBase(f); base != "" {
 			if _, seen := out[strings.ToUpper(base)]; !seen {
 				out[strings.ToUpper(base)] = f
 			}
 		}
-		path, err := SafeMibPath(s.path, f)
-		if err != nil {
-			continue
-		}
-		name := declaredModuleName(path)
+		name := declaredModuleName(lib.files[f])
 		if name == "" {
 			continue
 		}

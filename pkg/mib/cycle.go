@@ -54,10 +54,11 @@ func (s *Service) findImportCycles(fileNames []string) map[string]ImportCycle {
 	fileOf := map[string]string{}
 	importsOf := map[string][]string{}
 
+	lib := s.library()
 	var scan func(file string)
 	scan = func(file string) {
-		path, err := SafeMibPath(s.path, file)
-		if err != nil {
+		path, ok := lib.path(file)
+		if !ok {
 			return
 		}
 		module, imports := readImports(path)
@@ -104,22 +105,15 @@ func (s *Service) findImportCycles(fileNames []string) map[string]ImportCycle {
 
 // fileForModule finds the file declaring a module, by name then by content.
 func (s *Service) fileForModule(module string) (string, bool) {
-	files, err := ListMibFiles(s.path)
-	if err != nil {
-		return "", false
-	}
+	lib := s.library()
 	upper := strings.ToUpper(module)
-	for _, f := range files {
+	for _, f := range lib.order {
 		if strings.EqualFold(moduleBase(f), module) {
 			return f, true
 		}
 	}
-	for _, f := range files {
-		path, err := SafeMibPath(s.path, f)
-		if err != nil {
-			continue
-		}
-		if strings.ToUpper(declaredModuleName(path)) == upper {
+	for _, f := range lib.order {
+		if strings.ToUpper(declaredModuleName(lib.files[f])) == upper {
 			return f, true
 		}
 	}

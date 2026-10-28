@@ -1054,6 +1054,13 @@
             "notes": "The same for a file opened from outside the MIB directory."
           },
           {
+            "name": "SetMibDirectories",
+            "onMount": true,
+            "go": "internal/app/mibfiles.go SetMibDirectories(dirs) -> []string (the folders taken, pkg/mib/library.go)",
+            "example": "[]",
+            "notes": "Called by mibStore.getEnabledMibFiles before every load, with the folders added in the MIB settings. The demo has none."
+          },
+          {
             "name": "MibEditorRepair",
             "onMount": false,
             "go": "internal/app/mibeditor.go -> mib.RepairResult; struct pkg/mib/repair.go {content,fixes}",

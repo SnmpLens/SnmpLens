@@ -14,6 +14,7 @@ import { pathToFileURL } from 'node:url';
 const calls = [];
 let pending = [];
 let drafts = {};
+const names = [];
 
 globalThis.__stub = {
   // Reading a MIB is a bridge round trip dominated by the parse — measured
@@ -23,11 +24,15 @@ globalThis.__stub = {
   MibEditorRead: async function (name) {
     const wait = this.readDelay[name] || 0;
     if (wait) await new Promise((r) => setTimeout(r, wait));
+    // The complete analysis comes with the file, as MibEditorRead gives it.
     return {
       name,
       content: name + ' DEFINITIONS ::= BEGIN\nEND\n',
       sha256: 'h-' + name,
       diagnostics: [],
+      missing: [],
+      outline: [{ name: name + 'Uptime', kind: 'object', line: 2, column: 1, syntax: 'Counter32' }],
+      verdict: { level: 'ok', count: 0 },
     };
   },
   MibEditorReadDraft: async (name) => drafts[name] || '',
@@ -35,8 +40,9 @@ globalThis.__stub = {
   MibEditorDiscardDraft: async (name) => { delete drafts[name]; },
   // Each analysis parks itself; the test decides when and in what order each
   // one answers.
-  MibEditorAnalyse: (content) => {
+  MibEditorAnalyse: (name, content) => {
     calls.push(content);
+    names.push(name);
     return new Promise((resolve) => {
       pending.push({ content, resolve });
     });
@@ -77,9 +83,9 @@ const check = (name, ok, extra = '') => {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 await mibEditorStore.open('A-MIB');
-// open() ANALYSES now, so the analysis it dispatched has to be answered before
-// anything below measures `checking`: an unresolved one keeps inFlight above
-// zero for the rest of the file, and the indicator never clears.
+// Anything an open dispatched has to be answered before anything below
+// measures `checking`: an unresolved one keeps inFlight above zero for the
+// rest of the file, and the indicator never clears.
 for (const p of pending.splice(0)) p.resolve({ diagnostics: [], missing: [], outline: [] });
 await tick();
 pending = [];
@@ -248,7 +254,7 @@ check('a pending draft is not written under the newly opened file',
   // markSaved takes it away.
   drafts['I-MIB'] = get(mibEditorStore).buffer;
 
-  await mibEditorStore.markSaved('h2', [], written);
+  await mibEditorStore.markSaved('h2', written);
   await new Promise((r) => setTimeout(r, 30));
 
   const st = get(mibEditorStore);
@@ -262,7 +268,7 @@ check('a pending draft is not written under the newly opened file',
   // would leave one behind and every reopen would offer a phantom recovery.
   mibEditorStore.setBuffer(written);
   drafts['I-MIB'] = written;
-  await mibEditorStore.markSaved('h3', [], written);
+  await mibEditorStore.markSaved('h3', written);
   await new Promise((r) => setTimeout(r, 30));
   check('a save with nothing typed after it does discard the draft',
     drafts['I-MIB'] === undefined, JSON.stringify(drafts));
@@ -324,30 +330,45 @@ check('a pending draft is not written under the newly opened file',
     JSON.stringify(keys));
 }
 
-// Opening a file must ANALYSE it, or the outline stays empty until somebody
-// types.
-//
-// Diagnostics arrive with the file — MibEditorRead computes them at read time —
-// so the panel looked alive while the outline read "nothing defined yet" over a
-// MIB defining forty things. refresh() is the only thing that fills it, and it
-// used to run on open only when a draft had been recovered.
+// A file opens with its COMPLETE analysis — diagnostics, outline and verdict —
+// because MibEditorRead gives it. It used to open with the syntax check alone:
+// the outline read "nothing defined yet" over a MIB defining forty things, and
+// the file's mark turned from warning to error when the full analysis answered.
 {
   pending = [];
   calls.length = 0;
   await mibEditorStore.open('N-MIB');
   await tick();
 
-  check('opening a file dispatches an analysis', pending.length === 1,
-    `${pending.length} dispatched`);
+  const st = get(mibEditorStore);
+  check('the outline is there before the first keystroke',
+    st.outline?.length === 1 && st.outline[0].name === 'N-MIBUptime', JSON.stringify(st.outline));
+  check('and the verdict', st.verdict?.level === 'ok', JSON.stringify(st.verdict));
+  check('with no second round trip for the same text', pending.length === 0, `${pending.length} dispatched`);
 
-  pending[0].resolve({
-    diagnostics: [],
-    missing: [],
-    outline: [{ name: 'nUptime', kind: 'object', line: 12, column: 1, syntax: 'Counter32' }],
-  });
+  // A recovered draft is another text: it is analysed, as the file it is.
+  drafts['Q-MIB'] = 'Q-MIB edited in a previous session';
+  names.length = 0;
+  await mibEditorStore.open('Q-MIB');
   await tick();
-  check('so the outline is there before the first keystroke',
-    get(mibEditorStore).outline?.length === 1, JSON.stringify(get(mibEditorStore).outline));
+  check('a recovered draft is analysed', pending.length === 1 && pending[0].content === drafts['Q-MIB'],
+    `${pending.length} dispatched`);
+  check('as the directory file it is edited as', names[0] === 'Q-MIB', JSON.stringify(names));
+  pending.splice(0).forEach((p) => p.resolve({ diagnostics: [], missing: [], outline: [] }));
+  await tick();
+
+  // A file from elsewhere has no load to weigh: it is analysed under no name.
+  mibEditorStore.openSource({
+    name: 'R-MIB', path: 'C:/downloads/R-MIB', external: true,
+    content: 'R-MIB from outside', sha256: 'h', diagnostics: [],
+  });
+  names.length = 0;
+  mibEditorStore.setBuffer('R-MIB from outside, edited');
+  mibEditorStore.refresh();
+  await tick();
+  check('an external file is analysed under no name', names[names.length - 1] === '', JSON.stringify(names));
+  pending.splice(0).forEach((p) => p.resolve({ diagnostics: [], missing: [], outline: [] }));
+  await tick();
 }
 
 // The outline rides on the analysis, and it must not outlive the file it
@@ -372,11 +393,12 @@ check('a pending draft is not written under the newly opened file',
   check('the outline reaches the store', get(mibEditorStore).outline?.length === 1,
     JSON.stringify(get(mibEditorStore).outline));
 
-  // Opening another file must clear it, BEFORE its own analysis answers.
+  // Opening another file replaces it with that file's own.
   pending = [];
   await mibEditorStore.open('P-MIB');
-  check('opening another file clears the previous outline',
-    (get(mibEditorStore).outline || []).length === 0, JSON.stringify(get(mibEditorStore).outline));
+  check('opening another file replaces the previous outline',
+    (get(mibEditorStore).outline || []).every((o) => o.name === 'P-MIBUptime'),
+    JSON.stringify(get(mibEditorStore).outline));
 
   // An answer with no outline at all — an older backend, or a failure — leaves
   // an array rather than undefined, because the pane maps over it.

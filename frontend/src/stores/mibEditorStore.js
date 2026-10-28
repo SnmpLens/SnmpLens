@@ -24,11 +24,25 @@ const EMPTY = {
   buffer: '',         // what the user is editing
   diagnostics: [],
   missingImports: [],
-  // What the buffer defines, from the same parse as the diagnostics. Empty
-  // until the first analysis answers, which is 350 ms after the file opens.
+  // What the buffer defines, from the same parse as the diagnostics.
   outline: [],
+  // The buffer's verdict, as Go judged it with the analysis (pkg/mib/verdict.go):
+  // the editor's file list shows it for the open file.
+  verdict: null,
   checking: false,
 };
+
+// What an analysis says about the buffer, in the store's names. A file opens
+// with the complete analysis (MibEditorRead), so the first thing shown is
+// already what every later pause in typing will show.
+function analysisOf(out) {
+  return {
+    diagnostics: out.diagnostics || [],
+    missingImports: out.missing || [],
+    outline: out.outline || [],
+    verdict: out.verdict || null,
+  };
+}
 
 function createMibEditorStore() {
   const { subscribe, update, set } = writable({ ...EMPTY });
@@ -91,17 +105,11 @@ function createMibEditorStore() {
       ...EMPTY,
       source,
       buffer: recovered ? draft : source.content,
-      diagnostics: source.diagnostics || [],
+      ...analysisOf(source),
     });
-    // ALWAYS, not only for a recovered draft.
-    //
-    // Diagnostics arrive with the file because MibEditorRead computes them at
-    // read time; the OUTLINE has no such source — refresh() is the only thing
-    // that fills it. So opening a MIB showed an outline reading "nothing
-    // defined yet" over a file defining forty things, until the first
-    // keystroke happened to trigger an analysis. The panel was right and the
-    // data never came.
-    refresh();
+    // The analysis came with the file, of the file. A recovered draft is
+    // another text, and is analysed as such.
+    if (recovered) refresh();
     return { source, recovered };
   }
 
@@ -117,10 +125,7 @@ function createMibEditorStore() {
   function openSource(source) {
     openToken++;
     clearTimeout(draftTimer);
-    set({ ...EMPTY, source, buffer: source.content, diagnostics: source.diagnostics || [] });
-    // Same reason as in open(): a restored bundled MIB and a file opened from
-    // outside the directory both need their outline computed.
-    refresh();
+    set({ ...EMPTY, source, buffer: source.content, ...analysisOf(source) });
     discardDraft(draftKey(source));
   }
 
@@ -156,18 +161,16 @@ function createMibEditorStore() {
   let inFlight = 0;
 
   async function refresh() {
-    const asked = get({ subscribe }).buffer;
+    const { buffer: asked, source } = get({ subscribe });
+    // The file in the directory the buffer is edited as, so Go can weigh what
+    // the last load did with it; "" for one opened from elsewhere.
+    const name = source && !source.external ? source.name : '';
     inFlight++;
     try {
-      const out = (await MibEditorAnalyse(asked)) || {};
+      const out = (await MibEditorAnalyse(name, asked)) || {};
       update((s) => {
         if (s.buffer !== asked) return s; // superseded; leave what is shown
-        return {
-          ...s,
-          diagnostics: out.diagnostics || [],
-          missingImports: out.missing || [],
-          outline: out.outline || [],
-        };
+        return { ...s, ...analysisOf(out) };
       });
     } catch (e) {
       // Nothing usable came back; the previous diagnostics are still the best
@@ -256,7 +259,9 @@ function createMibEditorStore() {
   }
 
   /**
-   * Called after a successful save: the file on disk is now `written`.
+   * Called after a successful save: the file on disk is now `written`. What is
+   * shown stays the complete analysis it was; the panel asks again once the
+   * tree is rebuilt, since the verdict depends on what loaded.
    *
    * `written` is the text that was actually sent, not the buffer as it stands
    * now. A save of a 185 KB MIB is a bridge round trip, and anything typed
@@ -264,13 +269,12 @@ function createMibEditorStore() {
    * showed no unsaved changes, discarded the draft holding that text, and it
    * existed only in memory until the window closed.
    */
-  async function markSaved(sha256, diagnostics, written) {
+  async function markSaved(sha256, written) {
     const s = get({ subscribe });
     const content = typeof written === 'string' ? written : s.buffer;
     update((st) => ({
       ...st,
       source: { ...st.source, content, sha256, external: false },
-      diagnostics: diagnostics || st.diagnostics,
     }));
     // The draft goes only if there is nothing left it protects. If the user
     // typed during the save, the buffer is ahead of the file and the draft is
@@ -288,7 +292,10 @@ function createMibEditorStore() {
   // a bit — long enough to leave the file and have it survive.
   function revert() {
     const key = draftKey(get({ subscribe }).source);
-    update((s) => (s.source ? { ...s, buffer: s.source.content, diagnostics: s.source.diagnostics || [] } : s));
+    update((s) => (s.source ? { ...s, buffer: s.source.content } : s));
+    // Analysed again rather than restored from the source: the source's
+    // analysis was made against the tree as it was when the file opened.
+    refresh();
     discardDraft(key);
   }
 

@@ -387,6 +387,7 @@ const DEMO_ONLY = {
   CheckForUpdate: 'The updater asks GitHub for a newer release and verifies its Ed25519 signature.',
   DownloadAndApplyUpdate: 'Applying an update replaces the executable on disk.',
   BrowseDialog: 'Choosing a file opens the operating system’s file dialog.',
+  OpenFolder: 'Opening a folder asks the operating system’s file manager to show it.',
   ImportMibFiles: 'Importing MIBs copies files into your configuration directory.',
   ImportPresetFiles: 'Adding a preset copies the file into your configuration directory.',
   ImportPresetDialog: 'Adding a preset opens the operating system’s file dialog and writes to disk.',

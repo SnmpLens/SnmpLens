@@ -697,6 +697,8 @@
     "mibs": {
       "directoriesTitle": "MIB Directories",
       "default": "Default",
+      "openFolder": "Open folder",
+      "openFolderHint": "Show this folder in the file manager",
       "custom": "Custom",
       "mibsDetected": "{count} MIB(s) detected",
       "addCustomTitle": "Add Custom MIB Directory",
@@ -711,8 +713,6 @@
       "depNotLoaded": "the file is here and is simply not loaded",
       "depNeededBy": "needed by {count} file(s)",
       "depSymbols": "for: {symbols}",
-      "loaded": "{count} loaded",
-      "failed": "{count} failed",
       "removeConfirm": "Remove MIB path: {path}?",
       "openInEditor": "Open in the editor",
       "diagnose": "Diagnose",
@@ -723,7 +723,14 @@
       "graphMissing": "missing",
       "graphNotLoaded": "not loaded",
       "graphCycle": "cycle",
-      "graphRepeated": "shown above"
+      "graphRepeated": "shown above",
+      "verdict": {
+        "ok": "{count} without problems",
+        "warning": "{count} with warnings",
+        "error": "{count} with errors",
+        "failed": "{count} do not load"
+      },
+      "verdictHint": "With errors: the module is in the tree, but some of its definitions are wrong or missing from it. Does not load: nothing from the file is in the tree."
     },
     "snmp": {
       "v1v2cTitle": "SNMP v1/v2c",
@@ -1063,6 +1070,18 @@
     "loginRegistered": "SnmpLens will now start at login.",
     "loginRemoved": "SnmpLens will no longer start at login."
   },
+  "mibVerdict": {
+    "failed": "Does not load",
+    "error": "{count, plural, one {Loads with # error} other {Loads with # errors}}",
+    "warning": "{count, plural, one {Loads with # warning} other {Loads with # warnings}}",
+    "ok": "Loads without problems",
+    "live": "as in the editor, not yet saved",
+    "short": {
+      "failed": "Do not load",
+      "error": "Load with errors",
+      "warning": "Load with warnings"
+    }
+  },
   "mibEditor": {
     "filter": "Filter…",
     "refresh": "Refresh the list",
@@ -1131,7 +1150,12 @@
     "outline": "Outline",
     "outlineFilter": "Filter definitions",
     "outlineEmpty": "Nothing defined yet.",
-    "outlineNoMatch": "No definition matches."
+    "outlineNoMatch": "No definition matches.",
+    "files": {
+      "onlyProblems": "Problems only",
+      "showAll": "All files",
+      "noProblems": "No file with a problem."
+    }
   },
   "preset": {
     "title": "Dashboard presets",

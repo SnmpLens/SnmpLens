@@ -11,13 +11,15 @@
   import { createHistory } from './mibeditor/history.js';
   import {
     sortProblems, filterProblems, countBySeverity, positionOf as problemPosition, SEVERITIES,
-    withoutMuted, MUTABLE, FIXABLE,
+    withoutMuted, MUTABLE, FIXABLE, problemsText,
   } from './mibeditor/problems';
   import { mutedRules } from './stores/mutedRules';
   import { copyToClipboard } from './utils/clipboard';
   import { verdictMap, countVerdicts, isProblem, ICONS as VERDICT_ICONS, FAILED, ERROR, WARNING } from './utils/mibVerdict';
   import { mibStatusStore } from './stores/mibStatusStore';
   import { mibEditorStore } from './stores/mibEditorStore';
+  import FileActions from './mibeditor/FileActions.svelte';
+  import { select as selectFiles } from './mibeditor/fileMenu.js';
   import { mibPathsStore } from './stores/mibPathsStore';
   import { mibStore } from './stores/mibStore';
   import {
@@ -34,6 +36,11 @@
 
   let files = [];
   let filter = '';
+  // The files selected in the list, for the context menu's actions on several
+  // (mibeditor/FileActions.svelte), and the one a Shift-click ranges from.
+  let selected = [];
+  let anchor = '';
+  let fileActions;
   let saving = false;
   let atomicEdit = false;
   let showSnippets = false;
@@ -316,11 +323,8 @@
   // Every problem SHOWN — filtered and sorted as on screen — as text, one per
   // line, to paste into a ticket or a message to whoever wrote the MIB.
   function copyProblems() {
-    const t = get(_);
-    const label = t('mibEditor.problemTable.copiedLabel', { values: { count: shownProblems.length } });
-    const rows = shownProblems.map((d) =>
-      `${t('mibEditor.problemTable.sev.' + d.severity).padEnd(14)} ${problemPosition(d).padEnd(9)} ${d.message} [${d.code}]`);
-    copyToClipboard([`${source?.name || ''} — ${label}`, ...rows].join('\n'), label);
+    const { label, text } = problemsText(source?.name, shownProblems, get(_));
+    copyToClipboard(text, label);
   }
 
   // The fix Go writes for a problem (pkg/mib/quickfix.go), into the buffer as
@@ -383,22 +387,96 @@
     } catch (e) {
       notificationStore.add(String(e), 'error');
     }
+    // A file renamed or deleted leaves the selection with the list.
+    selected = selected.filter((n) => files.some((f) => f.name === n));
     // The marks fill in after the list: the first analysis of a large vendor
     // directory takes a moment, and the names should not wait for it.
     mibStatusStore.refresh();
   }
 
+  // Resolves whether the file is now the one open: the user may keep the
+  // unsaved one instead, and what follows an open (a fix, a restored copy)
+  // must not then be written into the wrong file.
   async function open(name) {
-    if (!(await confirmDiscard())) return;
+    if (!(await confirmDiscard())) return false;
     try {
       const { recovered } = await mibEditorStore.open(name);
       resetHistory();
       if (recovered) {
         notificationStore.add(get(_)('mibEditor.draftRecovered', { values: { name } }), 'warning');
       }
+      return true;
+    } catch (e) {
+      notificationStore.add(String(e), 'error');
+      return false;
+    }
+  }
+
+  // --- the file list's selection and context menu ---------------------------
+
+  // A plain click opens the file and selects it alone; Ctrl (Cmd) and Shift
+  // select without opening, as in a file manager.
+  function clickFile(e, name) {
+    const toggle = e.ctrlKey || e.metaKey;
+    const range = e.shiftKey;
+    ({ selected, anchor } = selectFiles(selected, anchor, name, shown.map((f) => f.name), { toggle, range }));
+    if (!toggle && !range) open(name);
+  }
+
+  // A right-click on a file outside the selection selects that file alone,
+  // without opening it; inside, the menu acts on the whole selection.
+  function namesFor(name) {
+    if (selected.includes(name)) return selected;
+    selected = [name];
+    anchor = name;
+    return selected;
+  }
+
+  function fileContextMenu(e, name) {
+    fileActions?.openMenu(e.clientX, e.clientY, namesFor(name));
+  }
+
+  function listContextMenu(e) {
+    if (e.target.closest('.file')) return;
+    e.preventDefault();
+    fileActions?.openListMenu(e.clientX, e.clientY);
+  }
+
+  function fileKeydown(e, name) {
+    if (e.key === 'F2') {
+      e.preventDefault();
+      fileActions?.run('rename', [name]);
+    } else if (e.key === 'Delete') {
+      e.preventDefault();
+      fileActions?.run('delete', namesFor(name));
+    } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect();
+      fileActions?.openMenu(r.left + 16, r.bottom, namesFor(name));
+    }
+  }
+
+  // The file renamed under the editor, opened again under its new name; its
+  // unsaved buffer went with it as a draft and comes back from it.
+  async function reopen(name) {
+    try {
+      await mibEditorStore.open(name);
+      resetHistory();
     } catch (e) {
       notificationStore.add(String(e), 'error');
     }
+  }
+
+  // What an action writes into the buffer is one edit, which one Ctrl+Z takes
+  // back.
+  function replaceBuffer(text) {
+    if (textarea) insertAtCaret(text, [0, buffer.length]);
+    else mibEditorStore.setBuffer(text);
+  }
+
+  async function filesChanged() {
+    await refreshList();
+    await reload();
   }
 
   function resetHistory() {
@@ -1013,11 +1091,15 @@
       </button>
     {/if}
 
-    <ul class="files">
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <ul class="files" on:contextmenu={listContextMenu}>
       {#each shown as f (f.name)}
         <li>
           <button class="file" class:active={source && !source.external && source.name === f.name}
-            on:click={() => open(f.name)}
+            class:selected={selected.length > 1 && selected.includes(f.name)}
+            on:click={(e) => clickFile(e, f.name)}
+            on:contextmenu|preventDefault={(e) => fileContextMenu(e, f.name)}
+            on:keydown={(e) => fileKeydown(e, f.name)}
             title={isProblem(statuses[f.name]?.level)
               ? $_('mibVerdict.' + statuses[f.name].level, { values: { count: statuses[f.name].count } })
                 + (statuses[f.name].live ? ' (' + $_('mibVerdict.live') + ')' : '')
@@ -1443,6 +1525,10 @@
   </section>
 </div>
 
+<FileActions bind:this={fileActions} {files} verdicts={statuses}
+  onOpen={open} onReopen={reopen} onReplaceBuffer={replaceBuffer} onRestoreOpen={restoreBundled}
+  onChanged={filesChanged} onRefresh={refreshList} />
+
 <style>
   .mib-editor {
     display: grid;
@@ -1617,6 +1703,12 @@
   .file.active {
     background-color: var(--accent-subtle);
     color: var(--accent-color);
+  }
+
+  /* Several selected: marked apart from the file open in the editor. */
+  .file.selected {
+    box-shadow: inset 2px 0 0 var(--accent-color);
+    background-color: var(--hover-overlay);
   }
 
   .fname {

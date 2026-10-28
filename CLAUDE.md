@@ -553,6 +553,21 @@ the underlines and every verdict: advice only, never an error, nor a finding tha
 choice is the viewer's (`stores/mutedRules.js`, localStorage) and Go must have it before the first verdict is judged,
 so the verdicts and the editor wait for `mutedRules.ready()`. `tests/problems.test.mjs` reads both lists from the Go.
 
+**The file list has a context menu** (right-click, the menu key or Shift+F10; F2 renames, Delete deletes; Ctrl and
+Shift select several). What it offers for a selection is decided by `mibeditor/fileMenu.js`, pure and tested; the
+actions and their dialogs are `mibeditor/FileActions.svelte`, and the writing is `internal/app/mibfiles.go`. Three
+rules there are not tidiness. **Nothing is deleted outright**: a deleted MIB is moved to `mib-backups/` as
+`<name>.<ns>.deleted`, beside the `.bak` every save leaves, and "Restore a deleted file…" brings it back; a copy is
+asked for by its own ID, matched against that pattern, so the bridge never reads a file because the renderer named it.
+**A typed name is a name, not a path** (`newFileName`): `resolveMibPath` keeps the last element of whatever it is
+given, which is right for a name from the list and turned `../monitoring.db` into `mibs/monitoring.db`. **A standard
+MIB keeps its name and its file**: one renamed or deleted is extracted again at the next start. Restoring a copy of a
+file, and "open and fix", write into the BUFFER as one undoable edit and save nothing. "Show in the MIB tree" goes
+through `stores/treeRequest.js`, a stamped request the tree and the shell both read; the module's place is its
+MODULE-IDENTITY or, failing that, the definition most of the others descend from (`Service.ModuleRoot`) — the
+shallowest one is SNMPv2-SMI's `zeroDotZero`. `ContextMenu.svelte`, shared with the MIB tree, now takes the focus,
+moves with the arrow keys and stays inside the window.
+
 `frontend/src/mibeditor/metrics.js` turns a (line, column) into pixels, which is what makes squiggles, hover
 cards and caret-anchored completion possible **here and not in a plain textarea**: the mirror lays out identically
 to the text (unit-tested) and both are monospace with a fixed line height, so a position is arithmetic once the

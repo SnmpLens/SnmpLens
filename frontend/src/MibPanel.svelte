@@ -1,5 +1,6 @@
 <script>
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, tick } from 'svelte';
+  import { treeRequest } from './stores/treeRequest';
   import { GetPersistentMibDirectory } from '../wailsjs/go/app/App';
   import { mibStore } from './stores/mibStore';
   import TreeNode from './TreeNode.svelte';
@@ -149,6 +150,33 @@
     }
     // Trigger reactivity
     filteredTree = [...filteredTree];
+  }
+
+  // A node another part of the application asked to show (stores/treeRequest.js).
+  // Looked for in the whole tree: a filter that hides it is cleared, since the
+  // request is precisely to see it.
+  let handledRequest = 0;
+  $: if ($treeRequest && $treeRequest.seq !== handledRequest) revealRequested($treeRequest);
+
+  async function revealRequested(req) {
+    handledRequest = req.seq;
+    if (!findNodeByOid($mibStore.tree, req.oid)) {
+      notificationStore.add(get(_)('mib.nodeNotFound', { values: { name: req.name || req.oid } }), 'error');
+      return;
+    }
+    if (searchTerm || activeTypeFilters.length > 0 || activeAccessFilters.length > 0) {
+      searchTerm = '';
+      activeTypeFilters = [];
+      activeAccessFilters = [];
+      await tick();
+    }
+    const node = findNodeByOid(filteredTree, req.oid);
+    if (!node) return;
+    expandPathToNode(node);
+    selectedNode = node;
+    await tick();
+    scrollToNode(node);
+    dispatch('select', { node });
   }
 
   function handleContextMenu(event) {

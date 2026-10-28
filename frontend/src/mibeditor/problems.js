@@ -89,6 +89,21 @@ const comparators = {
 };
 
 /**
+ * Problems as text, one per line, to paste into a ticket or a message to
+ * whoever wrote the MIB.
+ *
+ * @param {string} name the file
+ * @param {Array} list the problems, as shown
+ * @param {(key: string, opts?: object) => string} t the translator
+ */
+export function problemsText(name, list, t) {
+  const label = t('mibEditor.problemTable.copiedLabel', { values: { count: list.length } });
+  const rows = list.map((d) =>
+    `${t('mibEditor.problemTable.sev.' + d.severity).padEnd(14)} ${positionOf(d).padEnd(9)} ${d.message} [${d.code}]`);
+  return { label, text: [`${name || ''} — ${label}`, ...rows].join('\n') };
+}
+
+/**
  * The rules a person may mute: advice, never an error (pkg/mib/mute.go, which
  * decides; tests/problems.test.mjs holds the two lists together).
  */

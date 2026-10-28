@@ -239,7 +239,14 @@ dynamic.LoadHistory = () => {
  * starts, and line 32 is the second `::= { acmePoeObjects 1 }`. A stray edit to
  * the text moves the squiggles off the thing they are pointing at.
  */
-import ACME_POE_MIB from './acme-poe-mib.txt?raw';
+import ACME_POE_MIB_FILE from './acme-poe-mib.txt?raw';
+
+// In LF, as Go hands every buffer to the editor (pkg/mib DecodeSource). A
+// checkout on Windows gives the file CRLF, and the editor's mirror then drew a
+// line too many after every line ending in a comment — the comment's <span>
+// closed between the CR and the LF, and a lone CR is a line break — so every
+// underline below the first such line sat on the line above its word.
+const ACME_POE_MIB = ACME_POE_MIB_FILE.replace(/\r\n?/g, '\n');
 
 // The copy ON DISK is sound: `SYNTAX Gauge32`. The unsaved draft below is what
 // introduced `Integerr32`, and that difference is what makes the editor recover

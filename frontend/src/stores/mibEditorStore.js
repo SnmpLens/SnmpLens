@@ -102,6 +102,10 @@ function createMibEditorStore() {
     }
     if (token !== openToken) return { source, recovered: false, superseded: true };
 
+    // In LF, as every text the editor holds: Go normalises what it reads, and
+    // a draft is the one text that comes back as it was stored. A CR left in
+    // the buffer is a line break the mirror draws and the textarea does not.
+    draft = (draft || '').replace(/\r\n?/g, '\n');
     const recovered = draft && draft !== source.content;
 
     set({

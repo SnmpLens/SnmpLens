@@ -413,4 +413,18 @@ check('a pending draft is not written under the newly opened file',
     Array.isArray(get(mibEditorStore).outline), JSON.stringify(get(mibEditorStore).outline));
 }
 
+// A draft comes back as it was stored, and a CR left in the buffer is a line
+// break the mirror draws and the textarea does not: every line after it was
+// coloured one line low, and every underline sat on the line above its word.
+{
+  drafts['T-MIB'] = 'T-MIB DEFINITIONS ::= BEGIN\r\nx -- note\r\nEND\r\n';
+  pending = [];
+  await mibEditorStore.open('T-MIB');
+  await tick();
+  const buf = get(mibEditorStore).buffer;
+  check('a recovered draft is held in LF', !buf.includes('\r') && buf.split('\n').length === 4, JSON.stringify(buf));
+  pending.splice(0).forEach((p) => p.resolve({ diagnostics: [], missing: [], outline: [] }));
+  await tick();
+}
+
 process.exit(failures ? 1 : 0);

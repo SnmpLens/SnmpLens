@@ -560,7 +560,9 @@
   // Main keyboard event handler
   function handleKeyboardNavigation(event) {
     // Don't interfere if user is typing in an input
-    if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+    // Or in the MIB editor, a contenteditable (CodeMirror): its arrows, End and
+    // Enter moved the caret AND walked the tree.
+    if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.isContentEditable) {
       // Allow "/" to escape from search
       if (event.key === 'Escape' && event.target === searchInputElement) {
         searchInputElement.blur();

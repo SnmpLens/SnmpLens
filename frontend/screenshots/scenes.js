@@ -591,7 +591,7 @@ export function checkScenes(seeds) {
  * lines down so the check has to scroll to it. Each diagnostic is located by
  * searching the text, so the positions cannot drift from the content.
  */
-function geometryMib() {
+export function geometryMib() {
   const lines = [
     'GEOMETRY-MIB DEFINITIONS ::= BEGIN',
     'IMPORTS',

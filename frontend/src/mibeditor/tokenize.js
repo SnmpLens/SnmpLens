@@ -1,17 +1,15 @@
 /**
  * A tokeniser for SMIv2, the language MIBs are written in.
  *
- * This exists instead of a code-editor library. CodeMirror would bring
- * selection, undo, search and virtualisation — but this application ships as
- * one offline binary with almost no frontend dependencies, and none of what it
- * would bring answers the question a person actually has in front of a MIB,
- * which is "why will this not load". That answer comes from the Go validator.
- * Colour is here to make the file readable while they fix it.
+ * Written as CodeMirror's stream parsers are (smiStream): one token per call,
+ * the state — inside a string or not — carried from line to line, since a
+ * DESCRIPTION spans many. mibeditor/smiLanguage.js gives it to the editor;
+ * highlight() runs the very same tokeniser to produce markup, which is what
+ * tests/tokenize.test.mjs reads, so the editor's colours are the ones tested.
  *
- * The technique is a transparent <textarea> over a <pre> holding this markup,
- * kept in scroll sync. Its one hard rule: the two layers must lay out
- * identically, so the markup must contain exactly the same characters as the
- * text — no added spaces, no collapsed runs, no reordering.
+ * The rules are SMI's: a comment runs from `--` to the next `--` or to the end
+ * of the line, a string from one quote to the next across lines, and a word is
+ * coloured by the closed vocabularies below.
  */
 
 // The SMIv2 macro keywords: what a definition IS.
@@ -119,91 +117,114 @@ export function stringStateAt(text, index) {
 }
 
 /**
- * Turn MIB source into highlighted HTML, one line at a time.
- *
- * Comments and strings are handled by scanning rather than by regex over the
- * whole file: in SMI a comment runs from `--` to the next `--` or to the end of
- * the line, and a DESCRIPTION string spans many lines. A regex that ignored
- * that would colour half a file as a string the moment someone typed a quote.
+ * The SMI tokeniser, as a CodeMirror stream parser: `token` reads one token
+ * from the stream and names its class, or returns null for plain text.
+ */
+export const smiStream = {
+  name: 'smi',
+  startState: () => ({ inString: false }),
+  copyState: (state) => ({ inString: state.inString }),
+  token(stream, state) {
+    // A multi-line DESCRIPTION string swallows everything until its closing
+    // quote, including what would otherwise look like keywords.
+    if (state.inString) {
+      while (!stream.eol()) {
+        if (stream.next() === '"') {
+          state.inString = false;
+          break;
+        }
+      }
+      return 'str';
+    }
+    if (stream.eatSpace()) return null;
+    const ch = stream.peek();
+    if (ch === '"') {
+      stream.next();
+      state.inString = true;
+      return 'str';
+    }
+    // `--` opens a comment that ends at the next `--` or at end of line.
+    if (stream.match('--')) {
+      while (!stream.eol()) {
+        if (stream.match('--')) break;
+        stream.next();
+      }
+      return 'com';
+    }
+    const word = stream.match(/^[A-Za-z0-9][A-Za-z0-9_-]*/);
+    if (word) return classifyWord(word[0]);
+    if (stream.match('::=')) return 'op';
+    stream.next();
+    return '{}(),;|'.includes(ch) ? 'pun' : null;
+  },
+};
+
+/**
+ * The part of CodeMirror's StringStream smiStream uses, for running it
+ * without an editor: highlight() below, and the tests.
+ */
+class LineStream {
+  constructor(string) {
+    this.string = string;
+    this.pos = 0;
+    this.start = 0;
+  }
+
+  eol() {
+    return this.pos >= this.string.length;
+  }
+
+  peek() {
+    return this.string.charAt(this.pos) || undefined;
+  }
+
+  next() {
+    if (this.pos < this.string.length) return this.string.charAt(this.pos++);
+    return undefined;
+  }
+
+  eatSpace() {
+    const from = this.pos;
+    while (/[\s ]/.test(this.string.charAt(this.pos)) && this.pos < this.string.length) this.pos++;
+    return this.pos > from;
+  }
+
+  match(pattern) {
+    if (typeof pattern === 'string') {
+      if (this.string.startsWith(pattern, this.pos)) {
+        this.pos += pattern.length;
+        return true;
+      }
+      return null;
+    }
+    const m = this.string.slice(this.pos).match(pattern);
+    if (!m || m.index > 0) return null;
+    this.pos += m[0].length;
+    return m;
+  }
+}
+
+/**
+ * MIB source as highlighted HTML, by the same tokeniser the editor uses.
  *
  * @param {string} text
+ * @param {boolean} [startInString] the state at the first character
  * @returns {string} HTML whose text content is character-identical to `text`
  */
 export function highlight(text, startInString = false) {
-  let out = '';
-  let inString = startInString;
-
+  const state = { inString: startInString };
   const lines = String(text ?? '').split('\n');
-
+  let out = '';
   for (let l = 0; l < lines.length; l++) {
-    const line = lines[l];
-    let i = 0;
-
-    while (i < line.length) {
-      // A multi-line DESCRIPTION string swallows everything until its closing
-      // quote, including what would otherwise look like keywords.
-      if (inString) {
-        const end = line.indexOf('"', i);
-        if (end === -1) {
-          out += `<span class="str">${escapeHtml(line.slice(i))}</span>`;
-          i = line.length;
-        } else {
-          out += `<span class="str">${escapeHtml(line.slice(i, end + 1))}</span>`;
-          i = end + 1;
-          inString = false;
-        }
-        continue;
-      }
-
-      const ch = line[i];
-
-      if (ch === '"') {
-        inString = true;
-        out += '<span class="str">&quot;</span>';
-        i++;
-        continue;
-      }
-
-      // `--` opens a comment that ends at the next `--` or at end of line.
-      if (ch === '-' && line[i + 1] === '-') {
-        const close = line.indexOf('--', i + 2);
-        const end = close === -1 ? line.length : close + 2;
-        out += `<span class="com">${escapeHtml(line.slice(i, end))}</span>`;
-        i = end;
-        continue;
-      }
-
-      if (/[A-Za-z0-9]/.test(ch)) {
-        let j = i;
-        while (j < line.length && /[A-Za-z0-9_-]/.test(line[j])) j++;
-        const word = line.slice(i, j);
-        const cls = classifyWord(word);
-        out += cls ? `<span class="${cls}">${escapeHtml(word)}</span>` : escapeHtml(word);
-        i = j;
-        continue;
-      }
-
-      if (ch === ':' && line.slice(i, i + 3) === '::=') {
-        out += '<span class="op">::=</span>';
-        i += 3;
-        continue;
-      }
-
-      if ('{}(),;|'.includes(ch)) {
-        out += `<span class="pun">${escapeHtml(ch)}</span>`;
-        i++;
-        continue;
-      }
-
-      out += escapeHtml(ch);
-      i++;
+    const stream = new LineStream(lines[l]);
+    while (!stream.eol()) {
+      stream.start = stream.pos;
+      const cls = smiStream.token(stream, state);
+      const piece = escapeHtml(stream.string.slice(stream.start, stream.pos));
+      out += cls ? `<span class="${cls}">${piece}</span>` : piece;
     }
-
-    // Keep the newline: the mirror must have the same line count as the
-    // textarea or every line below drifts out of alignment.
     if (l < lines.length - 1) out += '\n';
   }
-
   return out;
 }
 

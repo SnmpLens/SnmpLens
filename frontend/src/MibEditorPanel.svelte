@@ -1,15 +1,12 @@
 <script>
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { get } from 'svelte/store';
   import Icon from './Icon.svelte';
-  import { renderWindow } from './mibeditor/render';
   import { notificationStore } from './stores/notifications';
-  import { highlight, SNIPPETS, stringStateAt } from './mibeditor/tokenize.js';
-  import { charWidth, positionOf, lineColumnAt, wordAt, offsetAt, lineStarts, lineColumnFrom } from './mibeditor/metrics.js';
-  import { findMatches, findAllMatches, applyReplaceAll, nextIndex, MAX_MATCHES } from './mibeditor/search.js';
-  import { createHistory } from './mibeditor/history.js';
-  import { withoutMuted } from './mibeditor/problems';
+  import { SNIPPETS } from './mibeditor/tokenize.js';
+  import { withoutMuted, MUTABLE, FIXABLE } from './mibeditor/problems';
+  import CodeEditor from './mibeditor/CodeEditor.svelte';
   import { mutedRules } from './stores/mutedRules';
   import { verdictMap } from './utils/mibVerdict';
   import { mibStatusStore } from './stores/mibStatusStore';
@@ -43,96 +40,26 @@
   let anchor = '';
   let fileActions;
   let saving = false;
-  let atomicEdit = false;
   let showSnippets = false;
   let showSymbols = false;
   let showOutline = true;
   let symbolFilter = '';
   let catalogue = { modules: [], symbols: [] };
-  let textarea;
-  let mirror;
-  let gutter;
-  let surface;
+  // The editing surface (mibeditor/CodeEditor.svelte): CodeMirror, which
+  // holds the undo history, the search and the completion.
+  let editor;
 
-  // Overlay geometry. The mirror lays out identically to the text — that is
-  // unit-tested — and both are monospace with a fixed line height, so a
-  // position is arithmetic once the character width is measured.
-  const LINE_HEIGHT = 18;
-  let cw = 7.2;
-  let scrollTop = 0;
-  let scrollLeft = 0;
-
-  let hover = null;        // { x, y, symbol }
-  let completion = null;   // { x, y, items, index, range }
   // The app ships on macOS too, where redo is Cmd+Shift+Z rather than Ctrl+Y.
   // A tooltip naming the wrong key teaches the wrong thing.
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
   const UNDO_KEYS = isMac ? '⌘Z' : 'Ctrl+Z';
   const REDO_KEYS = isMac ? '⇧⌘Z' : 'Ctrl+Y';
 
-  // Our own history, because the browser's steps back one character at a time
-  // and loses the caret. Ctrl+Z is intercepted below so there is exactly one.
-  let hist = createHistory('');
-  let prevText = '';
-  let prevSel = { start: 0, end: 0 };
+  // Whether there is anything to undo or redo, as the surface reports it.
   let canUndo = false;
   let canRedo = false;
 
-  function syncHistoryFlags() {
-    canUndo = hist.canUndo;
-    canRedo = hist.canRedo;
-  }
-
-  function selectionNow() {
-    return textarea
-      ? { start: textarea.selectionStart, end: textarea.selectionEnd }
-      : { start: 0, end: 0 };
-  }
-  let findOpen = false;
-  let showReplace = false;
-  let findTerm = '';
-  let replaceTerm = '';
-  let findIndex = 0;
-  // Case sensitivity. Off by default, which is what someone hunting for a name
-  // wants — but `Counter32` and `counter32` are different things in a MIB, and
-  // replacing one used to rewrite the other with no way to say otherwise.
-  let matchCase = false;
-  // Where to resume after a replace, so the Replace button advances instead of
-  // rewriting the same spot when the replacement contains the search term.
-  let resumeFrom = -1;
-  // Set when the term changes: the first match must be scrolled to, and it can
-  // only be done once `matches` has been recomputed.
-  let pendingFirst = false;
-  let findCount = 0;
-
   $: lines = buffer.split('\n');
-  // Only errors and warnings get an underline; advice would be visual noise.
-  //
-  // Placed by TEXT, not by arithmetic. Each underline is its line's own text
-  // up to the column, transparent, then the characters it underlines, in the
-  // mirror's font and tab size: it lands where the mirror drew them whatever
-  // the font resolved to, however wide a tab is, whichever characters sit
-  // before it. Pixels from a measured character width put it beside the word
-  // as soon as the measure was wrong — and it was: taken once, at mount,
-  // before any file was open, it stayed at its 7.2 px default against
-  // Consolas's 6.6, drifting further right with every column.
-  $: marks = listed
-    .filter((d) => d.line > 0 && d.severity !== 'info')
-    .slice(0, 200)
-    .map((d) => {
-      const text = lines[d.line - 1] || '';
-      const at = Math.min(Math.max(0, (d.column || 1) - 1), text.length);
-      const chars = Math.max(2, (d.symbol || '').length || wordAt(text, at).word.length || 6);
-      const under = text.slice(at, at + chars);
-      return {
-        ...d,
-        y: (d.line - 1) * LINE_HEIGHT,
-        before: text.slice(0, at),
-        // Past the end of the line, something to underline all the same.
-        under: under + 'x'.repeat(Math.max(0, chars - under.length)),
-      };
-    });
-
   // The buffer lives in a store, not here: this component is destroyed on
   // every tab switch, and component state would take the user's edits with it.
   $: source = $mibEditorStore.source;
@@ -154,58 +81,6 @@
   // Derived from `lines`, not a second split. Splitting a 185 KB buffer twice
   // per keystroke allocated two 5,000-element arrays for one answer.
   $: lineCount = lines.length;
-
-  // The gutter as ONE text node instead of 5,000 DOM nodes. An {#each} over
-  // the line count made Svelte create, diff and keep a node per line of
-  // IP-MIB — by far the most expensive thing on screen, and invisible in a
-  // profile of the analysis.
-  $: gutterText = buildGutter(lineCount);
-  let gutterCache = { n: 0, text: '' };
-  function buildGutter(n) {
-    if (n === gutterCache.n) return gutterCache.text;
-    let text;
-    // Typing adds a line at a time, so append rather than rebuild.
-    if (n > gutterCache.n && gutterCache.n > 0 && n - gutterCache.n < 32) {
-      const extra = [];
-      for (let i = gutterCache.n + 1; i <= n; i++) extra.push(i);
-      text = gutterCache.text + extra.join('\n') + '\n';
-    } else {
-      const parts = new Array(n);
-      for (let i = 0; i < n; i++) parts[i] = i + 1;
-      text = parts.join('\n') + '\n';
-    }
-    gutterCache = { n, text };
-    return text;
-  }
-  // Only the visible lines are coloured.
-  //
-  // Tokenising the whole buffer cost about 45 ms on a 185 KB MIB, on every
-  // pause in typing, to produce markup for four thousand lines nobody was
-  // looking at. A real IDE does not do that either: it colours the viewport
-  // and parses incrementally. We cannot parse incrementally — participle
-  // offers no way in — but the viewport half is free.
-  //
-  // Highlighting carries `inString` across lines, so starting mid-file needs
-  // the state at that point. stringStateAt answers it by scanning without
-  // producing anything: 4 ms where tokenising is 29.
-  // The width of one character, for what is still placed by arithmetic: search
-  // hits, the completion popup, the hover card. Measured whenever the mirror
-  // APPEARS — it exists only while a file is open, and measuring once at
-  // mount, usually before any file was, left the 7.2 px default in place.
-  $: if (mirror) cw = charWidth(mirror);
-
-  // The padding of the mirror and the textarea (.mirror, .surface textarea):
-  // where the first character of the first line is drawn.
-  const TEXT_PAD = 8;
-  const VIEW_MARGIN = 40; // lines rendered beyond the viewport, so small scrolls do not re-render
-  let viewportHeight = 600;
-
-  $: firstVisible = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - VIEW_MARGIN);
-  $: lastVisible = Math.min(
-    lineCount,
-    Math.ceil((scrollTop + viewportHeight) / LINE_HEIGHT) + VIEW_MARGIN,
-  );
-  $: highlighted = renderWindow(buffer, lines, firstVisible, lastVisible);
 
   // Every file's verdict, the open one judged as it is typed while it has
   // unsaved changes (utils/mibVerdict.js): the file list marks it, the file
@@ -233,7 +108,7 @@
     try {
       const fix = await MibEditorQuickFix(buffer, code, symbols);
       if (!fix || !fix.content) return;
-      insertAtCaret(fix.content, [0, buffer.length]);
+      replaceBuffer(fix.content);
       notificationStore.add(
         get(_)('mibEditor.problemTable.fixed', { values: { count: (fix.fixed || []).length } }), 'success');
     } catch (e) {
@@ -241,26 +116,7 @@
     }
   }
 
-  // The visible window depends on how much is on screen, so it is re-read on
-  // resize.
-  function measureViewport() {
-    if (textarea) viewportHeight = textarea.clientHeight || viewportHeight;
-  }
-
-  // onDestroy has to be registered while the component is initialising — the
-  // component body, not inside onMount. Called from there it throws, which
-  // meant the listener was never removed; the panel is unmounted on every tab
-  // switch, so they accumulated on window one per visit.
-  onDestroy(() => window.removeEventListener('resize', measureViewport));
-
   onMount(async () => {
-    // The buffer survives a tab switch in the store, deliberately — but the
-    // component does not, and it was re-initialising the history against an
-    // EMPTY document. The first keystroke then recorded ''-to-whole-file as
-    // one entry, and one Ctrl+Z emptied the file.
-    resetHistory();
-    measureViewport();
-    window.addEventListener('resize', measureViewport);
     await refreshList();
     try {
       catalogue = (await MibEditorSymbols()) || { modules: [], symbols: [] };
@@ -300,7 +156,7 @@
         return;
       }
       mibEditorStore.openSource(s);
-      resetHistory();
+      resetEditor();
       notificationStore.add(get(_)('mibEditor.encodingChanged',
         { values: { name: s.name, encoding: ENCODING_LABELS[encoding] || encoding } }), 'info');
     } catch (err) {
@@ -329,7 +185,7 @@
     if (!(await confirmDiscard())) return false;
     try {
       const { recovered } = await mibEditorStore.open(name);
-      resetHistory();
+      resetEditor();
       if (recovered) {
         notificationStore.add(get(_)('mibEditor.draftRecovered', { values: { name } }), 'warning');
       }
@@ -345,7 +201,7 @@
   async function reopen(name) {
     try {
       await mibEditorStore.open(name);
-      resetHistory();
+      resetEditor();
     } catch (e) {
       notificationStore.add(String(e), 'error');
     }
@@ -354,7 +210,7 @@
   // What an action writes into the buffer is one edit, which one Ctrl+Z takes
   // back.
   function replaceBuffer(text) {
-    if (textarea) insertAtCaret(text, [0, buffer.length]);
+    if (editor) editor.replaceAll(text);
     else mibEditorStore.setBuffer(text);
   }
 
@@ -363,11 +219,11 @@
     await reload();
   }
 
-  function resetHistory() {
-    prevText = get(mibEditorStore).buffer;
-    prevSel = { start: 0, end: 0 };
-    hist = createHistory(prevText);
-    syncHistoryFlags();
+  // Another document in the surface: a fresh history, so an undo never walks
+  // back into the file that was open before. The buffer is read from the store
+  // because the prop has not been updated yet at this point.
+  function resetEditor() {
+    editor?.reset(get(mibEditorStore).buffer);
   }
 
   async function openExternal() {
@@ -376,7 +232,7 @@
       const s = await MibEditorOpenExternal();
       if (!s || !s.name) return; // cancelled
       mibEditorStore.openSource(s);
-      resetHistory();
+      resetEditor();
       notificationStore.add(get(_)('mibEditor.externalOpened', { values: { name: s.name } }), 'info');
     } catch (e) {
       notificationStore.add(String(e), 'error');
@@ -393,51 +249,29 @@
     return true;
   }
 
-  // Validation runs in Go and touches nothing: no file, no gosmi state. That is
-  // what makes it safe to run while someone types.
-  function onInput(e) {
-    const after = e.target.value;
-    // atomicEdit marks the deliberate ones — a snippet, replace-all, the
-    // IMPORTS fix — so they never merge into a run of typing.
-    hist.record(prevText, after, prevSel, selectionNow(), atomicEdit);
-    atomicEdit = false;
-    prevText = after;
-    prevSel = selectionNow();
-    syncHistoryFlags();
-
-    mibEditorStore.setBuffer(after);
-    updateCompletion(after);
+  // Every edit in the surface goes to the store, which analyses it (in Go,
+  // touching no file and no gosmi state) and keeps the draft.
+  function onEditorChange(text) {
+    mibEditorStore.setBuffer(text);
   }
 
-  // The selection BEFORE the edit is what undo has to restore, and it is gone
-  // by the time input fires.
-  function onBeforeInput() {
-    prevSel = selectionNow();
-  }
-
-  // Undo and redo drive OUR stack, and the keyboard is intercepted so the
-  // browser's is never consulted. Two histories that disagree — the button
-  // walking back through one while Ctrl+Z walks another — would be worse than
-  // a coarse one.
-  function applyHistory(step) {
-    if (!step || !textarea) return;
-    const active = document.activeElement;
-    textarea.value = step.text;
-    textarea.setSelectionRange(step.selection.start, step.selection.end);
-    prevText = step.text;
-    prevSel = step.selection;
-    mibEditorStore.setBuffer(step.text);
-    syncHistoryFlags();
-    syncScroll();
-    if (active === textarea) textarea.focus();
+  function onEditorHistory(h) {
+    canUndo = h.canUndo;
+    canRedo = h.canRedo;
   }
 
   function undoEdit() {
-    applyHistory(hist.undo(prevText));
+    editor?.undoEdit();
   }
 
   function redoEdit() {
-    applyHistory(hist.redo(prevText));
+    editor?.redoEdit();
+  }
+
+  // Ctrl+S in the surface, guarded like the button: two saves of one file race
+  // on a fixed staging path in mib-temp/.
+  function saveFromKeyboard() {
+    if (!saving && savable) save();
   }
 
   async function save(force = false) {
@@ -527,7 +361,7 @@
       // one is meaningless: one Ctrl+Z would have discarded the restore, or
       // built a document that never existed by replaying an edit against
       // different text.
-      resetHistory();
+      resetEditor();
       await refreshList();
       await reload();
       notificationStore.add(get(_)('mibEditor.restored', { values: { name: source.name } }), 'success');
@@ -542,7 +376,7 @@
     mibEditorStore.revert();
     // Same reason as restoreBundled: the buffer is now the file, and an undo
     // of edits made before it would resurrect what was just discarded.
-    resetHistory();
+    resetEditor();
   }
 
   // The one place the editor goes from "here is the problem" to "here is the
@@ -552,7 +386,7 @@
       const fix = await MibEditorFixImports(buffer);
       if (!fix.content) return;
       // Replace the whole buffer as one edit so it stays undoable.
-      insertAtCaret(fix.content, [0, buffer.length]);
+      replaceBuffer(fix.content);
       notificationStore.add(
         get(_)('mibEditor.importsFixed', { values: { count: fix.missing.length } }), 'success');
     } catch (e) {
@@ -571,7 +405,7 @@
       const fix = await MibEditorRepair(buffer);
       if (!fix.content) return;
       // One edit for the whole buffer, so it stays undoable.
-      insertAtCaret(fix.content, [0, buffer.length]);
+      replaceBuffer(fix.content);
       notificationStore.add(
         get(_)('mibEditor.repaired', { values: { count: fix.fixes.length } }), 'success');
     } catch (e) {
@@ -579,167 +413,15 @@
     }
   }
 
-  // Inserting by reassigning textarea.value wipes the browser's native undo
-  // stack, so Ctrl+Z stopped working the moment you used a snippet or the
-  // IMPORTS fix. execCommand('insertText') is deprecated but it is the only
-  // way to write into a textarea AS AN EDIT, which is what undo records.
-  function insertAtCaret(text, replaceRange) {
-    atomicEdit = true;
-    if (!textarea) {
-      mibEditorStore.setBuffer(buffer + text);
-      return;
-    }
-    textarea.focus();
-    if (replaceRange) {
-      textarea.setSelectionRange(replaceRange[0], replaceRange[1]);
-    }
-    const inserted = document.execCommand && document.execCommand('insertText', false, text);
-    if (!inserted) {
-      // Fallback for a webview that refuses it: correct, but undo is lost.
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      mibEditorStore.setBuffer(buffer.slice(0, start) + text + buffer.slice(end));
-      tick().then(() => textarea.setSelectionRange(start + text.length, start + text.length));
-      return;
-    }
-    mibEditorStore.setBuffer(textarea.value);
+  // Text typed in at the caret, as one edit: a snippet, a symbol.
+  function insertAtCaret(text) {
+    if (editor) editor.insert(text);
+    else mibEditorStore.setBuffer(buffer + text);
   }
 
-  // Find and replace.
-  //
-  // Matches are drawn in an overlay rather than through the textarea's own
-  // selection, because showing a selection requires focusing the textarea —
-  // which is what used to throw you out of the search box on Enter. The
-  // overlay lets focus stay where you are typing, which is how every editor
-  // behaves and what makes Enter-to-cycle usable at all.
-  $: matches = findOpen ? findMatches(buffer, findTerm, MAX_MATCHES, matchCase) : [];
-  // Whether the list stops short of the real total. The counter used to read
-  // "1/2000" with nothing saying it was a cap, and Enter could not reach past
-  // it.
-  $: matchesCapped = matches.length >= MAX_MATCHES;
-  $: findCount = matches.length;
-  $: if (findIndex >= matches.length) findIndex = matches.length ? matches.length - 1 : 0;
-
-  // Land on the FIRST match when the term changes, and on the one after a
-  // replacement otherwise. Typing a term used to leave the view where it was
-  // and show "1/N" for a match nobody had scrolled to, so the first Enter
-  // jumped to the SECOND one.
-  $: if (findOpen && matches.length) {
-    if (pendingFirst) {
-      pendingFirst = false;
-      gotoMatch(0);
-    } else if (resumeFrom >= 0) {
-      const at = resumeFrom;
-      resumeFrom = -1;
-      const next = matches.findIndex((m) => m >= at);
-      gotoMatch(next >= 0 ? next : 0);
-    }
-  }
-  // Only the on-screen matches become boxes; a file can hold thousands.
-  // Line starts once per buffer, then a binary search per match.
-  //
-  // lineColumnAt slices the whole prefix and splits it, and this called it
-  // TWICE per match for up to 2000 matches — measured at 212 ms per keystroke
-  // on IP-MIB with the find bar open, against 2.7 ms with it closed. Typing
-  // was unusable, and the same recompute fired on every scroll.
-  $: starts = lineStarts(lines);
-  $: matchBoxes = matches
-    .map((at, i) => ({ at, i, pos: lineColumnFrom(starts, at) }))
-    .filter(({ pos }) => pos.line >= firstVisible && pos.line <= lastVisible)
-    .map(({ i, pos }) => {
-      const xy = positionOf(lines, pos.line, pos.column, cw, LINE_HEIGHT);
-      return { x: xy.x, y: xy.y, width: findTerm.length * cw, current: i === findIndex };
-    });
-
-  // Move to a match WITHOUT focusing the textarea: scrolling works unfocused,
-  // and the highlight comes from the overlay.
-  function gotoMatch(index) {
-    if (!matches.length || !textarea) return;
-    findIndex = (index + matches.length) % matches.length;
-    const { line } = lineColumnAt(buffer, matches[findIndex]);
-    const top = (line - 1) * LINE_HEIGHT;
-    const view = textarea.clientHeight;
-    // Only scroll when the match is off screen, so cycling through matches on
-    // one screen does not make the view jump about.
-    if (top < textarea.scrollTop || top > textarea.scrollTop + view - LINE_HEIGHT * 2) {
-      textarea.scrollTop = Math.max(0, top - view / 3);
-    }
-    syncScroll();
-  }
-
-  function findNext(backwards = false) {
-    if (!matches.length) return;
-    gotoMatch(nextIndex(findIndex, matches.length, backwards));
-  }
-
-  // Replacing needs the textarea focused — execCommand writes into the focused
-  // element — so focus is borrowed and given straight back, which keeps the
-  // edit on the native undo stack without moving the user out of the box.
-  function replaceRange(start, end, text) {
-    if (!textarea) return;
-    atomicEdit = true;
-    const active = document.activeElement;
-    textarea.focus();
-    textarea.setSelectionRange(start, end);
-    const done = document.execCommand && document.execCommand('insertText', false, text);
-    if (!done) {
-      mibEditorStore.setBuffer(buffer.slice(0, start) + text + buffer.slice(end));
-    } else {
-      mibEditorStore.setBuffer(textarea.value);
-    }
-    if (active && active !== textarea) tick().then(() => active.focus());
-  }
-
-  function replaceCurrent() {
-    if (!matches.length || !findTerm) return;
-    const at = matches[findIndex];
-    // Resume PAST the replacement, so the button advances. Without this,
-    // replacing "ip" with "ipAddress" found the "ip" inside the replacement
-    // and rewrote the same spot on every click, for ever.
-    resumeFrom = at + replaceTerm.length;
-    replaceRange(at, at + findTerm.length, replaceTerm);
-  }
-
-  // One edit, so one undo: replacing occurrence by occurrence would make
-  // Ctrl+Z walk back through a hundred steps.
-  //
-  // The match list used for HIGHLIGHTING is capped, so this recomputes without
-  // a cap. Replacing the first two thousand and reporting success would leave
-  // a file half-rewritten, which is worse than refusing.
-  function replaceAll() {
-    if (!findTerm) return;
-    const all = findAllMatches(buffer, findTerm, matchCase);
-    if (!all.length) return;
-    replaceRange(0, buffer.length, applyReplaceAll(buffer, all, findTerm.length, replaceTerm));
-    findIndex = 0;
-    notificationStore.add(
-      get(_)('mibEditor.replacedAll', { values: { count: all.length } }), 'success');
-  }
-
-  function closeFind() {
-    findOpen = false;
-    showReplace = false;
-    findTerm = '';
-    replaceTerm = '';
-    findIndex = 0;
-    textarea?.focus();
-  }
-
-  // Clicking a problem puts the caret on it. Without this the line number is
-  // just a number.
-  async function jumpTo(d) {
-    if (!textarea || !d.line) return;
-    let offset = 0;
-    for (let i = 0; i < Math.min(d.line - 1, lines.length); i++) offset += lines[i].length + 1;
-    offset += Math.max(0, (d.column || 1) - 1);
-
-    textarea.focus();
-    textarea.setSelectionRange(offset, offset);
-    await tick();
-    // Scroll the target line to roughly a third down the pane.
-    const lineHeight = textarea.scrollHeight / Math.max(1, lineCount);
-    textarea.scrollTop = Math.max(0, (d.line - 1) * lineHeight - textarea.clientHeight / 3);
-    syncScroll();
+  // Clicking a problem or an outline entry puts the caret on it.
+  function jumpTo(d) {
+    if (d && d.line) editor?.jumpTo(d.line, d.column || 1);
   }
 
   // What the buffer defines. Derived in a reactive statement rather than in the
@@ -748,98 +430,10 @@
   // exactly that.
   $: outline = $mibEditorStore.outline || [];
 
-  // Hover: the word under the pointer, looked up in the loaded tree.
-  let hoverTimer;
-  function onMouseMove(e) {
-    clearTimeout(hoverTimer);
-    const rect = textarea.getBoundingClientRect();
-    const px = e.clientX - rect.left + textarea.scrollLeft - 8;
-    const py = e.clientY - rect.top + textarea.scrollTop - 8;
-    hoverTimer = setTimeout(() => {
-      const offset = offsetAt(lines, buffer, px, py, cw, LINE_HEIGHT);
-      if (offset === null) { hover = null; return; }
-      const { word } = wordAt(buffer, offset);
-      if (word.length < 2) { hover = null; return; }
-      const symbol = catalogue.symbols.find((sy) => sy.name === word);
-      hover = symbol ? { x: e.clientX - rect.left, y: e.clientY - rect.top, symbol } : null;
-    }, 220);
-  }
-
-  function onMouseLeave() {
-    clearTimeout(hoverTimer);
-    hover = null;
-  }
-
-  // Completion, anchored at the caret. Possible here because the mirror
-  // guarantees identical layout; in a bare textarea the caret has no
-  // measurable position at all.
-  /**
-   * @param {string} [text] the buffer as it is NOW.
-   *
-   * Passed in from onInput rather than read from the `$:` local: Svelte only
-   * reassigns that during the flush microtask, so inside a synchronous input
-   * handler it still holds the text from BEFORE the keystroke. The caret
-   * offset came from the live textarea, so `end` was computed one character
-   * short of `offset`, the `offset !== end` guard fired every time, and the
-   * completion popup never opened at all.
-   */
-  function updateCompletion(text) {
-    if (!textarea) return;
-    const src = typeof text === 'string' ? text : buffer;
-    const offset = textarea.selectionStart;
-    const { word, start, end } = wordAt(src, offset);
-    if (word.length < 2 || offset !== end) { completion = null; return; }
-
-    // Not inside a DESCRIPTION or a comment. A symbol name there is prose, and
-    // offering a completion made Enter — pressed to start a new line — insert
-    // one instead, because the popup captures Enter whenever it is open.
-    if (inProse(src, start)) { completion = null; return; }
-
-    const items = catalogue.symbols
-      .filter((sy) => sy.name.toLowerCase().startsWith(word.toLowerCase()) && sy.name !== word)
-      .slice(0, 12);
-    if (items.length === 0) { completion = null; return; }
-
-    const { line, column } = lineColumnAt(src, start);
-    // From `src` too: `lines` is derived from the same stale local, so the
-    // popup would be placed against the previous text.
-    const pos = positionOf(src.split('\n'), line, column, cw, LINE_HEIGHT);
-    completion = {
-      x: pos.x - scrollLeft + 8,
-      y: pos.y - scrollTop + LINE_HEIGHT + 8,
-      items, index: 0, range: [start, end],
-    };
-  }
-
-  /**
-   * Whether an offset is inside a string or a comment.
-   *
-   * The string half comes from the same scanner the highlighter uses, so the
-   * two cannot disagree about where a DESCRIPTION ends. The comment half is
-   * per-line: `--` starts one and a second `--` ends it, which is the SMI
-   * rule the tokeniser follows too.
-   */
-  function inProse(text, offset) {
-    if (stringStateAt(text, offset)) return true;
-
-    const lineStart = text.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
-    const before = text.slice(lineStart, offset);
-    let open = false;
-    for (let i = 0; i + 1 < before.length; i++) {
-      if (before[i] === '-' && before[i + 1] === '-') {
-        open = !open;
-        i++;
-      }
-    }
-    return open;
-  }
-
-  function acceptCompletion() {
-    if (!completion) return;
-    const chosen = completion.items[completion.index];
-    const range = completion.range;
-    completion = null;
-    insertAtCaret(chosen.name, range);
+  // Muting from a diagnostic's tooltip, as from the problem table.
+  async function muteRule(code) {
+    await mutedRules.mute(code);
+    mibEditorStore.refresh();
   }
 
   function insertSnippet(snippet) {
@@ -856,76 +450,6 @@
     );
   }
 
-  // The mirror only stays under the text if it scrolls with it.
-  function syncScroll() {
-    if (textarea) {
-      scrollTop = textarea.scrollTop;
-      scrollLeft = textarea.scrollLeft;
-    }
-    if (mirror && textarea) {
-      mirror.scrollTop = textarea.scrollTop;
-      mirror.scrollLeft = textarea.scrollLeft;
-    }
-    if (gutter && textarea) gutter.scrollTop = textarea.scrollTop;
-    if (textarea) viewportHeight = textarea.clientHeight || viewportHeight;
-  }
-
-  function onKeydown(e) {
-    if (completion) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        completion.index = (completion.index + 1) % completion.items.length;
-        completion = completion;
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        completion.index = (completion.index - 1 + completion.items.length) % completion.items.length;
-        completion = completion;
-        return;
-      }
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        acceptCompletion();
-        return;
-      }
-      if (e.key === 'Escape') {
-        completion = null;
-        return;
-      }
-    }
-    // Intercepted so the browser's stack is never used: ours is the only one.
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
-      e.preventDefault();
-      if (e.shiftKey) redoEdit(); else undoEdit();
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
-      e.preventDefault();
-      redoEdit();
-      return;
-    }
-    // A Wails webview has no Ctrl+F of its own, and IP-MIB is 4,993 lines.
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-      e.preventDefault();
-      findOpen = true;
-      tick().then(() => document.getElementById('mib-find')?.focus());
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      // Guarded like the button. Two saves of one file race on a fixed staging
-      // path in mib-temp/, and the second reports a raw OS error the user can
-      // do nothing with.
-      if (!saving && savable) save();
-      return;
-    }
-    // A textarea would otherwise move focus out of the editor on Tab.
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      insertAtCaret('    ');
-    }
-  }
 </script>
 
 <div class="mib-editor">
@@ -1051,136 +575,11 @@
         </p>
       {/if}
 
-      <!-- The textarea is transparent and sits over the coloured mirror. Both
-           layers must use the same font metrics or they drift apart. -->
-      {#if findOpen}
-        <div class="findbar">
-          <button class="btn-copy-small" on:click={() => (showReplace = !showReplace)}
-            title={$_('mibEditor.toggleReplace')}>
-            <Icon name={showReplace ? 'chevron-down' : 'chevron-right'} size={13} />
-          </button>
-          <div class="find-fields">
-            <div class="find-row">
-              <Icon name="search" size={13} />
-              <input id="mib-find" type="search" bind:value={findTerm}
-                on:input={() => { findIndex = 0; pendingFirst = true; }}
-                on:keydown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); findNext(e.shiftKey); }
-                  else if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
-                }}
-                placeholder={$_('mibEditor.find')} />
-              <button class="btn-copy-small" class:active={matchCase}
-                on:click={() => { matchCase = !matchCase; findIndex = 0; pendingFirst = true; }}
-                title={$_('mibEditor.matchCase')} aria-pressed={matchCase}>Aa</button>
-              <span class="find-count" class:capped={matchesCapped}
-                title={matchesCapped ? $_('mibEditor.matchesCapped', { values: { max: MAX_MATCHES } }) : ''}>
-                {findCount
-                  ? `${findIndex + 1}/${findCount}${matchesCapped ? '+' : ''}`
-                  : $_('mibEditor.noMatch')}
-              </span>
-              <button class="btn-copy-small" on:click={() => findNext(true)} title={$_('mibEditor.findPrev')}>
-                <Icon name="chevron-up" size={13} />
-              </button>
-              <button class="btn-copy-small" on:click={() => findNext()} title={$_('mibEditor.findNext')}>
-                <Icon name="chevron-down" size={13} />
-              </button>
-              <button class="btn-copy-small" on:click={closeFind}><Icon name="circle-x" size={13} /></button>
-            </div>
-
-            {#if showReplace}
-              <div class="find-row">
-                <Icon name="pencil" size={13} />
-                <input type="text" bind:value={replaceTerm}
-                  on:keydown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? replaceAll() : replaceCurrent(); }
-                    else if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
-                  }}
-                  placeholder={$_('mibEditor.replace')} />
-                <button class="btn btn-small" on:click={replaceCurrent} disabled={!findCount}>
-                  {$_('mibEditor.replaceOne')}
-                </button>
-                <button class="btn btn-small" on:click={replaceAll} disabled={!findCount}>
-                  {$_('mibEditor.replaceAll')}
-                </button>
-              </div>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
-      <div class="surface" bind:this={surface}>
-        <pre class="gutter" bind:this={gutter} aria-hidden="true">{gutterText}</pre>
-        <div class="code">
-          <pre class="mirror" bind:this={mirror} aria-hidden="true">{@html highlighted}<br /></pre>
-          <!-- Underlines sit between the mirror and the textarea, so they are
-               visible through the transparent text layer without catching the
-               pointer. -->
-          <!-- Search hits and problem underlines, drawn under the transparent
-               text so focus can stay where it is.
-
-               Two boxes, because one cannot do both jobs. The outer one is the
-               visible area and CLIPS; the inner one carries the content and
-               MOVES with the scroll, from where the text starts (TEXT_PAD, the
-               mirror's padding). It used to be one box doing both, and a box
-               that moves with the scroll and clips to its own size is off
-               screen after one screen of scrolling — taking every underline
-               with it — while its padding, which absolutely positioned
-               children ignore, put each one 8 px up and left: through the
-               middle of the word rather than under it. -->
-          <div class="overlay" aria-hidden="true">
-            <div class="overlay-layer"
-              style="transform: translate({TEXT_PAD - scrollLeft}px, {TEXT_PAD - scrollTop}px)">
-              {#each matchBoxes as m, i (i)}
-                <span class="hit" class:current={m.current}
-                  style="left: {m.x}px; top: {m.y}px; width: {m.width}px;"></span>
-              {/each}
-              {#each marks as m, i (i)}
-                <span class="mark-line" style="top: {m.y}px;">{m.before}<span class="mark {m.severity}"
-                  data-line={m.line} data-column={m.before.length + 1} data-length={m.under.length}>{m.under}</span></span>
-              {/each}
-            </div>
-          </div>
-          <textarea
-            bind:this={textarea}
-            value={buffer}
-            on:input={onInput}
-            on:beforeinput={onBeforeInput}
-            on:scroll={syncScroll}
-            on:keydown={onKeydown}
-            on:click={() => (completion = null)}
-            on:blur={() => (completion = null)}
-            on:mousemove={onMouseMove}
-            on:mouseleave={onMouseLeave}
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            wrap="off"></textarea>
-
-          {#if hover}
-            <div class="hovercard" style="left: {hover.x + 12}px; top: {hover.y + 18}px;">
-              <div class="hc-head">
-                <code>{hover.symbol.name}</code>
-                <span class="hc-mod">{hover.symbol.module}</span>
-              </div>
-              {#if hover.symbol.oid}<div class="hc-oid">{hover.symbol.oid}</div>{/if}
-              {#if hover.symbol.description}<p>{hover.symbol.description}</p>{/if}
-            </div>
-          {/if}
-
-          {#if completion}
-            <ul class="complete" style="left: {completion.x}px; top: {completion.y}px;">
-              {#each completion.items as item, i (item.module + '.' + item.name)}
-                <li>
-                  <button class:sel={i === completion.index}
-                    on:mousedown|preventDefault={() => { completion.index = i; acceptCompletion(); }}>
-                    <span class="sy-name">{item.name}</span>
-                    <span class="sy-mod">{item.module}</span>
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
+      <div class="surface">
+        <CodeEditor bind:this={editor} doc={buffer} diagnostics={listed} symbols={catalogue.symbols}
+          fixable={FIXABLE} mutable={MUTABLE}
+          onChange={onEditorChange} onHistory={onEditorHistory} onSave={saveFromKeyboard}
+          onFix={quickFix} onMute={muteRule} />
       </div>
 
       <div class="status">
@@ -1227,8 +626,7 @@
         <ProblemTable {diagnostics} {listed} fileName={source.name} maxHeight={problemsMaxHeight}
           on:jump={(e) => jumpTo(e.detail)}
           on:fix={(e) => quickFix(e.detail.code, e.detail.symbols)}
-          on:muted={() => mibEditorStore.refresh()}
-          on:resized={measureViewport} />
+          on:muted={() => mibEditorStore.refresh()} />
       {/if}
     {/if}
   </section>
@@ -1395,10 +793,7 @@
     gap: 6px;
   }
 
-  /* ---- the editing surface ----
-     A transparent textarea over a coloured mirror. Every font and spacing
-     property below MUST be identical between .mirror and textarea, or the two
-     layers drift apart line by line. */
+  /* The editing surface: CodeMirror fills it (mibeditor/CodeEditor.svelte). */
   .surface {
     flex: 1;
     min-height: 0;
@@ -1406,79 +801,7 @@
     border: 1px solid var(--border-color);
     border-radius: 4px;
     overflow: hidden;
-    background-color: var(--bg-lighter-color);
   }
-
-  .gutter,
-  .mirror,
-  .surface textarea {
-    margin: 0;
-    padding: 8px 0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12px;
-    line-height: 18px;
-    tab-size: 4;
-  }
-
-  .gutter {
-    flex: 0 0 auto;
-    padding-right: 8px;
-    padding-left: 8px;
-    text-align: right;
-    color: var(--text-dimmed);
-    background-color: var(--bg-light-color);
-    border-right: 1px solid var(--border-color);
-    overflow: hidden;
-    user-select: none;
-    white-space: pre;
-  }
-
-  .code {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .mirror,
-  .surface textarea {
-    position: absolute;
-    inset: 0;
-    padding-left: 8px;
-    padding-right: 8px;
-    white-space: pre;
-    overflow: auto;
-    border: none;
-    word-wrap: normal;
-  }
-
-  .mirror {
-    pointer-events: none;
-    color: var(--text-color);
-  }
-
-  .surface textarea {
-    background: transparent;
-    color: transparent;
-    caret-color: var(--text-color);
-    resize: none;
-    outline: none;
-  }
-
-  .surface textarea::selection {
-    background-color: var(--accent-subtle-strong);
-  }
-
-  /* Token colours. Deliberately few: a MIB is mostly prose inside
-     DESCRIPTION, and colouring everything would make none of it stand out. */
-  .mirror :global(.mac) { color: var(--accent-color); font-weight: 600; }
-  .mirror :global(.kw)  { color: var(--name-color); }
-  .mirror :global(.ty)  { color: var(--oid-color); }
-  .mirror :global(.val) { color: var(--success-color); }
-  .mirror :global(.str) { color: var(--text-light); }
-  .mirror :global(.com) { color: var(--text-dimmed); font-style: italic; }
-  .mirror :global(.num) { color: var(--oid-color); }
-  .mirror :global(.op)  { color: var(--favorites-color); }
-  .mirror :global(.pun) { color: var(--text-muted); }
 
   .sym-menu {
     position: absolute;
@@ -1563,182 +886,6 @@
     color: var(--text-color);
   }
 
-  .findbar {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 6px;
-    background-color: var(--bg-lighter-color);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-  }
-
-  .find-fields {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .find-row {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .hit {
-    position: absolute;
-    height: 18px;
-    background-color: var(--warning-subtle);
-    border-radius: 2px;
-    box-sizing: border-box;
-  }
-
-  .hit.current {
-    background-color: var(--accent-subtle-strong);
-    outline: 1px solid var(--accent-color);
-  }
-
-  .findbar input {
-    flex: 1;
-    min-width: 0;
-    padding: 4px 6px;
-    background-color: var(--bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    color: var(--text-color);
-    font-size: 0.8em;
-  }
-
-  .find-count {
-    font-size: 0.75em;
-    color: var(--text-muted);
-    min-width: 28px;
-    text-align: right;
-  }
-
-  /* Underlines live under the transparent textarea, so they never intercept
-     the pointer or the caret. */
-  .overlay {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .overlay-layer {
-    position: absolute;
-    left: 0;
-    top: 0;
-    /* The mirror's metrics: the text an underline is placed by is laid out
-       exactly as the mirror lays out the same text. */
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12px;
-    line-height: 18px;
-    tab-size: 4;
-  }
-
-  .mark-line {
-    position: absolute;
-    left: 0;
-    height: 18px;
-    white-space: pre;
-    color: transparent;
-    user-select: none;
-  }
-
-  .mark {
-    text-decoration-line: underline;
-    text-decoration-style: wavy;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-    text-decoration-skip-ink: none;
-  }
-
-  .mark.error {
-    text-decoration-color: var(--error-color);
-  }
-
-  .mark.warning {
-    text-decoration-color: var(--warning-color);
-  }
-
-  .hovercard {
-    position: absolute;
-    z-index: 30;
-    max-width: 320px;
-    padding: 7px 9px;
-    background-color: var(--bg-light-color);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    box-shadow: 0 6px 18px var(--shadow-color);
-    pointer-events: none;
-    font-size: 0.75em;
-  }
-
-  .hc-head {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 3px;
-  }
-
-  .hc-head code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    color: var(--accent-color);
-  }
-
-  .hc-mod {
-    color: var(--text-muted);
-  }
-
-  .hc-oid {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    color: var(--oid-color);
-    margin-bottom: 3px;
-  }
-
-  .hovercard p {
-    margin: 0;
-    color: var(--text-muted);
-  }
-
-  .complete {
-    position: absolute;
-    z-index: 30;
-    list-style: none;
-    margin: 0;
-    padding: 3px;
-    min-width: 220px;
-    max-height: 200px;
-    overflow-y: auto;
-    background-color: var(--bg-light-color);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    box-shadow: 0 6px 18px var(--shadow-color);
-  }
-
-  .complete button {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    width: 100%;
-    padding: 3px 6px;
-    background: none;
-    border: none;
-    border-radius: 3px;
-    color: var(--text-color);
-    font-size: 0.78em;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .complete button.sel,
-  .complete button:hover {
-    background-color: var(--accent-subtle);
-  }
-
   .status {
     display: flex;
     align-items: center;
@@ -1774,13 +921,4 @@
   .pill.warn { color: var(--warning-color); border-color: var(--warning-border); }
   .pill.err { color: var(--error-color); border-color: var(--error-border); }
 
-  .find-count.capped {
-    color: var(--warning, #b7791f);
-    cursor: help;
-  }
-
-  .btn-copy-small.active {
-    background: var(--bg-hover, #e5e5e5);
-    font-weight: 600;
-  }
 </style>

@@ -186,11 +186,14 @@ jobs:
         run: npm test
         working-directory: frontend
 
-      # The MIB editor's underlines are a layer drawn over the text, and every
-      # way that layer has been wrong passed every test above and was found by
-      # looking at the screen: 8 px up and left, gone after one screen of
-      # scrolling, drifting right a column at a time. This loads the editor in
-      # Chrome and measures each underline against the characters it is about.
+      # The MIB editor underlines a problem as a span around its characters;
+      # what can still be wrong is WHICH characters, once Go's line and column
+      # become an offset in a text with tabs, accented and wide characters
+      # before the word. The hand-made surface before CodeMirror was wrong
+      # three ways that passed every test above and were found by looking at
+      # the screen. This loads the editor in Chrome and checks that every
+      # underline holds exactly its word, where Go put it, before and after
+      # scrolling.
       - name: Editor underlines land on their words
         run: |
           node tools/genbridge.mjs tools/screenshot-spec.json

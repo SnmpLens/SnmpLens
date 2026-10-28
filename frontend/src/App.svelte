@@ -34,6 +34,7 @@
   import MibEditorPanel from './MibEditorPanel.svelte';
   import { mibEditorStore } from './stores/mibEditorStore';
   import { tabRequest } from './stores/tabRequest';
+  import { treeRequest } from './stores/treeRequest';
   import { settingsRequest } from './stores/settingsRequest';
   import { OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime';
 
@@ -330,6 +331,14 @@
   // Initialize MIB paths store on startup
   // Something elsewhere asked for a tab — the MIB settings' "open in editor"
   // link, today.
+  // A node asked for in the MIB tree is shown, so the tree is unfolded first.
+  $: if ($treeRequest && mibPanelCollapsed) unfoldMibPanel();
+
+  function unfoldMibPanel() {
+    mibPanelCollapsed = false;
+    savePanelWidth();
+  }
+
   $: if ($tabRequest) {
     activeTab = $tabRequest;
     showSettings = false;

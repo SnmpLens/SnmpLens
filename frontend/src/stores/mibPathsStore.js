@@ -64,6 +64,33 @@ function createMibPathsStore() {
       });
     },
     
+    // Set whether a MIB loads, explicitly. toggleMib flips what is stored, and
+    // a file the store has not seen yet is enabled without an entry: flipping
+    // the missing entry made it `true`, which changed nothing.
+    setMibEnabled(path, mib, enabled) {
+      update(state => {
+        if (!state.enabledMibs[path]) {
+          state.enabledMibs[path] = {};
+        }
+        state.enabledMibs[path][mib] = !!enabled;
+        this.save(state);
+        return state;
+      });
+    },
+
+    // A renamed file keeps whether it loads.
+    renameMib(path, from, to) {
+      update(state => {
+        const flags = state.enabledMibs[path];
+        if (flags && from in flags) {
+          flags[to] = flags[from];
+          delete flags[from];
+          this.save(state);
+        }
+        return state;
+      });
+    },
+
     // Enable all MIBs in a path
     enableAllInPath(path) {
       update(state => {

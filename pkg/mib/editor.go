@@ -64,6 +64,10 @@ const (
 type FileInfo struct {
 	Name string `json:"name"`
 	Size int64  `json:"size"`
+	// Module is what the file declares, read from its head: two files
+	// declaring one module are two versions of it, and the file list offers
+	// to choose between them.
+	Module string `json:"module,omitempty"`
 	// Bundled marks a MIB that ships inside the binary. Editing one is
 	// allowed but flagged, because nearly every other MIB IMPORTS from them.
 	Bundled bool `json:"bundled"`

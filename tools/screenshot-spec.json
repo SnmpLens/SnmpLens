@@ -874,8 +874,8 @@
           {
             "name": "MibEditorList",
             "onMount": true,
-            "go": "app_mibeditor.go:57 -> []mib.FileInfo; struct pkg/mib/editor.go:64 (name,size,bundled,modified,problems)",
-            "example": "[{\"name\":\"ACME-POE-MIB\",\"size\":2466,\"bundled\":false,\"modified\":false,\"problems\":0},{\"name\":\"ACME-SWITCH-MIB\",\"size\":48210,\"bundled\":false,\"modified\":false,\"problems\":0},{\"name\":\"CISCO-SMI\",\"size\":6712,\"bundled\":false,\"modified\":false,\"problems\":0},{\"name\":\"ENTITY-MIB\",\"size\":91442,\"bundled\":false,\"modified\":false,\"problems\":0},{\"name\":\"HOST-RESOURCES-MIB\",\"size\":52544,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"IANAifType-MIB\",\"size\":38805,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"IF-MIB\",\"size\":71904,\"bundled\":true,\"modified\":true,\"problems\":0},{\"name\":\"INET-ADDRESS-MIB\",\"size\":16782,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"IP-MIB\",\"size\":185667,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"JUNIPER-SMI\",\"size\":10233,\"bundled\":false,\"modified\":false,\"problems\":0},{\"name\":\"SNMP-FRAMEWORK-MIB\",\"size\":22342,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"SNMPv2-CONF\",\"size\":8577,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"SNMPv2-MIB\",\"size\":30257,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"SNMPv2-SMI\",\"size\":9284,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"SNMPv2-TC\",\"size\":38834,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"SNMPv2-TM\",\"size\":5987,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"SNMPv2-USEC-MIB\",\"size\":8172,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"TCP-MIB\",\"size\":28564,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"UDP-MIB\",\"size\":20882,\"bundled\":true,\"modified\":false,\"problems\":0},{\"name\":\"UPS-MIB\",\"size\":34118,\"bundled\":false,\"modified\":false,\"problems\":0}]",
+            "go": "internal/app/mibeditor.go -> []mib.FileInfo; struct pkg/mib/editor.go (name,size,module,bundled,modified,problems)",
+            "example": "[{\"name\":\"ACME-POE-MIB\",\"size\":2466,\"bundled\":false,\"modified\":false,\"problems\":0,\"module\":\"ACME-POE-MIB\"},{\"name\":\"ACME-SWITCH-MIB\",\"size\":48210,\"bundled\":false,\"modified\":false,\"problems\":0,\"module\":\"ACME-SWITCH-MIB\"},{\"name\":\"CISCO-SMI\",\"size\":6712,\"bundled\":false,\"modified\":false,\"problems\":0,\"module\":\"CISCO-SMI\"},{\"name\":\"ENTITY-MIB\",\"size\":91442,\"bundled\":false,\"modified\":false,\"problems\":0,\"module\":\"ENTITY-MIB\"},{\"name\":\"HOST-RESOURCES-MIB\",\"size\":52544,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"HOST-RESOURCES-MIB\"},{\"name\":\"IANAifType-MIB\",\"size\":38805,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"IANAifType-MIB\"},{\"name\":\"IF-MIB\",\"size\":71904,\"bundled\":true,\"modified\":true,\"problems\":0,\"module\":\"IF-MIB\"},{\"name\":\"INET-ADDRESS-MIB\",\"size\":16782,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"INET-ADDRESS-MIB\"},{\"name\":\"IP-MIB\",\"size\":185667,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"IP-MIB\"},{\"name\":\"JUNIPER-SMI\",\"size\":10233,\"bundled\":false,\"modified\":false,\"problems\":0,\"module\":\"JUNIPER-SMI\"},{\"name\":\"SNMP-FRAMEWORK-MIB\",\"size\":22342,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"SNMP-FRAMEWORK-MIB\"},{\"name\":\"SNMPv2-CONF\",\"size\":8577,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"SNMPv2-CONF\"},{\"name\":\"SNMPv2-MIB\",\"size\":30257,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"SNMPv2-MIB\"},{\"name\":\"SNMPv2-SMI\",\"size\":9284,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"SNMPv2-SMI\"},{\"name\":\"SNMPv2-TC\",\"size\":38834,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"SNMPv2-TC\"},{\"name\":\"SNMPv2-TM\",\"size\":5987,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"SNMPv2-TM\"},{\"name\":\"SNMPv2-USEC-MIB\",\"size\":8172,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"SNMPv2-USEC-MIB\"},{\"name\":\"TCP-MIB\",\"size\":28564,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"TCP-MIB\"},{\"name\":\"UDP-MIB\",\"size\":20882,\"bundled\":true,\"modified\":false,\"problems\":0,\"module\":\"UDP-MIB\"},{\"name\":\"UPS-MIB\",\"size\":34118,\"bundled\":false,\"modified\":false,\"problems\":0,\"module\":\"UPS-MIB\"}]",
             "notes": "FIRST call, awaited inside onMount (`await refreshList()`), before MibEditorSymbols. Feeds the 230px left rail. Go sorts by Name, so the stub should too. `bundled:true` draws a dim diamond, `bundled+modified` draws an orange plus-minus. The active row is highlighted only when `source && !source.external && source.name === f.name`, so ACME-POE-MIB must be in this list AND source.external must be false. A rejected promise puts a red toast over the UI (notificationStore.add(String(e),'error')). Give ~20 rows so the rail is full to the bottom; the 14 real bundled names are HOST-RESOURCES-MIB, IANAifType-MIB, IF-MIB, INET-ADDRESS-MIB, IP-MIB, SNMP-FRAMEWORK-MIB, SNMPv2-CONF, SNMPv2-MIB, SNMPv2-SMI, SNMPv2-TC, SNMPv2-TM, SNMPv2-USEC-MIB, TCP-MIB, UDP-MIB with real sizes 52544/38805/71691/16782/185667/22342/8577/30257/9284/38834/5987/8172/28564/20882."
           },
           {
@@ -954,6 +954,83 @@
             "go": "internal/app/mibstatus.go MibEditorSetMutedRules(codes) -> []string (the codes taken; only advice may be muted, pkg/mib/mute.go)",
             "example": "[]",
             "notes": "Called once by stores/mutedRules.js before the first verdict is asked for, with this viewer's muted rules from localStorage, and again on every mute or unmute. A null answer (the demo's) leaves the list as asked."
+          },
+          {
+            "name": "MibEditorRevealFile",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go -> error",
+            "example": "null",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Refused in the browser demo (bridge/dynamic.js, DEMO_ONLY): it writes to the MIB folder or asks the operating system."
+          },
+          {
+            "name": "MibEditorRenameFile",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorRenameFile(name, newName) -> error",
+            "example": "null",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Refused in the browser demo (bridge/dynamic.js, DEMO_ONLY): it writes to the MIB folder or asks the operating system."
+          },
+          {
+            "name": "MibEditorDuplicateFile",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorDuplicateFile(name, newName) -> error",
+            "example": "null",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Refused in the browser demo (bridge/dynamic.js, DEMO_ONLY): it writes to the MIB folder or asks the operating system."
+          },
+          {
+            "name": "MibEditorDeleteFiles",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorDeleteFiles(names) -> []string (the files moved to mib-backups/)",
+            "example": "[]",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Refused in the browser demo (bridge/dynamic.js, DEMO_ONLY): it writes to the MIB folder or asks the operating system."
+          },
+          {
+            "name": "MibEditorBackups",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorBackups(name) -> []MibBackup {id,name,savedAt,size,deleted}",
+            "example": "[]",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). An empty list is the dialog's own empty state."
+          },
+          {
+            "name": "MibEditorDeletedFiles",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go -> []MibBackup",
+            "example": "[]",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). An empty list is the dialog's own empty state."
+          },
+          {
+            "name": "MibEditorReadBackup",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorReadBackup(id) -> string",
+            "example": "\"\"",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte)."
+          },
+          {
+            "name": "MibEditorRestoreDeleted",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorRestoreDeleted(id) -> string (the name restored)",
+            "example": "\"\"",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Refused in the browser demo (bridge/dynamic.js, DEMO_ONLY): it writes to the MIB folder or asks the operating system."
+          },
+          {
+            "name": "MibEditorBundledContent",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorBundledContent(name) -> string",
+            "example": "\"\"",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte)."
+          },
+          {
+            "name": "MibEditorModuleRoot",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorModuleRoot(module) -> string (an OID, empty when not loaded)",
+            "example": "\"\"",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Empty is answered with 'not in the MIB tree'."
+          },
+          {
+            "name": "MibEditorExportWithDependencies",
+            "onMount": false,
+            "go": "internal/app/mibfiles.go MibEditorExportWithDependencies(names) -> MibExportResult {path,files,missing}",
+            "example": "{\"path\":\"\",\"files\":[],\"missing\":[]}",
+            "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Refused in the browser demo (bridge/dynamic.js, DEMO_ONLY): it writes to the MIB folder or asks the operating system. An empty path is a cancelled dialog."
           },
           {
             "name": "MibEditorRepair",

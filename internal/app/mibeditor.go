@@ -66,6 +66,7 @@ func (a *App) MibEditorList() ([]mib.FileInfo, error) {
 			if st, err := os.Stat(path); err == nil {
 				info.Size = st.Size()
 			}
+			info.Module = mib.DeclaredModule(path)
 			if embedded, ok := a.bundledContent(name); ok {
 				info.Bundled = true
 				if raw, err := os.ReadFile(path); err == nil {

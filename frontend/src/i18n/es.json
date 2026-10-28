@@ -1108,7 +1108,10 @@
     "externalOpened": "{name} abierta. Al guardar se escribirá en la carpeta MIB de SnmpLens.",
     "externalWarning": "Este archivo se abrió desde fuera de SnmpLens. Al guardar se escribe en la carpeta MIB como «{name}», no se reescribe el original.",
     "bundledWarning": "Esta MIB viene con SnmpLens y casi todas las demás importan de ella. Un error aquí rompe todo el árbol — la copia incluida se puede restaurar en cualquier momento.",
-    "encodingWarning": "Este archivo no está en UTF-8: se leyó como Windows-1252. Al guardarlo se escribe en UTF-8. Si las letras acentuadas se ven mal, el archivo usa otra codificación: ciérrelo sin guardar.",
+    "encodingWarning": "Leído como {encoding}: este archivo no está en UTF-8. Si sus acentos o su texto se ven mal, elija abajo a la derecha la codificación en que se escribió. Al guardar se escribe en UTF-8.",
+    "encodingLabel": "Codificación",
+    "encodingHint": "Volver a leer este archivo en otra codificación",
+    "encodingChanged": "{name} leído como {encoding}",
     "snippet": {
       "objectType": "Definición OBJECT-TYPE",
       "moduleIdentity": "Cabecera MODULE-IDENTITY",

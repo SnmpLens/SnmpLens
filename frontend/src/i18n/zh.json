@@ -1108,7 +1108,10 @@
     "externalOpened": "{name} 已打开。保存时会写入 SnmpLens 的 MIB 目录。",
     "externalWarning": "此文件来自 SnmpLens 之外。保存会以「{name}」写入 MIB 目录，不会回写原文件。",
     "bundledWarning": "此 MIB 随 SnmpLens 一起提供，几乎所有其他 MIB 都从中导入。此处出错会破坏整棵树 — 内置副本随时可以恢复。",
-    "encodingWarning": "此文件不是 UTF-8：已按 Windows-1252 读取。保存时会写为 UTF-8。如果带重音的字母显示错误，说明文件使用了其他编码：请不保存直接关闭。",
+    "encodingWarning": "按 {encoding} 读取：此文件不是 UTF-8。如果其中的文字显示不正确，请在右下角选择文件实际使用的编码。保存时将写为 UTF-8。",
+    "encodingLabel": "编码",
+    "encodingHint": "以其他编码重新读取此文件",
+    "encodingChanged": "已按 {encoding} 读取 {name}",
     "snippet": {
       "objectType": "OBJECT-TYPE 定义",
       "moduleIdentity": "MODULE-IDENTITY 头部",

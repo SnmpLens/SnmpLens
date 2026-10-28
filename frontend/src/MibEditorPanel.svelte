@@ -32,6 +32,9 @@
     MibEditorFixImports,
     MibEditorRepair,
     MibEditorQuickFix,
+    MibEditorEncodings,
+    MibEditorReadAs,
+    MibEditorReopenExternalAs,
   } from '../wailsjs/go/app/App';
 
   let files = [];
@@ -379,7 +382,47 @@
     } catch (e) {
       catalogue = { modules: [], symbols: [] };
     }
+    try {
+      encodings = (await MibEditorEncodings()) || encodings;
+    } catch (e) {
+      /* the file's own encoding is still shown */
+    }
   });
+
+  // The encodings a MIB can be read as (pkg/mib/encodings.go). The guess —
+  // UTF-8, else Windows-1252 — is wrong for a file written in Shift_JIS or GBK,
+  // and its prose then reads as accented Latin; the status bar is where the
+  // person who can read it says what it is. Saving always writes UTF-8.
+  let encodings = ['utf-8', 'windows-1252'];
+  const ENCODING_LABELS = {
+    'utf-8': 'UTF-8', 'windows-1252': 'Windows-1252', 'iso-8859-1': 'ISO-8859-1', 'iso-8859-15': 'ISO-8859-15',
+    'windows-1250': 'Windows-1250', 'windows-1251': 'Windows-1251', 'koi8-r': 'KOI8-R', shift_jis: 'Shift_JIS',
+    'euc-jp': 'EUC-JP', gbk: 'GBK', gb18030: 'GB18030', big5: 'Big5', 'euc-kr': 'EUC-KR',
+  };
+
+  async function changeEncoding(e) {
+    const select = e.currentTarget;
+    const encoding = select.value;
+    if (!source || encoding === source.encoding) return;
+    if (!(await confirmDiscard())) {
+      select.value = source.encoding;
+      return;
+    }
+    try {
+      const s = source.external ? await MibEditorReopenExternalAs(encoding) : await MibEditorReadAs(source.name, encoding);
+      if (!s || !s.name) {
+        select.value = source.encoding;
+        return;
+      }
+      mibEditorStore.openSource(s);
+      resetHistory();
+      notificationStore.add(get(_)('mibEditor.encodingChanged',
+        { values: { name: s.name, encoding: ENCODING_LABELS[encoding] || encoding } }), 'info');
+    } catch (err) {
+      select.value = source.encoding;
+      notificationStore.add(String(err?.message || err), 'error');
+    }
+  }
 
   async function refreshList() {
     try {
@@ -1254,9 +1297,10 @@
           <Icon name="triangle-alert" size={13} /> {$_('mibEditor.externalWarning', { values: { name: source.name } })}
         </p>
       {/if}
-      {#if source.encoding === 'windows-1252'}
+      {#if source.encoding && source.encoding !== 'utf-8'}
         <p class="banner">
-          <Icon name="triangle-alert" size={13} /> {$_('mibEditor.encodingWarning')}
+          <Icon name="triangle-alert" size={13} />
+          {$_('mibEditor.encodingWarning', { values: { encoding: ENCODING_LABELS[source.encoding] || source.encoding } })}
         </p>
       {/if}
 
@@ -1395,6 +1439,12 @@
       <div class="status">
         <span>{$_('mibEditor.lines', { values: { count: lineCount } })}</span>
         <span>{source.eol === 'crlf' ? 'CRLF' : 'LF'}</span>
+        <select class="encoding" value={source.encoding || 'utf-8'} on:change={changeEncoding}
+          title={$_('mibEditor.encodingHint')} aria-label={$_('mibEditor.encodingLabel')}>
+          {#each encodings as enc (enc)}
+            <option value={enc}>{ENCODING_LABELS[enc] || enc}</option>
+          {/each}
+        </select>
         <span class="spacer"></span>
         {#if checking}
           <span class="pill">{$_('mibEditor.checking')}</span>
@@ -2259,6 +2309,23 @@
     gap: 10px;
     font-size: 0.74em;
     color: var(--text-muted);
+  }
+
+  /* Reads as the status bar's text until it is pointed at. */
+  .encoding {
+    padding: 0 2px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .encoding:hover,
+  .encoding:focus-visible {
+    border-color: var(--border-color);
+    color: var(--text-color);
   }
 
   .pill {

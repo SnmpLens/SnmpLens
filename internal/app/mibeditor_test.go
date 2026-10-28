@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"SnmpLens/pkg/mib"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 func newMibApp(t *testing.T) (*App, string) {
@@ -447,5 +449,49 @@ func TestBackupsInTheSameSecondDoNotCollide(t *testing.T) {
 	}
 	if len(bodies) != len(paths) {
 		t.Errorf("%d backups hold only %d distinct versions", len(paths), len(bodies))
+	}
+}
+
+// A file read in the encoding chosen saves without a false conflict, and as
+// UTF-8: the check compares the bytes on disk, whatever they were read as.
+func TestAMibReadInAnotherEncodingSaves(t *testing.T) {
+	a, dir := newMibApp(t)
+	raw, err := simplifiedchinese.GBK.NewEncoder().Bytes([]byte("GBK-MIB DEFINITIONS ::= BEGIN\n-- 温度\nEND\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "GBK-MIB"), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src, err := a.MibEditorReadAs("GBK-MIB", "GBK")
+	if err != nil || !strings.Contains(src.Content, "温度") || src.Encoding != "gbk" {
+		t.Fatalf("read as GBK: %q %s %v", src.Content, src.Encoding, err)
+	}
+	res, err := a.MibEditorSave("GBK-MIB", src.Content+"-- saved\n", src.Sha256, false)
+	if err != nil || res.Conflict || !res.Saved {
+		t.Fatalf("saving it: %+v %v", res, err)
+	}
+	onDisk, _ := os.ReadFile(filepath.Join(dir, "GBK-MIB"))
+	if !strings.Contains(string(onDisk), "温度") {
+		t.Error("not written as UTF-8")
+	}
+	again, _ := a.MibEditorRead("GBK-MIB")
+	if again.Sha256 != res.Sha256 || again.Encoding != "utf-8" {
+		t.Errorf("after the save the file is UTF-8 and its checksum the one the save gave: %s %s / %s", again.Encoding, again.Sha256, res.Sha256)
+	}
+
+	// Changed underneath: a conflict, as before.
+	if err := os.WriteFile(filepath.Join(dir, "GBK-MIB"), []byte("GBK-MIB DEFINITIONS ::= BEGIN\nEND\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := a.MibEditorSave("GBK-MIB", again.Content, again.Sha256, false); !res.Conflict {
+		t.Error("a file changed on disk saved over")
+	}
+
+	if _, err := a.MibEditorReadAs("GBK-MIB", "klingon"); err == nil {
+		t.Error("an encoding not offered was accepted")
+	}
+	if _, err := a.MibEditorReopenExternalAs("gbk"); err == nil {
+		t.Error("re-reading with no file opened from outside should say so")
 	}
 }

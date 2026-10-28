@@ -103,14 +103,82 @@ func (a *App) MibEditorRead(name string) (mib.Source, error) {
 	// Encoding says so, and the editor tells the user that saving writes UTF-8
 	// before anything is written.
 	content, eol, encoding := mib.DecodeSource(raw)
-	_, bundled := a.bundledContent(name)
+	return a.directorySource(name, path, raw, content, eol, encoding), nil
+}
 
+// directorySource is a file of the MIB directory as the editor opens it.
+func (a *App) directorySource(name, path string, raw []byte, content, eol, encoding string) mib.Source {
+	_, bundled := a.bundledContent(name)
 	src := mib.Source{
 		Name: filepath.Base(name), Path: path, Content: content, Eol: eol, Encoding: encoding,
-		Bundled: bundled, Sha256: mib.Checksum(content),
+		Bundled: bundled, Sha256: mib.ChecksumBytes(raw),
 	}
 	src.SetAnalysis(a.analyseAs(src.Name, content))
-	return src, nil
+	return src
+}
+
+// MibEditorEncodings lists the encodings a MIB can be read as (pkg/mib/encodings.go).
+func (a *App) MibEditorEncodings() []string {
+	return mib.Encodings()
+}
+
+// MibEditorReadAs opens a MIB of the directory again, read in the encoding the
+// person chose: the guess (UTF-8, else Windows-1252) is wrong for a file
+// written in Shift_JIS or GBK, and its prose comes out as accented Latin.
+func (a *App) MibEditorReadAs(name, encoding string) (mib.Source, error) {
+	path, err := a.resolveMibPath(name)
+	if err != nil {
+		return mib.Source{}, err
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return mib.Source{}, err
+	}
+	content, eol, err := mib.DecodeAs(raw, encoding)
+	if err != nil {
+		return mib.Source{}, err
+	}
+	return a.directorySource(name, path, raw, content, eol, strings.ToLower(encoding)), nil
+}
+
+// MibEditorReopenExternalAs reads the file last opened from outside the
+// directory again, in another encoding. From the bytes kept when it was
+// opened, never from a path: a method reading a path the renderer names would
+// read any file and hand it back.
+func (a *App) MibEditorReopenExternalAs(encoding string) (mib.Source, error) {
+	a.externalMu.Lock()
+	ext := a.lastExternal
+	a.externalMu.Unlock()
+	if ext.raw == nil {
+		return mib.Source{}, fmt.Errorf("no file was opened from outside the MIB directory")
+	}
+	content, eol, err := mib.DecodeAs(ext.raw, encoding)
+	if err != nil {
+		return mib.Source{}, err
+	}
+	return a.externalSource(ext, content, eol, strings.ToLower(encoding)), nil
+}
+
+// externalFile is the file last opened from outside the MIB directory.
+type externalFile struct {
+	path string
+	raw  []byte
+}
+
+func (a *App) externalSource(ext externalFile, content, eol, encoding string) mib.Source {
+	// Offer the module's own name rather than the file name, as the import
+	// stores it: gosmi resolves a module by name, and a file named after the
+	// module it holds is found by every tool, not only through mibFS.
+	suggested := mib.ModuleName(content)
+	if suggested == "" {
+		suggested = filepath.Base(ext.path)
+	}
+	src := mib.Source{
+		Name: suggested, Path: ext.path, Content: content, Eol: eol, Encoding: encoding,
+		External: true, Sha256: mib.ChecksumBytes(ext.raw),
+	}
+	src.SetAnalysis(a.analyseAs("", content))
+	return src
 }
 
 // MibEditorOpenExternal opens a MIB from anywhere on disk, read-only.
@@ -140,21 +208,11 @@ func (a *App) MibEditorOpenExternal() (mib.Source, error) {
 		return mib.Source{}, err
 	}
 	content, eol, encoding := mib.DecodeSource(raw)
-
-	// Offer the module's own name rather than the file name, as the import
-	// stores it: gosmi resolves a module by name, and a file named after the
-	// module it holds is found by every tool, not only through mibFS.
-	suggested := mib.ModuleName(content)
-	if suggested == "" {
-		suggested = filepath.Base(path)
-	}
-
-	src := mib.Source{
-		Name: suggested, Path: path, Content: content, Eol: eol, Encoding: encoding,
-		External: true, Sha256: mib.Checksum(content),
-	}
-	src.SetAnalysis(a.analyseAs("", content))
-	return src, nil
+	ext := externalFile{path: path, raw: raw}
+	a.externalMu.Lock()
+	a.lastExternal = ext
+	a.externalMu.Unlock()
+	return a.externalSource(ext, content, eol, encoding), nil
 }
 
 // MibEditorValidate checks buffer text without touching disk or gosmi.
@@ -192,16 +250,12 @@ func (a *App) MibEditorSave(name, content, baseSha256 string, force bool) (mib.S
 	existing, statErr := os.ReadFile(path)
 
 	// Refuse a save that would silently discard someone else's edit. The
-	// baseline is what the editor read; if disk no longer matches it, the file
-	// changed underneath — another instance, an import, a text editor.
-	if statErr == nil && !force && baseSha256 != "" {
-		// Decoded as it was when read, or a Windows-1252 file is "changed
-		// on disk" the moment it is opened.
-		onDisk, _, _ := mib.DecodeSource(existing)
-		if mib.Checksum(onDisk) != baseSha256 {
-			result.Conflict = true
-			return result, nil
-		}
+	// baseline is the BYTES the editor read (mib.ChecksumBytes); if the disk no
+	// longer holds them, the file changed underneath — another instance, an
+	// import, a text editor. Compared as bytes, whatever encoding it was read in.
+	if statErr == nil && !force && baseSha256 != "" && mib.ChecksumBytes(existing) != baseSha256 {
+		result.Conflict = true
+		return result, nil
 	}
 
 	if statErr == nil {
@@ -240,7 +294,7 @@ func (a *App) MibEditorSave(name, content, baseSha256 string, force bool) (mib.S
 	}
 
 	result.Saved = true
-	result.Sha256 = mib.Checksum(content)
+	result.Sha256 = mib.ChecksumBytes(payload)
 	return result, nil
 }
 

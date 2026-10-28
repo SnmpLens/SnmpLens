@@ -324,6 +324,14 @@ func (a *App) MibEditorFixImports(content string) mib.ImportFix {
 	return mib.FixImports(content, mib.Symbols())
 }
 
+// MibEditorQuickFix writes the fix for the problems of kind code whose symbol
+// is one of symbols, or for every one of that kind when symbols is empty
+// (pkg/mib/quickfix.go). Nothing is saved: the result goes into the buffer as
+// one edit, which the editor can undo.
+func (a *App) MibEditorQuickFix(content, code string, symbols []string) mib.QuickFixResult {
+	return mib.QuickFix(content, code, symbols, mib.Symbols())
+}
+
 // MibEditorRepair returns the buffer with what SnmpLens reads leniently
 // written in — an escaped quote, a malformed date, a misspelt module name — so
 // the file loads in other MIB tools as it does here.

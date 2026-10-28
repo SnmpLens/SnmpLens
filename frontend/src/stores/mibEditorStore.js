@@ -6,6 +6,7 @@ import {
   MibEditorReadDraft,
   MibEditorDiscardDraft,
 } from '../../wailsjs/go/app/App';
+import { mutedRules } from './mutedRules';
 
 // The editor's state lives here, not in the panel component.
 //
@@ -88,6 +89,8 @@ function createMibEditorStore() {
     await flushDraft();
 
     const token = ++openToken;
+    // The verdict that comes with the file leaves out what this viewer muted.
+    await mutedRules.ready();
     const source = await MibEditorRead(name);
     if (token !== openToken) return { source, recovered: false, superseded: true };
     // A draft for this file means a previous session left work behind.

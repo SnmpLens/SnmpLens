@@ -38,6 +38,7 @@ globalThis.__stub = {
   MibEditorReadDraft: async (name) => drafts[name] || '',
   MibEditorSaveDraft: async (name, content) => { drafts[name] = content; },
   MibEditorDiscardDraft: async (name) => { delete drafts[name]; },
+  MibEditorSetMutedRules: async (codes) => codes,
   // Each analysis parks itself; the test decides when and in what order each
   // one answers.
   MibEditorAnalyse: (name, content) => {
@@ -54,7 +55,8 @@ export const MibEditorRead = (...a) => s.MibEditorRead(...a);
 export const MibEditorReadDraft = (...a) => s.MibEditorReadDraft(...a);
 export const MibEditorSaveDraft = (...a) => s.MibEditorSaveDraft(...a);
 export const MibEditorDiscardDraft = (...a) => s.MibEditorDiscardDraft(...a);
-export const MibEditorAnalyse = (...a) => s.MibEditorAnalyse(...a);`;
+export const MibEditorAnalyse = (...a) => s.MibEditorAnalyse(...a);
+export const MibEditorSetMutedRules = (...a) => s.MibEditorSetMutedRules(...a);`;
 
 const dir = mkdtempSync(join(tmpdir(), 'snmplens-mibed-'));
 writeFileSync(join(dir, 'stub.js'), stub);

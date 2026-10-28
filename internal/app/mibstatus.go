@@ -46,6 +46,8 @@ type mibStatusCache struct {
 	entries   map[string]mibAnalysisEntry
 	// loads is what the last load did with each file, by file name.
 	loads map[string]mib.MibLoadResult
+	// muted is the rules whose findings the verdicts leave out (pkg/mib/mute.go).
+	muted map[string]bool
 }
 
 // rememberLoads keeps what a load did, for the verdicts that follow it.
@@ -64,6 +66,32 @@ func (c *mibStatusCache) load(name string) (mib.MibLoadResult, bool) {
 	defer c.mu.Unlock()
 	r, ok := c.loads[name]
 	return r, ok
+}
+
+func (c *mibStatusCache) mutedRules() map[string]bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.muted
+}
+
+// MibEditorSetMutedRules sets the rules whose findings the verdicts leave out,
+// and answers with the ones taken: only advice may be muted, never an error
+// (pkg/mib/mute.go). The renderer keeps the choice, per viewer, and gives it
+// again at every start.
+func (a *App) MibEditorSetMutedRules(codes []string) []string {
+	muted := map[string]bool{}
+	taken := []string{}
+	for _, c := range codes {
+		if mib.Mutable(c) && !muted[c] {
+			muted[c] = true
+			taken = append(taken, c)
+		}
+	}
+	sort.Strings(taken)
+	a.mibStatuses.mu.Lock()
+	a.mibStatuses.muted = muted
+	a.mibStatuses.mu.Unlock()
+	return taken
 }
 
 // MibFileStatuses gives the verdict on every file in the MIB directory, and on
@@ -89,7 +117,7 @@ func (a *App) MibFileStatuses() []MibFileStatus {
 	for name, e := range c.entries {
 		known[name] = e
 	}
-	loads := c.loads
+	loads, muted := c.loads, c.muted
 	c.mu.Unlock()
 
 	out := make([]MibFileStatus, 0, len(names)+len(loads))
@@ -114,10 +142,10 @@ func (a *App) MibFileStatuses() []MibFileStatus {
 				diags: mib.AnalyseAll(content, cat).Diagnostics}
 		}
 		fresh[name] = e
-		status := MibFileStatus{Name: name, Verdict: mib.Judge(nil, e.diags)}
+		status := MibFileStatus{Name: name, Verdict: mib.JudgeMuted(nil, e.diags, muted)}
 		if load, ok := loads[name]; ok {
 			status.Loaded = true
-			status.Verdict = mib.Judge(&load, e.diags)
+			status.Verdict = mib.JudgeMuted(&load, e.diags, muted)
 		}
 		out = append(out, status)
 	}
@@ -131,7 +159,7 @@ func (a *App) MibFileStatuses() []MibFileStatus {
 	sort.Strings(elsewhere)
 	for _, name := range elsewhere {
 		load := loads[name]
-		out = append(out, MibFileStatus{Name: name, Loaded: true, Verdict: mib.Judge(&load, nil)})
+		out = append(out, MibFileStatus{Name: name, Loaded: true, Verdict: mib.JudgeMuted(&load, nil, muted)})
 	}
 
 	c.mu.Lock()
@@ -153,17 +181,15 @@ func (a *App) MibFileStatuses() []MibFileStatus {
 // text and only the analysis does — except a refusal because another file holds
 // the module, which no edit of this text undoes.
 func (a *App) judgeBuffer(name, content string, an mib.Analysis) mib.Verdict {
+	muted := a.mibStatuses.mutedRules()
 	if name == "" {
-		return an.Verdict
+		return mib.JudgeMuted(nil, an.Diagnostics, muted)
 	}
 	load, ok := a.mibStatuses.load(name)
-	if !ok {
-		return an.Verdict
+	if ok && (load.IsDuplicate() || a.isOnDisk(name, content)) {
+		return mib.JudgeMuted(&load, an.Diagnostics, muted)
 	}
-	if load.IsDuplicate() || a.isOnDisk(name, content) {
-		return mib.Judge(&load, an.Diagnostics)
-	}
-	return an.Verdict
+	return mib.JudgeMuted(nil, an.Diagnostics, muted)
 }
 
 // isOnDisk is whether content is the directory's file name as it reads now.

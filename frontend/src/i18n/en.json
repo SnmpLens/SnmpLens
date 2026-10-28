@@ -1151,6 +1151,37 @@
     "outlineFilter": "Filter definitions",
     "outlineEmpty": "Nothing defined yet.",
     "outlineNoMatch": "No definition matches.",
+    "problemTable": {
+      "filter": "Show problems by severity",
+      "filterHint": "Show or hide this severity",
+      "sortHint": "Sort by this column",
+      "none": "No problem of the severities shown.",
+      "col": {
+        "severity": "Severity",
+        "line": "Line",
+        "message": "Problem",
+        "code": "Code",
+        "actions": "Actions"
+      },
+      "sev": {
+        "error": "Error",
+        "warning": "Warning",
+        "info": "Info"
+      },
+      "copy": "Copy",
+      "copyHint": "Copy the problems shown, as text",
+      "copiedLabel": "{count, plural, one {# problem} other {# problems}}",
+      "resize": "Drag to give the problem list more or less height",
+      "fix": "Fix",
+      "fixHint": "Write the fix into the file (undo with Ctrl+Z)",
+      "fixAll": "{count, plural, other {Fix all # {code}}}",
+      "fixAllHint": "Write the fix for every problem of this kind (undo with Ctrl+Z)",
+      "fixed": "{count, plural, one {# problem fixed} other {# problems fixed}}",
+      "mute": "Mute {code}",
+      "muteHint": "Hide every {code} finding, here and in every file’s verdict, until you show them again",
+      "muted": "{count, plural, =0 {Muted rules:} one {# finding hidden by muted rules:} other {# findings hidden by muted rules:}}",
+      "unmuteHint": "Show this rule’s findings again"
+    },
     "files": {
       "onlyProblems": "Problems only",
       "showAll": "All files",

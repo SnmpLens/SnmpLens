@@ -1151,6 +1151,37 @@
     "outlineFilter": "Filtrer les définitions",
     "outlineEmpty": "Rien de défini pour l'instant.",
     "outlineNoMatch": "Aucune définition ne correspond.",
+    "problemTable": {
+      "filter": "Afficher les problèmes par gravité",
+      "filterHint": "Afficher ou masquer cette gravité",
+      "sortHint": "Trier selon cette colonne",
+      "none": "Aucun problème pour les gravités affichées.",
+      "col": {
+        "severity": "Gravité",
+        "line": "Ligne",
+        "message": "Problème",
+        "code": "Code",
+        "actions": "Actions"
+      },
+      "sev": {
+        "error": "Erreur",
+        "warning": "Avertissement",
+        "info": "Info"
+      },
+      "copy": "Copier",
+      "copyHint": "Copier les problèmes affichés, en texte",
+      "copiedLabel": "{count, plural, one {# problème} other {# problèmes}}",
+      "resize": "Faire glisser pour agrandir ou réduire la liste des problèmes",
+      "fix": "Corriger",
+      "fixHint": "Écrire la correction dans le fichier (Ctrl+Z pour annuler)",
+      "fixAll": "{count, plural, other {Corriger les # {code}}}",
+      "fixAllHint": "Écrire la correction de tous les problèmes de ce type (Ctrl+Z pour annuler)",
+      "fixed": "{count, plural, one {# problème corrigé} other {# problèmes corrigés}}",
+      "mute": "Masquer {code}",
+      "muteHint": "Masquer tous les constats {code}, ici et dans le verdict de chaque fichier, jusqu’à ce que vous les réaffichiez",
+      "muted": "{count, plural, =0 {Règles masquées :} one {# constat masqué par les règles masquées :} other {# constats masqués par les règles masquées :}}",
+      "unmuteHint": "Réafficher les constats de cette règle"
+    },
     "files": {
       "onlyProblems": "Problèmes seulement",
       "showAll": "Tous les fichiers",

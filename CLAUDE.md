@@ -545,6 +545,14 @@ holds the module (`judgeBuffer`). A file opens with its complete analysis — di
 `MibEditorRead`; it used to open with the syntax check alone, so its mark turned from warning to error when the full
 analysis answered a moment later.
 
+**Two findings are fixed by the editor, and advice can be muted.** An unused import and a table or row whose
+MAX-ACCESS is not `not-accessible` have one mechanical answer, which `pkg/mib/quickfix.go` writes as TEXT — the word
+that changes and nothing else, comments kept, an emptied `FROM M` and an emptied `IMPORTS` taken out since neither
+parses — into the buffer as one undoable edit. Muting (`pkg/mib/mute.go`) takes a rule's findings out of the table,
+the underlines and every verdict: advice only, never an error, nor a finding that something resolves to nothing. The
+choice is the viewer's (`stores/mutedRules.js`, localStorage) and Go must have it before the first verdict is judged,
+so the verdicts and the editor wait for `mutedRules.ready()`. `tests/problems.test.mjs` reads both lists from the Go.
+
 `frontend/src/mibeditor/metrics.js` turns a (line, column) into pixels, which is what makes squiggles, hover
 cards and caret-anchored completion possible **here and not in a plain textarea**: the mirror lays out identically
 to the text (unit-tested) and both are monospace with a fixed line height, so a position is arithmetic once the

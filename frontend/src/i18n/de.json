@@ -1151,6 +1151,37 @@
     "outlineFilter": "Definitionen filtern",
     "outlineEmpty": "Noch nichts definiert.",
     "outlineNoMatch": "Keine Definition passt.",
+    "problemTable": {
+      "filter": "Probleme nach Schweregrad anzeigen",
+      "filterHint": "Diesen Schweregrad ein- oder ausblenden",
+      "sortHint": "Nach dieser Spalte sortieren",
+      "none": "Keine Probleme der angezeigten Schweregrade.",
+      "col": {
+        "severity": "Schweregrad",
+        "line": "Zeile",
+        "message": "Problem",
+        "code": "Code",
+        "actions": "Aktionen"
+      },
+      "sev": {
+        "error": "Fehler",
+        "warning": "Warnung",
+        "info": "Hinweis"
+      },
+      "copy": "Kopieren",
+      "copyHint": "Die angezeigten Probleme als Text kopieren",
+      "copiedLabel": "{count, plural, one {# Problem} other {# Probleme}}",
+      "resize": "Ziehen, um die Problemliste zu vergrößern oder zu verkleinern",
+      "fix": "Beheben",
+      "fixHint": "Die Korrektur in die Datei schreiben (mit Strg+Z rückgängig)",
+      "fixAll": "{count, plural, other {Alle # {code} beheben}}",
+      "fixAllHint": "Die Korrektur für jedes Problem dieser Art schreiben (mit Strg+Z rückgängig)",
+      "fixed": "{count, plural, one {# Problem behoben} other {# Probleme behoben}}",
+      "mute": "{code} ausblenden",
+      "muteHint": "Alle {code}-Befunde ausblenden, hier und im Urteil jeder Datei, bis Sie sie wieder einblenden",
+      "muted": "{count, plural, =0 {Ausgeblendete Regeln:} one {# Befund durch ausgeblendete Regeln verborgen:} other {# Befunde durch ausgeblendete Regeln verborgen:}}",
+      "unmuteHint": "Die Befunde dieser Regel wieder einblenden"
+    },
     "files": {
       "onlyProblems": "Nur Probleme",
       "showAll": "Alle Dateien",

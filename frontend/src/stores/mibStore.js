@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { LoadMibsWithDiagnostics, GetPersistentMibDirectory, ListMibFiles } from '../../wailsjs/go/app/App';
+import { LoadMibsWithDiagnostics, GetPersistentMibDirectory, ListMibFiles, SetMibDirectories } from '../../wailsjs/go/app/App';
 import { notificationStore } from './notifications';
 import { mibPathsStore } from './mibPathsStore';
 
@@ -47,11 +47,23 @@ function createMibStore() {
       }
     });
 
+    // The folders added in the settings load from where they are: Go is told
+    // which they are before every load (pkg/mib/library.go). Their files used
+    // to be sent by name alone and looked up in the MIB folder, where they
+    // were not — so nothing in an added folder ever loaded.
+    try {
+      await SetMibDirectories(pathsState.customPaths);
+    } catch (e) {
+      console.error('SetMibDirectories failed', e);
+    }
+
     // Get enabled MIBs from custom paths
     pathsState.customPaths.forEach(customPath => {
       if (pathsState.detectedMibs[customPath]) {
         pathsState.detectedMibs[customPath].forEach(mib => {
-          if (pathsState.enabledMibs[customPath]?.[mib] !== false) {
+          // A name the MIB folder already has is that file (an added folder's
+          // copy is shadowed), and is asked for once.
+          if (pathsState.enabledMibs[customPath]?.[mib] !== false && !enabledFiles.includes(mib)) {
             enabledFiles.push(mib);
           }
         });

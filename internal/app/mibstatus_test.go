@@ -211,3 +211,21 @@ END
 		t.Errorf("unmuted: %+v", s)
 	}
 }
+
+// A file of a folder added in the settings is judged as the MIB folder's are,
+// analysis included.
+func TestAFileOfAnAddedFolderHasAVerdict(t *testing.T) {
+	a, _, _ := verdictApp(t, nil)
+	added := t.TempDir()
+	if err := os.WriteFile(filepath.Join(added, "twice.txt"), []byte(twiceMib), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.SetMibDirectories([]string{added}); len(got) != 1 {
+		t.Fatalf("taken: %v", got)
+	}
+	a.LoadMibsWithDiagnostics([]string{"SNMPv2-SMI", "twice.txt"})
+	s, ok := statusesByName(a)["twice.txt"]
+	if !ok || !s.Loaded || s.Verdict.Level != mib.VerdictError {
+		t.Errorf("a duplicate definition in an added folder: %+v", s)
+	}
+}

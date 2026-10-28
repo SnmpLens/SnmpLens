@@ -28,6 +28,14 @@ import (
 // deleted outright. A file "deleted" here is moved to mib-backups/, the
 // sibling that holds what every save replaced, and it comes back from there.
 
+// SetMibDirectories sets the folders added in the MIB settings, whose files
+// load beside the MIB folder's (pkg/mib/library.go), and answers with the
+// ones taken: existing absolute directories. The renderer keeps the list and
+// gives it before every load, so a load never runs against a stale one.
+func (a *App) SetMibDirectories(dirs []string) []string {
+	return a.mibService.SetDirectories(dirs)
+}
+
 // MibEditorRevealFile shows a MIB in the system's file manager, selected.
 //
 // Windows and macOS select it in its folder; Linux has no command that does

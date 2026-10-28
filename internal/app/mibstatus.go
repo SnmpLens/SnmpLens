@@ -149,7 +149,9 @@ func (a *App) MibFileStatuses() []MibFileStatus {
 		}
 		out = append(out, status)
 	}
-	// A file loaded from a directory of the user's own is judged by its load.
+	// A file loaded from a folder added in the settings is judged like the
+	// others, read from where it is (pkg/mib/library.go); by its load alone
+	// when it cannot be read.
 	var elsewhere []string
 	for name := range loads {
 		if _, ok := fresh[name]; !ok {
@@ -159,7 +161,14 @@ func (a *App) MibFileStatuses() []MibFileStatus {
 	sort.Strings(elsewhere)
 	for _, name := range elsewhere {
 		load := loads[name]
-		out = append(out, MibFileStatus{Name: name, Loaded: true, Verdict: mib.JudgeMuted(&load, nil, muted)})
+		var diags []mib.Diagnostic
+		if path, ok := a.mibService.FilePath(name); ok {
+			if raw, err := os.ReadFile(path); err == nil {
+				content, _, _ := mib.DecodeSource(raw)
+				diags = mib.AnalyseAll(content, cat).Diagnostics
+			}
+		}
+		out = append(out, MibFileStatus{Name: name, Loaded: true, Verdict: mib.JudgeMuted(&load, diags, muted)})
 	}
 
 	c.mu.Lock()

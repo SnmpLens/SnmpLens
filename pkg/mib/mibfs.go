@@ -49,7 +49,7 @@ func gosmiFinds(file, module string) bool {
 }
 
 type mibFS struct {
-	dir string
+	lib *library
 	// declared is the module each file declares, for every file that declares one.
 	declared map[string]string
 	// chosen is the file that IS the module, for every module some file declares.
@@ -62,18 +62,19 @@ type mibFS struct {
 	// repairs are what the lenient reading changed, by file, the last time gosmi
 	// read it.
 	repairs map[string][]Diagnostic
-	// real is every file in the directory.
+	// real is every file of the library (library.go): the MIB folder's and the
+	// added folders'.
 	real map[string]bool
 }
 
-// mountLocked points gosmi at dir through a freshly indexed mibFS. The caller
-// MUST hold gosmiMu.
+// mountLocked points gosmi at the library through a freshly indexed mibFS.
+// The caller MUST hold gosmiMu.
 //
 // Whatever other directories gosmi searches — its built-in defaults outside
 // Windows, SMIPATH — are kept, ahead of this one as before.
-func mountLocked(dir string) *mibFS {
-	dir = filepath.Clean(dir)
-	fsys := newMibFS(dir)
+func mountLocked(lib *library) *mibFS {
+	dir := lib.primary
+	fsys := newMibFS(lib)
 	var others []string
 	for _, p := range filepath.SplitList(gosmi.GetPath()) {
 		if p == "" || strings.HasPrefix(p, "[") || filepath.Clean(p) == dir {
@@ -88,9 +89,9 @@ func mountLocked(dir string) *mibFS {
 	return fsys
 }
 
-func newMibFS(dir string) *mibFS {
+func newMibFS(lib *library) *mibFS {
 	m := &mibFS{
-		dir:      dir,
+		lib:      lib,
 		declared: map[string]string{},
 		chosen:   map[string]string{},
 		reasons:  map[string]string{},
@@ -98,17 +99,10 @@ func newMibFS(dir string) *mibFS {
 		repairs:  map[string][]Diagnostic{},
 		real:     map[string]bool{},
 	}
-	files, err := ListMibFiles(dir)
-	if err != nil {
-		return m
-	}
 	byModule := map[string][]string{}
-	for _, f := range files {
+	for _, f := range lib.order {
 		m.real[f] = true
-		path, err := SafeMibPath(dir, f)
-		if err != nil {
-			continue
-		}
+		path := lib.files[f]
 		if module := declaredModuleName(path); module != "" {
 			m.declared[f] = module
 			byModule[module] = append(byModule[module], f)
@@ -141,7 +135,7 @@ func (m *mibFS) choose(module string, files []string) string {
 	cands := make([]Candidate, 0, len(files))
 	for _, f := range files {
 		content := ""
-		if path, err := SafeMibPath(m.dir, f); err == nil {
+		if path, ok := m.lib.path(f); ok {
 			if raw, err := os.ReadFile(path); err == nil {
 				content, _, _ = DecodeSource(raw)
 			}
@@ -198,8 +192,8 @@ func (m *mibFS) Open(name string) (fs.File, error) {
 	if target, ok := m.aliases[name]; ok {
 		file = target
 	}
-	path, err := SafeMibPath(m.dir, file)
-	if err != nil {
+	path, ok := m.lib.path(file)
+	if !ok {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	info, err := os.Stat(path)
@@ -226,20 +220,21 @@ func (m *mibFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if name != "." {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
 	}
-	entries, err := os.ReadDir(m.dir)
-	if err != nil {
-		return nil, err
-	}
 	modules := make([]string, 0, len(m.aliases))
 	for module := range m.aliases {
 		modules = append(modules, module)
 	}
 	sort.Strings(modules)
-	out := make([]fs.DirEntry, 0, len(modules)+len(entries))
+	out := make([]fs.DirEntry, 0, len(modules)+len(m.lib.order))
 	for _, module := range modules {
 		out = append(out, fs.FileInfoToDirEntry(memInfo{name: module}))
 	}
-	return append(out, entries...), nil
+	// Every folder's files, as one: a file of an added folder is found by its
+	// name like one of the MIB folder.
+	for _, name := range m.lib.order {
+		out = append(out, fs.FileInfoToDirEntry(memInfo{name: name}))
+	}
+	return out, nil
 }
 
 type memFile struct {

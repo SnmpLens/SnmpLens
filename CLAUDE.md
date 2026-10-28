@@ -205,6 +205,14 @@ Multi-target operations run concurrently with goroutines; one `BulkResult` per t
 
 Standard SNMPv2 MIBs are embedded via `//go:embed mibs` in `main.go`. On **first run only**, `app.startup` extracts them to the per-user config dir, points gosmi's search path there, and loads core modules (`SNMPv2-SMI`, `SNMPv2-TC`). Users add their own MIBs into that same persistent directory (via the import UI / drag-&-drop), so it is the single source of truth at runtime — not the embedded `mibs/`.
 
+**Folders added in the MIB settings load from where they are** (`pkg/mib/library.go`). Their files were listed with
+a switch each and loaded nothing: the renderer sent their NAMES, and every name was looked up in the MIB folder. Go
+now holds the added folders (`SetMibDirectories`, given by `mibStore` before every load) and gosmi is shown one
+set of files through `mibFS`: the MIB folder first, then each added folder; a name an earlier folder holds is
+shadowed (`Shadowed`). What an added folder holds passes the import gate (`ClassifyImport`) before gosmi sees it,
+because a load error quotes the file and that folder is not curated: a PDF or a key there is never parsed. The
+editor still edits the MIB folder only (`resolveMibPath`).
+
 **An import stores a file under the module it declares, once** (`internal/app/mibimport.go`). An archive of MIBs
 can hold one folder per release with the same file name in each, named after products rather than modules: the
 import used to copy every file under its own name, so a folder of several releases kept whichever was written last

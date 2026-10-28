@@ -17,6 +17,12 @@ on:
 permissions:
   contents: read
 
+# A pull request pushed to again has its previous analysis cancelled; main and
+# the weekly run are never cancelled, since each is the verdict on a commit.
+concurrency:
+  group: codeql-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
@@ -44,11 +50,25 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The packages come from the Actions cache CI fills, not the mirror —
+      # this step was the one that took 24 minutes on a slow day, after every
+      # other check had finished. .github/linux-deps.sh says why that is safe
+      # here and not in release.yml.
+      - name: Identify the runner image
+        id: image
+        if: matrix.language == 'go'
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Linux packages
+        if: matrix.language == 'go'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-debs
+          key: linux-deps-${{ steps.image.outputs.version }}-${{ hashFiles('.github/linux-deps.sh') }}
+
       - name: Install Linux dependencies
         if: matrix.language == 'go'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+        run: bash .github/linux-deps.sh
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1

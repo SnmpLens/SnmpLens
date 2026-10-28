@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/sleepinggenius2/gosmi"
 	"github.com/sleepinggenius2/gosmi/parser"
@@ -40,6 +39,9 @@ const (
 	StageBuild    = "build"    // gosmi refused it for another reason
 	StageSemantic = "semantic" // it loaded, but resolves to nonsense
 	StageLoaded   = "loaded"   // it is in the tree
+	// StageDuplicate is a file not loaded because another file declaring the
+	// same module was: gosmi holds one module per name.
+	StageDuplicate = "duplicate"
 )
 
 // LoadDiagnosis explains how far one file got and what stopped it.
@@ -151,22 +153,17 @@ func (s *Service) diagnose(fileName string, ctx *diagContext, printed string) Lo
 		return d
 	}
 
-	content, _ := NormaliseSource(raw)
+	// What the loader reads: decoded, then read leniently (mibfs.go). A file
+	// whose name differs from its module is no longer worth a hint — gosmi
+	// finds it by the name it declares.
+	content, _, _ := DecodeSource(raw)
 	d.ModuleName = moduleNameOf(content)
-	if d.ModuleName != "" {
-		if base := moduleBase(fileName); base != "" && !strings.EqualFold(base, d.ModuleName) {
-			// gosmi resolves an IMPORTS clause by looking for a FILE named
-			// after the module. A mismatch loads fine on its own and is
-			// invisible until something imports it and cannot find it.
-			d.Hints = append(d.Hints, fmt.Sprintf(
-				"the file is named %q but declares module %q; anything importing %s will not find it unless the file is renamed",
-				fileName, d.ModuleName, d.ModuleName))
-		}
-	}
 
 	// --- syntax ---
 	d.Stage = StageParse
-	module, parseErr := parseOnce(content)
+	p := prepare(content)
+	d.Diagnostics = append(d.Diagnostics, p.Fixes...)
+	module, parseErr := p.module, p.err
 	if parseErr != nil {
 		diag := syntaxDiagnostic(parseErr)
 		d.Diagnostics = append(d.Diagnostics, diag)
@@ -185,7 +182,7 @@ func (s *Service) diagnose(fileName string, ctx *diagContext, printed string) Lo
 	d.Missing = s.missingImports(module, ctx)
 	if len(d.Missing) > 0 {
 		d.Summary = summariseMissing(d.Missing)
-		d.Hints = append(d.Hints, "put the missing module in the MIB directory, named after the module itself")
+		d.Hints = append(d.Hints, "put the missing module in the MIB directory; SnmpLens finds it by the name it declares, whatever the file is called")
 		// Not a return: a module can be missing AND the file have other
 		// problems, and listing only the first wastes the round trip.
 	}
@@ -212,7 +209,7 @@ func (s *Service) diagnose(fileName string, ctx *diagContext, printed string) Lo
 	// analyseParsed, not Analyse: the module is already parsed above, and a
 	// 185 KB MIB costs about 40 ms to parse a second time for nothing.
 	cat := symbolsLocked()
-	for _, diag := range analyseParsed(content, module, nil, cat) {
+	for _, diag := range p.remap(analyseParsed(p.Text, module, nil, cat)) {
 		if diag.Severity == SevError {
 			d.Diagnostics = append(d.Diagnostics, diag)
 		}
@@ -243,6 +240,10 @@ func (s *Service) diagnose(fileName string, ctx *diagContext, printed string) Lo
 	d.Stage = StageLoaded
 	if d.Summary == "" {
 		d.Summary = "loaded"
+		if len(p.Fixes) > 0 {
+			d.Summary = fmt.Sprintf("loaded, with %s that other MIB tools would refuse",
+				plural(len(p.Fixes), "mistake", "mistakes"))
+		}
 	}
 	return d
 }
@@ -286,16 +287,34 @@ func readFailureSummary(path string, err error) string {
 // not load module", which sends people looking for a syntax error in a file
 // that is not text.
 func describeNonMib(raw []byte) (summary, hint string, bad bool) {
+	_, summary, hint, bad = classifyNonMib(raw)
+	return summary, hint, bad
+}
+
+// Kinds of file that are not a MIB, for an interface that groups them rather
+// than repeating one sentence per file: an archive dropped whole holds dozens.
+const (
+	NonMibEmpty         = "empty"
+	NonMibPDF           = "pdf"
+	NonMibArchive       = "archive"
+	NonMibHTML          = "html"
+	NonMibUTF16         = "utf16"
+	NonMibBinary        = "binary"
+	NonMibNoDefinitions = "nodefinitions"
+)
+
+func classifyNonMib(raw []byte) (kind, summary, hint string, bad bool) {
 	if len(raw) == 0 {
-		return "the file is empty", "", true
+		return NonMibEmpty, "the file is empty", "", true
 	}
 	switch {
 	case bytes.HasPrefix(raw, []byte("%PDF-")):
-		return "this is a PDF, not a MIB", "MIBs are plain text; extract the module from the document, or download the .mib file", true
+		return NonMibPDF, "this is a PDF, not a MIB", "MIBs are plain text; extract the module from the document, or download the .mib file", true
 	case bytes.HasPrefix(raw, []byte("PK\x03\x04")):
-		return "this is a zip archive, not a MIB", "extract it and import the MIB files inside", true
+		// A .docx or an .xlsx is a zip too, and is not a MIB for the same reason.
+		return NonMibArchive, "this is a zip archive, not a MIB", "extract it and import the MIB files inside", true
 	case bytes.HasPrefix(raw, []byte{0x1f, 0x8b}):
-		return "this is a gzip archive, not a MIB", "extract it and import the MIB files inside", true
+		return NonMibArchive, "this is a gzip archive, not a MIB", "extract it and import the MIB files inside", true
 	}
 
 	head := raw
@@ -304,24 +323,27 @@ func describeNonMib(raw []byte) (summary, hint string, bad bool) {
 	}
 	lower := strings.ToLower(string(head))
 	if strings.Contains(lower, "<!doctype html") || strings.Contains(lower, "<html") {
-		return "this is an HTML page, not a MIB",
+		return NonMibHTML, "this is an HTML page, not a MIB",
 			"the download returned the web page around the file; use the raw or download link", true
 	}
 	if bytes.IndexByte(head, 0) >= 0 {
 		// UTF-16 is the one binary-looking encoding a MIB is plausibly in.
 		if bytes.HasPrefix(raw, []byte{0xff, 0xfe}) || bytes.HasPrefix(raw, []byte{0xfe, 0xff}) {
-			return "the file is UTF-16 encoded", "save it as UTF-8 or ASCII; MIB parsers do not accept UTF-16", true
+			return NonMibUTF16, "the file is UTF-16 encoded", "save it as UTF-8 or ASCII; MIB parsers do not accept UTF-16", true
 		}
-		return "the file is binary, not text", "", true
+		return NonMibBinary, "the file is binary, not text", "", true
 	}
-	if !utf8.Valid(head) {
-		return "the file is not valid UTF-8", "save it as UTF-8; a stray byte in a DESCRIPTION is enough to stop the parser", true
+	// Not UTF-8 is not "not a MIB": a vendor MIB in Windows-1252 loads, and
+	// DecodeSource reads it. What is refused is bytes that are not TEXT in any
+	// encoding — control characters a text file does not hold.
+	if controlRatio(head) > 0.01 {
+		return NonMibBinary, "the file is binary, not text", "", true
 	}
 	if !strings.Contains(strings.ToUpper(string(head)), "DEFINITIONS") {
-		return noDefinitionsSummary,
+		return NonMibNoDefinitions, noDefinitionsSummary,
 			"a MIB begins with `MODULE-NAME DEFINITIONS ::= BEGIN`; this file may be a fragment or a different format", true
 	}
-	return "", "", false
+	return "", "", "", false
 }
 
 // noDefinitionsSummary is named because ImportRejection has to tell that answer
@@ -349,14 +371,20 @@ const noDefinitionsSummary = "no DEFINITIONS clause was found near the start of 
 // that, and refusing a real MIB is a worse failure here than accepting a text
 // file that happens to contain the word.
 func ImportRejection(raw []byte) (summary, hint string, reject bool) {
-	s, h, bad := describeNonMib(raw)
+	_, summary, hint, reject = ClassifyImport(raw)
+	return summary, hint, reject
+}
+
+// ClassifyImport is ImportRejection with the kind of file refused (NonMib*).
+func ClassifyImport(raw []byte) (kind, summary, hint string, reject bool) {
+	k, s, h, bad := classifyNonMib(raw)
 	if !bad {
-		return "", "", false
+		return "", "", "", false
 	}
-	if s == noDefinitionsSummary && strings.Contains(strings.ToUpper(string(raw)), "DEFINITIONS") {
-		return "", "", false
+	if k == NonMibNoDefinitions && strings.Contains(strings.ToUpper(string(raw)), "DEFINITIONS") {
+		return "", "", "", false
 	}
-	return s, h, true
+	return k, s, h, true
 }
 
 // missingImports reports the modules an IMPORTS clause names that are not
@@ -382,6 +410,14 @@ func (s *Service) missingImports(module *parser.Module, ctx *diagContext) []Miss
 		symbols := make([]string, 0, len(imp.Names))
 		for _, n := range imp.Names {
 			symbols = append(symbols, n.String())
+		}
+		// gosmi reads some imports from the modules that replaced the one
+		// named; only what it does not is missing (implicit.go).
+		if needed, converted := notConverted(name, symbols); converted {
+			if len(needed) == 0 {
+				continue
+			}
+			symbols = needed
 		}
 		sort.Strings(symbols)
 
@@ -445,6 +481,22 @@ func (s *Service) availableModules() map[string]string {
 	return out
 }
 
+// controlRatio is the share of bytes that are control characters no text file
+// holds: everything below a space except tab, line feed, form feed and
+// carriage return.
+func controlRatio(b []byte) float64 {
+	if len(b) == 0 {
+		return 0
+	}
+	n := 0
+	for _, c := range b {
+		if c < 0x20 && c != 0x09 && c != 0x0A && c != 0x0C && c != 0x0D {
+			n++
+		}
+	}
+	return float64(n) / float64(len(b))
+}
+
 // declaredModuleName reads only the head of a file: the module name is on the
 // first non-comment line, and reading 185 KB of every MIB to find it would
 // turn a diagnosis into a directory scan.
@@ -459,7 +511,7 @@ func declaredModuleName(path string) string {
 	if n <= 0 {
 		return ""
 	}
-	content, _ := NormaliseSource(head[:n])
+	content, _, _ := DecodeSource(head[:n])
 	return moduleNameOf(content)
 }
 
@@ -668,7 +720,10 @@ func shortenPaths(msg, dir string) string {
 	if dir == "" || msg == "" {
 		return msg
 	}
+	// gosmi names the directory "[dir]" since it reads it through mibFS.
 	for _, form := range []string{
+		"[" + filepath.Clean(dir) + "]" + string(filepath.Separator),
+		"[" + filepath.Clean(dir) + "]/",
 		filepath.Clean(dir) + string(filepath.Separator),
 		filepath.ToSlash(filepath.Clean(dir)) + "/",
 	} {

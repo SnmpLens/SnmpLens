@@ -262,7 +262,7 @@
   </div>
 
   <!-- What is missing across the whole directory, before the per-file list -->
-  {#if roll.missing.length > 0 || roll.mismatched.length > 0}
+  {#if roll.missing.length > 0}
     <div class="diagnostics-section">
       <h4>{$_('settings.mibs.dependenciesTitle')}</h4>
 
@@ -287,14 +287,6 @@
         </div>
       {/each}
 
-      {#each roll.mismatched as f (f.fileName)}
-        <div class="dep-row dep-warn">
-          <div class="dep-head">
-            <span class="dep-module">{f.fileName}</span>
-            <span class="dep-reason">{$_('settings.mibs.depMismatch', { values: { module: f.moduleName } })}</span>
-          </div>
-        </div>
-      {/each}
     </div>
   {/if}
 
@@ -489,7 +481,6 @@
     margin-bottom: 0.5rem;
   }
   .dep-row.dep-absent { border-left-color: var(--error-color, #d2544f); }
-  .dep-row.dep-warn { border-left-color: var(--warning-color, #d9a03a); }
   .dep-head {
     display: flex;
     flex-wrap: wrap;

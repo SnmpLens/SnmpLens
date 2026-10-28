@@ -58,24 +58,12 @@ const ok = (fileName, moduleName) => ({ fileName, success: true, moduleName });
     JSON.stringify(symbolsWanted(top)));
 }
 
-/* --- the file that loads and cannot be found ------------------------------ */
+/* --- a file named otherwise than its module ------------------------------- */
+// gosmi is given every module under the name it declares (pkg/mib/mibfs.go),
+// so a file named after a product is found like any other: not a row.
 {
-  const roll = dependencyRoll([
-    ok('vendor_power.txt', 'VENDOR-POWER-MIB'),
-    ok('IF-MIB', 'IF-MIB'),
-    ok('SNMPv2-TC.mib', 'SNMPv2-TC'),
-    ok('If-Mib.txt', 'IF-MIB'),
-  ]);
-
-  check('a file whose name is not its module is reported', roll.mismatched.length === 1,
-    JSON.stringify(roll.mismatched));
-  check('and it is the right one', roll.mismatched[0]?.fileName === 'vendor_power.txt',
-    roll.mismatched[0]?.fileName);
-  // gosmi looks a module up BY FILE NAME, and the bundled MIBs are
-  // extension-less while downloads arrive as .mib or .txt — so the extension
-  // is not the mismatch, and neither is the case.
-  check('an extension alone is not a mismatch', !roll.mismatched.some((m) => m.fileName === 'SNMPv2-TC.mib'));
-  check('case alone is not a mismatch', !roll.mismatched.some((m) => m.fileName === 'If-Mib.txt'));
+  const roll = dependencyRoll([ok('vendor_power.txt', 'VENDOR-POWER-MIB'), ok('IF-MIB', 'IF-MIB')]);
+  check('a file named otherwise than its module is not reported', !('mismatched' in roll) && roll.missing.length === 0);
 }
 
 /* --- it must not fall over on what the bridge really sends ---------------- */
@@ -93,7 +81,7 @@ const ok = (fileName, moduleName) => ({ fileName, success: true, moduleName });
     let threw = null;
     try {
       const r = dependencyRoll(input);
-      if (!r || !Array.isArray(r.missing) || !Array.isArray(r.mismatched)) threw = 'shape';
+      if (!r || !Array.isArray(r.missing)) threw = 'shape';
     } catch (e) {
       threw = e.message;
     }

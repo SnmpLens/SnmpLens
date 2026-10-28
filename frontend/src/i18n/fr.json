@@ -45,7 +45,8 @@
         "imports": "imports",
         "build": "refusé",
         "semantic": "non résolu",
-        "loaded": "chargé"
+        "loaded": "chargé",
+        "duplicate": "doublon"
       },
       "at": "ligne {line}, col. {column}",
       "missingImports": "Imports impossibles à satisfaire",
@@ -710,7 +711,6 @@
       "depNotLoaded": "le fichier est là, il n’est simplement pas chargé",
       "depNeededBy": "réclamé par {count} fichier(s)",
       "depSymbols": "pour : {symbols}",
-      "depMismatch": "déclare le module {module} : rien de ce qui l’importe ne trouvera ce fichier",
       "loaded": "{count} chargé(s)",
       "failed": "{count} échoué(s)",
       "removeConfirm": "Supprimer le chemin MIB : {path} ?",
@@ -1095,6 +1095,7 @@
     "externalOpened": "{name} ouverte. L'enregistrement l'écrira dans le dossier MIB de SnmpLens.",
     "externalWarning": "Ce fichier a été ouvert hors de SnmpLens. L'enregistrement l'écrit dans le dossier MIB sous le nom « {name} », il ne réécrit pas l'original.",
     "bundledWarning": "Cette MIB est livrée avec SnmpLens et presque toutes les autres en dépendent. Une erreur ici casse tout l'arbre — la copie intégrée reste restaurable à tout moment.",
+    "encodingWarning": "Ce fichier n’est pas en UTF-8 : il a été lu comme du Windows-1252. L’enregistrer l’écrit en UTF-8. Si des lettres accentuées sont fausses, le fichier utilise un autre encodage : fermez-le sans l’enregistrer.",
     "snippet": {
       "objectType": "Définition OBJECT-TYPE",
       "moduleIdentity": "En-tête MODULE-IDENTITY",
@@ -1110,6 +1111,9 @@
     "missingImports": "Utilisés sans être importés : {symbols} ({count} au total).",
     "fixImports": "Ajouter aux IMPORTS",
     "importsFixed": "{count} symbole(s) ajouté(s) aux IMPORTS.",
+    "repairable": "{count, plural, one {# erreur que SnmpLens tolère et que les autres outils MIB refusent} other {# erreurs que SnmpLens tolère et que les autres outils MIB refusent}}",
+    "repair": "Les corriger",
+    "repaired": "{count, plural, one {# erreur corrigée.} other {# erreurs corrigées.}}",
     "draftRecovered": "Un travail non enregistré sur {name} a été récupéré d’une session précédente.",
     "find": "Rechercher…",
     "findNext": "Suivant",

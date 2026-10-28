@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/mib"
@@ -91,27 +90,22 @@ func (a *App) MibEditorRead(name string) (mib.Source, error) {
 	if err != nil {
 		return mib.Source{}, err
 	}
-	// Refuse a file that cannot survive the round trip.
+	// Decoded before it crosses the bridge.
 	//
 	// Wails marshals every bound result with encoding/json, which replaces
-	// each invalid UTF-8 byte with U+FFFD. So a Latin-1 vendor MIB reached the
-	// editor already mangled, and saving it — even with NO edits — wrote the
-	// replacement characters back over the original bytes. Measured: 0x8a and
-	// 0xe9 both came back as ef bf bd. Irreversible, and silent.
-	//
-	// An SMI module is ASCII by grammar, so this is a broken file rather than
-	// a limitation: say so, and let the user convert it.
-	if !utf8.Valid(raw) {
-		return mib.Source{}, fmt.Errorf(
-			"%s is not valid UTF-8 and cannot be edited without corrupting it — convert it to UTF-8 first (MIBs are ASCII by grammar)",
-			filepath.Base(name))
-	}
-
-	content, eol := mib.NormaliseSource(raw)
+	// each invalid UTF-8 byte with U+FFFD. So a Latin-1 vendor MIB used to
+	// reach the editor already mangled, and saving it — even with NO edits —
+	// wrote the replacement characters back over the original bytes. That was
+	// answered by refusing to open any file that is not UTF-8, which refused
+	// the vendor MIBs that most needed an editor: they LOAD, since gosmi
+	// accepts any byte inside a string. They are now read as Windows-1252,
+	// Encoding says so, and the editor tells the user that saving writes UTF-8
+	// before anything is written.
+	content, eol, encoding := mib.DecodeSource(raw)
 	_, bundled := a.bundledContent(name)
 
 	return mib.Source{
-		Name: filepath.Base(name), Path: path, Content: content, Eol: eol,
+		Name: filepath.Base(name), Path: path, Content: content, Eol: eol, Encoding: encoding,
 		Bundled: bundled, Sha256: mib.Checksum(content),
 		Diagnostics: mib.Validate(content),
 	}, nil
@@ -143,24 +137,18 @@ func (a *App) MibEditorOpenExternal() (mib.Source, error) {
 	if err != nil {
 		return mib.Source{}, err
 	}
-	if !utf8.Valid(raw) {
-		return mib.Source{}, fmt.Errorf(
-			"%s is not valid UTF-8 and cannot be edited without corrupting it — convert it to UTF-8 first",
-			filepath.Base(path))
-	}
+	content, eol, encoding := mib.DecodeSource(raw)
 
-	content, eol := mib.NormaliseSource(raw)
-
-	// Offer the module's own name rather than the file name: gosmi resolves a
-	// module by name, so a file called "vendor.txt" holding ACME-MIB has to be
-	// saved as ACME-MIB to ever load.
+	// Offer the module's own name rather than the file name, as the import
+	// stores it: gosmi resolves a module by name, and a file named after the
+	// module it holds is found by every tool, not only through mibFS.
 	suggested := mib.ModuleName(content)
 	if suggested == "" {
 		suggested = filepath.Base(path)
 	}
 
 	return mib.Source{
-		Name: suggested, Path: path, Content: content, Eol: eol,
+		Name: suggested, Path: path, Content: content, Eol: eol, Encoding: encoding,
 		External: true, Sha256: mib.Checksum(content),
 		Diagnostics: mib.Validate(content),
 	}, nil
@@ -201,7 +189,9 @@ func (a *App) MibEditorSave(name, content, baseSha256 string, force bool) (mib.S
 	// baseline is what the editor read; if disk no longer matches it, the file
 	// changed underneath — another instance, an import, a text editor.
 	if statErr == nil && !force && baseSha256 != "" {
-		onDisk, _ := mib.NormaliseSource(existing)
+		// Decoded as it was when read, or a Windows-1252 file is "changed
+		// on disk" the moment it is opened.
+		onDisk, _, _ := mib.DecodeSource(existing)
 		if mib.Checksum(onDisk) != baseSha256 {
 			result.Conflict = true
 			return result, nil
@@ -218,7 +208,7 @@ func (a *App) MibEditorSave(name, content, baseSha256 string, force bool) (mib.S
 
 	eol := "lf"
 	if statErr == nil {
-		_, eol = mib.NormaliseSource(existing)
+		_, eol, _ = mib.DecodeSource(existing)
 	}
 	payload := []byte(mib.RestoreEol(content, eol))
 
@@ -326,6 +316,13 @@ func (a *App) MibEditorCheckImports(content string) []mib.MissingImport {
 // MibEditorFixImports returns the buffer with its IMPORTS clause repaired.
 func (a *App) MibEditorFixImports(content string) mib.ImportFix {
 	return mib.FixImports(content, mib.Symbols())
+}
+
+// MibEditorRepair returns the buffer with what SnmpLens reads leniently
+// written in — an escaped quote, a malformed date, a misspelt module name — so
+// the file loads in other MIB tools as it does here.
+func (a *App) MibEditorRepair(content string) mib.RepairResult {
+	return mib.Repair(content)
 }
 
 // --- drafts ---

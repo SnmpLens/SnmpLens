@@ -83,7 +83,11 @@ type Source struct {
 	Content string `json:"content"`
 	// Eol records what the file used, so saving does not silently rewrite
 	// every line of a file the user only touched in one place.
-	Eol      string `json:"eol"` // "lf" or "crlf"
+	Eol string `json:"eol"` // "lf" or "crlf"
+	// Encoding is how the bytes were read: "utf-8", or "windows-1252" for a
+	// file that is not UTF-8 (DecodeSource). Saving always writes UTF-8, and
+	// the editor says so before it happens.
+	Encoding string `json:"encoding"`
 	Bundled  bool   `json:"bundled"`
 	External bool   `json:"external"`
 	// Sha256 of the content as read, so a save can notice the file changed
@@ -127,8 +131,7 @@ var endRe = regexp.MustCompile(`(?m)^\s*END\s*(--.*)?$`)
 // It is pure: no file is read, no global state is touched, and gosmi's loaded
 // tree is untouched. That is what makes it safe to run while the user types.
 func Validate(content string) []Diagnostic {
-	module, err := parseOnce(content)
-	return validateParsed(content, module, err)
+	return validateParsed(content, prepare(content))
 }
 
 // parseOnce is the single parse the whole editor pipeline shares.
@@ -141,9 +144,11 @@ func parseOnce(content string) (*parser.Module, error) {
 }
 
 // validateParsed produces the syntax, structure and style diagnostics from a
-// file that has already been parsed.
-func validateParsed(content string, _ *parser.Module, parseErr error) []Diagnostic {
+// file that has already been parsed, and says what the lenient reading
+// changed: a MIB that loads only because of it is still wrong.
+func validateParsed(content string, p prepared) []Diagnostic {
 	diags := []Diagnostic{}
+	parseErr := p.err
 
 	if strings.HasPrefix(content, "\ufeff") {
 		diags = append(diags, Diagnostic{
@@ -157,6 +162,7 @@ func validateParsed(content string, _ *parser.Module, parseErr error) []Diagnost
 	if parseErr != nil {
 		diags = append(diags, syntaxDiagnostic(parseErr))
 	}
+	diags = append(diags, p.Fixes...)
 
 	diags = append(diags, structureDiagnostics(content)...)
 	diags = append(diags, styleDiagnostics(content)...)

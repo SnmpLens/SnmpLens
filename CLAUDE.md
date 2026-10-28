@@ -372,8 +372,7 @@ is a lot of it), and `shortenPaths` drops the directory so the position survives
 `Diagnose` reports a STAGE — read / content / parse / imports / build / semantic / loaded — plus located
 diagnostics, an excerpt with a caret, the imported modules that cannot be satisfied and the symbols each was
 needed for, and a chain followed to its root when a dependency fails too. It recognises the files people actually
-download by mistake (HTML page, PDF, zip, UTF-16) because all four reach gosmi as the same sentence, and it warns
-when a file's name does not match its module, which loads fine and is invisible until something imports it.
+download by mistake (HTML page, PDF, zip, UTF-16) because all four reach gosmi as the same sentence.
 
 A module can load AND be broken: gosmi resolves imports lazily and returns nil rather than failing, so a MIB
 importing a module you do not have reports success and resolves to nothing. That is why `Diagnose` is offered on
@@ -388,8 +387,60 @@ only moment it exists.
 An import that is present but not loaded is reported as `notloaded`, not `failed`: it is usually disabled, not
 broken. Only a dependency whose own diagnosis stops at read/content/parse is `failed`, with its cause.
 
-`LoadWithDiagnostics` runs it automatically on failures only — it re-reads and re-parses, which is worth doing
-once something is wrong and not for two hundred working vendor MIBs.
+`LoadWithDiagnostics` runs it automatically on failures, and on a module that loaded with objects it could not
+resolve — it re-reads and re-parses, which is worth doing once something is wrong and not for two hundred working
+vendor MIBs.
+
+### Vendor MIBs as they are
+
+Everything below is a mistake vendor MIBs make, or a shape their archives have, that SnmpLens used to fail on;
+every case has a reproduction in `pkg/mib/vendorfiles_test.go` and `internal/app/mibimport_test.go`.
+
+**gosmi is given the directory through `mibFS`** (`pkg/mib/mibfs.go`, mounted by `mountLocked` on every load, the
+other directories gosmi searches kept ahead of it). gosmi finds an imported module by FILE NAME — `FOO-MIB`,
+`FOO-MIB.mib`, `.my`, `.mi2`, `.txt` and nothing else — so a file named after a product was invisible to every
+module importing it, and whether the import resolved depended on whether the file sorted before its importer.
+`mibFS` lists, ahead of the files, an entry under each module's DECLARED name for every file gosmi would not find
+by its own rule. When several files declare one module, one is the module (`Preferred`, among the files being
+loaded: switching one off is how the choice is overridden), its entry comes first, and `LoadWithDiagnostics`
+reports the others as stage `duplicate`, naming the one loaded and why. They used to both load, the second
+replacing the first in silence. gosmi then names the directory `[dir]`, which `shortenPaths` strips too.
+
+**What gosmi reads is the lenient reading** (`pkg/mib/repair.go`), and so is what the editor and `Diagnose`
+parse (`prepare`), so the three never disagree about a file. Three repairs, each reported as a warning where it
+was made and never written to the file unless the editor's "fix" is pressed (`Repair`): an IMPORTS module named by
+a spelling that is not its name (`FROM RFC-1213` — it loaded, and every DisplayString from it had no type); `\"`
+inside a string, which SMI has no escape for, so it ended the DESCRIPTION; a LAST-UPDATED or REVISION of the wrong
+length (`"20190415Z"`, the day without the time). The last two are applied only to a file that does not parse without them: `\"` is legal at
+the end of a string that ends with a backslash, and a valid file is never touched.
+
+**A file that is not UTF-8 is read as Windows-1252** (`DecodeSource`). gosmi accepts any byte inside a string, so
+such a vendor MIB LOADS; it was the editor that refused it and the import gate that turned it away when the first
+accented letter came within 4 KiB. `describeNonMib` now refuses control characters, not encodings.
+
+**gosmi resolves some SMIv1 imports without the module they name** — the 33 names it rewrites from RFC1213-MIB to
+its successors, RFC1155-SMI's base names, the OBJECT-TYPE and TRAP-TYPE macros — and `implicit.go` holds the same
+list, because the editor reported those modules as "not loaded; add its MIB file" for a file the loader resolved
+completely. Only the names gosmi rewrites: `ifInOctets FROM RFC1213-MIB` still needs RFC1213-MIB. One of them
+is rewritten to a module that does not define it — `ipRouteDest` goes to IP-MIB, which has no route table — so it
+resolves to nothing whatever is loaded, and the editor says so (`import-lost`) instead of asking for a file.
+
+**What this package copies from gosmi is asserted against gosmi** (`gosmicontract_test.go`): the file names it finds
+a module by, every rewritten import resolving without its module (and `ipRouteDest` not resolving at all), the
+lexer reporting a character it cannot read ahead of an earlier grammar error, the dates its grammar accepts, the
+load error it prints and discards. Each workaround here mirrors a rule of gosmi's, and an upgrade that changes the
+rule changes nothing in a diff; the test fails instead, which is the moment to re-read gosmi and move the copy.
+
+**A load reports what resolved to nothing** (`moduleQuality`): objects with no type, definitions with no OID. A
+module half of whose objects had no type was green. `MibLoadResult.Warnings` carries those and the repairs;
+`TestEveryBundledMibLoadsWithoutWarnings` keeps the bundled set clean, or nobody would read them.
+
+**A syntax error is reported where it is** (`pkg/mib/syntax.go`). participle lexes the whole file before the
+grammar sees a token, so a stray quote — which shifts every string after it — was reported as "no match found for
+–" at the first typographic dash several lines below, and the outline was empty. `parseSMI` blanks everything the
+lexer cannot read outside strings at once (`neutralise`: non-ASCII, control characters, a lone full stop) and
+parses again; whichever problem comes first is reported, and a word straight after a string is reported AT THE
+QUOTE that ended it.
 
 **An empty file list means empty**, in the service. It used to mean "everything in the directory", which
 re-enabled every MIB the user had switched off; the policy lives in `App.LoadMibsWithDiagnostics`, which
@@ -441,6 +492,11 @@ Two rules that look like tidiness and are not: **backups go to a sibling `mib-ba
 `ListMibFiles` filters only dotfiles and `os.ReadDir` is alphabetical, so `IF-MIB.123.bak` beside `IF-MIB` would
 load first as the same module and win; and **every path goes through `resolveMibPath`**, because these methods
 write and `monitoring.db`, `service.json` and the secret store all sit one directory above `mibs/`.
+
+A MIB that is not UTF-8 opens as Windows-1252 (`Source.Encoding`), with a banner saying so before anything is
+saved, and saving writes UTF-8. It used to be refused outright — the right answer to encoding/json turning every
+invalid byte into U+FFFD on its way over the bridge, and the wrong one for vendor MIBs, which load. The conflict
+check decodes the file on disk the same way, or such a file is "changed on disk" the moment it is opened.
 
 The editor's buffer lives in `stores/mibEditorStore.js`, **not** in the panel component: the tab shell mounts
 panels with `{#if activeTab === …}`, which destroys the component on every switch, and component state took the

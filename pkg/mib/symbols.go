@@ -319,8 +319,18 @@ func isIdentPart(c byte) bool {
 // match a loaded symbol, and an unknown vendor name is not something we could
 // suggest an import for anyway.
 func CheckImports(content string, cat Catalogue) []MissingImport {
-	module, err := parseOnce(content)
-	return checkImportsParsed(content, module, err, cat.index())
+	p := prepare(content)
+	return p.remapImports(checkImportsParsed(p.Text, p.module, p.err, cat.index()))
+}
+
+// remapImports is remap for the positions of missing imports.
+func (r repaired) remapImports(missing []MissingImport) []MissingImport {
+	for i := range missing {
+		if missing[i].Line > 0 && missing[i].Column > 0 {
+			missing[i].Column = r.original(missing[i].Line, missing[i].Column)
+		}
+	}
+	return missing
 }
 
 // checkImportsParsed works from an already-parsed file and a pre-built name

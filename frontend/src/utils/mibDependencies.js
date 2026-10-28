@@ -30,14 +30,13 @@ export const NOT_LOADED = 'notloaded';
 
 /**
  * @param {Array} diagnostics MibLoadResult[] as LoadMibsWithDiagnostics returns
- * @returns {{missing: Array, mismatched: Array, loaded: number, failed: number}}
+ * @returns {{missing: Array, loaded: number, failed: number}}
  */
 export function dependencyRoll(diagnostics) {
   const list = Array.isArray(diagnostics) ? diagnostics : [];
 
   // module -> { module, reason, cause, neededBy: [{ file, symbols }] }
   const byModule = new Map();
-  const mismatched = [];
   let loaded = 0;
   let failed = 0;
 
@@ -46,13 +45,9 @@ export function dependencyRoll(diagnostics) {
     if (d.success) loaded++;
     else failed++;
 
-    // A file whose name does not match the module it declares loads perfectly
-    // and is invisible to everything that imports it — so it belongs in this
-    // roll even though it is not a failure.
-    const declared = d.moduleName || (d.diagnosis && d.diagnosis.moduleName) || '';
-    if (declared && !sameName(d.fileName, declared)) {
-      mismatched.push({ fileName: d.fileName, moduleName: declared });
-    }
+    // A file whose name is not its module is no longer a row here: gosmi is
+    // given every module under the name it DECLARES (pkg/mib/mibfs.go), so the
+    // mismatch this roll used to report no longer hides anything.
 
     const missing = (d.diagnosis && d.diagnosis.missing) || [];
     for (const m of missing) {
@@ -77,7 +72,7 @@ export function dependencyRoll(diagnostics) {
     (a, b) => b.neededBy.length - a.neededBy.length || a.module.localeCompare(b.module)
   );
 
-  return { missing, mismatched, loaded, failed };
+  return { missing, loaded, failed };
 }
 
 /**
@@ -91,14 +86,6 @@ export function symbolsWanted(entry) {
     for (const s of n.symbols || []) seen.add(s);
   }
   return [...seen].sort();
-}
-
-// A file matches its module when the name without its extension is the same,
-// case-insensitively: gosmi looks a module up BY FILE NAME, and the bundled
-// MIBs are extension-less while downloads arrive as .mib or .txt.
-function sameName(fileName, moduleName) {
-  const base = String(fileName || '').replace(/\.[^.]*$/, '');
-  return base.toLowerCase() === String(moduleName).toLowerCase();
 }
 
 function severity(reason) {

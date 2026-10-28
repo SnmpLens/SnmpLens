@@ -45,7 +45,8 @@
         "imports": "importaciones",
         "build": "rechazado",
         "semantic": "sin resolver",
-        "loaded": "cargado"
+        "loaded": "cargado",
+        "duplicate": "duplicado"
       },
       "at": "línea {line}, col. {column}",
       "missingImports": "Importaciones que no se pueden satisfacer",
@@ -710,7 +711,6 @@
       "depNotLoaded": "el archivo está aquí, simplemente no está cargado",
       "depNeededBy": "requerido por {count} archivo(s)",
       "depSymbols": "para: {symbols}",
-      "depMismatch": "declara el módulo {module}, así que nada que lo importe encontrará este archivo",
       "loaded": "{count} cargado(s)",
       "failed": "{count} fallido(s)",
       "removeConfirm": "¿Eliminar la ruta de MIB: {path}?",
@@ -1095,6 +1095,7 @@
     "externalOpened": "{name} abierta. Al guardar se escribirá en la carpeta MIB de SnmpLens.",
     "externalWarning": "Este archivo se abrió desde fuera de SnmpLens. Al guardar se escribe en la carpeta MIB como «{name}», no se reescribe el original.",
     "bundledWarning": "Esta MIB viene con SnmpLens y casi todas las demás importan de ella. Un error aquí rompe todo el árbol — la copia incluida se puede restaurar en cualquier momento.",
+    "encodingWarning": "Este archivo no está en UTF-8: se leyó como Windows-1252. Al guardarlo se escribe en UTF-8. Si las letras acentuadas se ven mal, el archivo usa otra codificación: ciérrelo sin guardar.",
     "snippet": {
       "objectType": "Definición OBJECT-TYPE",
       "moduleIdentity": "Cabecera MODULE-IDENTITY",
@@ -1110,6 +1111,9 @@
     "missingImports": "Usados sin importar: {symbols} ({count} en total).",
     "fixImports": "Añadir a IMPORTS",
     "importsFixed": "{count} símbolo(s) añadido(s) a IMPORTS.",
+    "repairable": "{count, plural, one {# error que SnmpLens tolera y otras herramientas MIB rechazan} other {# errores que SnmpLens tolera y otras herramientas MIB rechazan}}",
+    "repair": "Corregirlos",
+    "repaired": "{count, plural, one {# error corregido.} other {# errores corregidos.}}",
     "draftRecovered": "Se recuperó trabajo sin guardar en {name} de una sesión anterior.",
     "find": "Buscar…",
     "findNext": "Siguiente",

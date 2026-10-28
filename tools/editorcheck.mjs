@@ -5,25 +5,26 @@
  *   node tools/editorcheck.mjs              build the bundle, then check
  *   node tools/editorcheck.mjs --no-build   check the bundle already built
  *
- * The underlines are a layer drawn over the text, and every way that layer has
- * been wrong was invisible to the other tests: it sat 8 px up and left, so the
- * line went through the middle of the word; it vanished after one screen of
- * scrolling; it was placed from a character width measured before any file was
- * open, so it drifted right by 0.6 px a column. Each of those passed every unit
- * test and was found by looking at the screen. This looks at the screen.
+ * The editing surface is CodeMirror, which draws a problem's underline as a
+ * span around the very characters; what can still be wrong is WHICH
+ * characters — the line and column Go gives, turned into an offset in a text
+ * with tabs, accented and wide characters before the word. The hand-made
+ * surface before it got that wrong three ways no unit test saw (8 px off, gone
+ * after a screen of scrolling, drifting by a mismeasured character width).
  *
  * It loads the editor from the screenshot bundle (the real components, the
  * bridge replaced) on the scene `check-mib-editor-geometry` — a MIB with tabs,
  * accented and CJK characters before the words in question, and a problem two
- * hundred lines down — and, for every underline, compares its box with the box
- * of the same characters in the text: same left edge, same width, same
- * baseline. Then it scrolls to the bottom and does it again for the last one.
+ * hundred lines down — and, for every problem, finds its underline and checks
+ * it holds exactly the word, at the line the gutter numbers and the column the
+ * line's own text gives, on screen. Then it scrolls to the bottom and does it
+ * again for the last one.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -32,10 +33,9 @@ const frontend = join(repo, 'frontend');
 const dist = join(frontend, 'screenshots', 'dist');
 const SCENE = 'check-mib-editor-geometry';
 
-// Pixels. The underline and the text are laid out by the same engine in the
-// same font, so a correct placement is exact; these only absorb sub-pixel
-// rounding between two boxes.
-const TOLERANCE = { x: 1, width: 1.5, bottom: 3 };
+// What the scene's MIB holds, and where each problem is (frontend/screenshots/scenes.js).
+const { geometryMib } = await import(pathToFileURL(join(frontend, 'screenshots', 'scenes.js')).href);
+const EXPECTED = geometryMib().diagnostics.filter((d) => d.severity !== 'info');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -202,84 +202,71 @@ function killTree(child) {
 
 /* --- the measurement, run in the page ------------------------------------ */
 
-// For every underline: its box, and the box of the same characters in the
-// mirror (the coloured copy of the text the textarea sits on). The line and
-// column come from the underline's data attributes, the characters from the
-// mirror's own text nodes, so the two are found independently.
+// For every underline: the characters it holds, its line as the gutter numbers
+// it, its column from the line's own text before it, and whether it is on
+// screen. The line is matched to the gutter by position, so it is found
+// independently of the underline.
 const MEASURE = `(() => {
-  // The visible text area: what is outside it is not on screen, whatever its
-  // box says.
-  const mirror = document.querySelector('.mirror');
-  const area = document.querySelector('.surface .code');
-  if (!mirror || !area) return { error: 'the editor is not on screen' };
-  const view = area.getBoundingClientRect();
-  const nodes = [];
-  const walker = document.createTreeWalker(mirror, NodeFilter.SHOW_TEXT);
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
-
-  function at(line, column) {
-    let l = 1, c = 1;
-    for (const node of nodes) {
-      const t = node.data;
-      for (let i = 0; i < t.length; i++) {
-        if (l === line && c === column) return [node, i];
-        if (t[i] === '\\n') { l++; c = 1; } else { c++; }
-      }
-    }
-    return null;
+  const scroller = document.querySelector('.cm-scroller');
+  if (!scroller) return { error: 'the editor is not on screen' };
+  const view = scroller.getBoundingClientRect();
+  const gutters = [...document.querySelectorAll('.cm-lineNumbers .cm-gutterElement')];
+  const lineNumber = (lineEl) => {
+    const top = lineEl.getBoundingClientRect().top;
+    const g = gutters.find((e) => Math.abs(e.getBoundingClientRect().top - top) < 2);
+    return g ? Number(g.textContent) : 0;
+  };
+  const out = [];
+  for (const el of document.querySelectorAll('.cm-lintRange')) {
+    const lineEl = el.closest('.cm-line');
+    if (!lineEl) continue;
+    const before = document.createRange();
+    before.setStart(lineEl, 0);
+    before.setEndBefore(el);
+    const r = el.getBoundingClientRect();
+    const l = lineEl.getBoundingClientRect();
+    out.push({
+      text: el.textContent,
+      line: lineNumber(lineEl),
+      column: before.toString().length + 1,
+      onScreen: r.width > 0 && r.bottom > view.top && r.top < view.bottom,
+      inLine: r.top >= l.top - 1 && r.bottom <= l.bottom + 1,
+    });
   }
-
-  // What of a box survives every ancestor that clips: a box's own rectangle
-  // ignores clipping, and an underline clipped away by its own layer — the
-  // layer that moved with the scroll and cut everything below its height —
-  // still reports a rectangle on screen.
-  function clipped(el, rect) {
-    let r = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
-    for (let p = el.parentElement; p; p = p.parentElement) {
-      const o = getComputedStyle(p);
-      if (o.overflowX === 'visible' && o.overflowY === 'visible') continue;
-      const b = p.getBoundingClientRect();
-      r = { left: Math.max(r.left, b.left), right: Math.min(r.right, b.right),
-        top: Math.max(r.top, b.top), bottom: Math.min(r.bottom, b.bottom) };
+  // A range the highlighter splits is several spans: put them back together.
+  out.sort((a, b) => a.line - b.line || a.column - b.column);
+  const merged = [];
+  for (const m of out) {
+    const last = merged[merged.length - 1];
+    if (last && last.line === m.line && last.column + last.text.length === m.column) {
+      last.text += m.text;
+      last.onScreen = last.onScreen && m.onScreen;
+      last.inLine = last.inLine && m.inLine;
+    } else {
+      merged.push({ ...m });
     }
-    return { width: Math.max(0, r.right - r.left), height: Math.max(0, r.bottom - r.top), top: r.top, bottom: r.bottom };
   }
-
-  return [...document.querySelectorAll('.mark')].map((m) => {
-    const line = Number(m.dataset.line), column = Number(m.dataset.column), length = Number(m.dataset.length);
-    const mark = m.getBoundingClientRect();
-    const start = at(line, column);
-    const end = at(line, column + length);
-    if (!start) return { line, column, rendered: false };
-    const range = document.createRange();
-    range.setStart(start[0], start[1]);
-    if (end) range.setEnd(end[0], end[1]);
-    else range.setEnd(start[0], Math.min(start[0].data.length, start[1] + length));
-    const text = range.getClientRects()[0] || range.getBoundingClientRect();
-    const onScreen = (r) => r.width > 0 && r.bottom > view.top && r.top < view.bottom;
-    return {
-      line, column, length, rendered: true,
-      textOnScreen: onScreen(text), markOnScreen: onScreen(clipped(m, mark)),
-      dx: mark.left - text.left, dw: mark.width - text.width, dbottom: mark.bottom - text.bottom,
-    };
-  });
+  return merged;
 })()`;
 
-function judge(results, label) {
+// Every problem expected on screen has its underline, holding exactly its
+// word, where Go put it.
+function judge(results, label, expected) {
   if (!Array.isArray(results)) {
     return { measured: [], problems: [`${label}: ${results?.error || 'nothing could be measured'}`] };
   }
   const problems = [];
-  const measured = results.filter((r) => r.rendered && r.textOnScreen);
-  for (const r of measured) {
-    if (!r.markOnScreen) {
-      problems.push(`${label}: line ${r.line}: the text is on screen and its underline is not`);
+  const measured = [];
+  for (const d of expected) {
+    const u = results.find((r) => r.line === d.line && r.column === d.column);
+    if (!u) {
+      problems.push(`${label}: line ${d.line}:${d.column}: no underline for ${d.symbol}`);
       continue;
     }
-    if (Math.abs(r.dx) > TOLERANCE.x || Math.abs(r.dw) > TOLERANCE.width || Math.abs(r.dbottom) > TOLERANCE.bottom) {
-      problems.push(`${label}: line ${r.line}:${r.column}: off by ${r.dx.toFixed(1)} px across, `
-        + `${r.dw.toFixed(1)} px in width, ${r.dbottom.toFixed(1)} px at the baseline`);
-    }
+    measured.push(u);
+    if (u.text !== d.symbol) problems.push(`${label}: line ${d.line}:${d.column}: underlines "${u.text}", not "${d.symbol}"`);
+    if (!u.onScreen) problems.push(`${label}: line ${d.line}: the underline is not on screen`);
+    if (!u.inLine) problems.push(`${label}: line ${d.line}: the underline leaves its line`);
   }
   return { measured, problems };
 }
@@ -313,33 +300,32 @@ try {
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
   await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html?scene=${SCENE}` });
-  await cdp.until("document.querySelectorAll('.mark').length >= 3", 30000, 'the underlines');
+  await cdp.until("document.querySelectorAll('.cm-lintRange').length >= 3", 30000, 'the underlines');
   await sleep(300);
 
-  const top = judge(await cdp.value(MEASURE), 'top');
-  if (top.measured.length < 3) top.problems.push(`top: only ${top.measured.length} underline(s) could be measured`);
+  const near = EXPECTED.filter((d) => d.line < 30);
+  const far = EXPECTED.filter((d) => d.line > 200);
+  const top = judge(await cdp.value(MEASURE), 'top', near);
 
-  // To the bottom, through the textarea as a person would, and wait for the
-  // layers to follow it.
+  // To the bottom, as a person would scroll, and wait for the editor to draw
+  // what is there.
   await cdp.value(`(() => {
-    const ta = document.querySelector('.surface textarea');
-    ta.scrollTop = ta.scrollHeight;
-    ta.dispatchEvent(new Event('scroll'));
+    const s = document.querySelector('.cm-scroller');
+    s.scrollTop = s.scrollHeight;
+    s.dispatchEvent(new Event('scroll'));
     return true;
   })()`);
-  await sleep(400);
-  const bottom = judge(await cdp.value(MEASURE), 'scrolled');
-  if (!bottom.measured.some((r) => r.line > 200)) {
-    bottom.problems.push('scrolled: the last problem\'s underline was not measured at the bottom of the file');
-  }
+  await sleep(500);
+  const bottom = judge(await cdp.value(MEASURE), 'scrolled', far);
+  if (!far.length) bottom.problems.push('scrolled: the scene has no problem far down to check');
 
   const problems = [...top.problems, ...bottom.problems];
-  console.log(`measured ${top.measured.length} underline(s) at the top and ${bottom.measured.length} after scrolling`);
+  console.log(`checked ${top.measured.length} underline(s) at the top and ${bottom.measured.length} after scrolling`);
   if (problems.length) {
     failed = true;
     console.error(problems.map((p) => '  ' + p).join('\n'));
   } else {
-    console.log('every underline is under its characters');
+    console.log('every underline holds its word, where Go put it');
   }
 } catch (e) {
   failed = true;

@@ -550,12 +550,20 @@ could be read and never written.
 on a 185 KB MIB, and calling `Validate`, `CheckImports` and `Analyse` in turn parsed the file three times on every
 pause in typing. There are benchmarks in `bench_test.go`; run them before adding a check that parses.
 
-The editor colours only the visible window, the way an IDE does. It cannot parse incrementally — participle
-offers no way in — but the viewport half is free. `highlight` takes an initial `inString`, because the state
-carries across lines and a window opening inside a multi-line DESCRIPTION would otherwise paint the rest of the
-file as a string; `stringStateAt` answers that by scanning without producing anything (4 ms where tokenising is
-29). Unrendered lines are stood in for by blank lines, so the mirror keeps the textarea's height and scroll sync
-still works — the tokenise test checks the line count is preserved exactly.
+**The editing surface is CodeMirror 6** (`mibeditor/CodeEditor.svelte`). It replaced a transparent textarea laid
+over a coloured copy of the text and kept aligned to the pixel by arithmetic, and every bug that surface had was
+the alignment failing: underlines 8 px up and left, gone after a screen of scrolling, drifting by a character width
+measured before any file was open, a line too low after a CR. The text CodeMirror draws is the text being edited,
+and it places what decorates it. Colouring is `mibeditor/tokenize.js`'s tokeniser, written as a stream parser
+(`smiStream`) and given to CodeMirror by `smiLanguage.js`; `highlight()` runs the very same tokeniser to markup for
+`tests/tokenize.test.mjs`, so the colours tested are the ones shown. Go's diagnostics reach `@codemirror/lint`
+through `cmDiagnostics.js` (the underline is the symbol the diagnostic names, else the word at its column; advice
+gets none), with the panel's quick fix and mute as the tooltip's actions. Undo, search (localised through
+`EditorState.phrases`), completion from the loaded tree (never inside a string or a comment, read off the syntax
+tree) and the symbol hover card are CodeMirror's. The store stays the source: every edit goes to it, a text it
+changes otherwise is brought in without entering the history, and opening another file starts a fresh state, so
+an undo never walks back into the previous one. A contenteditable is not an INPUT or a TEXTAREA: `MibPanel`'s
+keyboard navigation skips it too, or arrows and Enter typed in the editor walked the MIB tree.
 
 An analysis result is applied only if the buffer it describes is still the buffer on screen. Analyses overlap
 while the user types, nothing orders their answers, and diagnostics carry line numbers: showing the ones computed
@@ -596,27 +604,17 @@ shallowest one is SNMPv2-SMI's `zeroDotZero`. `ContextMenu.svelte`, shared with 
 moves with the arrow keys and stays inside the window.
 
 **The panel is the editing surface; the rest are components.** `MibEditorPanel.svelte` keeps the buffer's surface
-(textarea, coloured mirror, underlines, completion, find) and what drives it; the file list (`mibeditor/FileList`),
+(`CodeEditor`) and what drives it; the file list (`mibeditor/FileList`),
 the outline (`Outline`), the problem table (`ProblemTable`) and the file actions (`FileActions`) take what they show
 as props and ask through events. Nothing they do touches the buffer except through the panel, whose undo history it
 is — which is also what makes the surface replaceable on its own.
 
-**Replacing the surface with CodeMirror 6 was weighed, with numbers.** Measured (codemirror 6.0.2, view 6.43,
-state 6.7, with lint and a stream language): +323 KB minified / +105 KB gzip with `minimalSetup`, +389 / +126 with
-`basicSetup`, against about 2.99 MB / 701 KB gzip of JavaScript for the whole renderer — +13% / +18%. It would take
-over what is hand-made here and has broken: the layering and windowing (`render.js`, `metrics.js`), the underline
-placement `tools/editorcheck.mjs` exists to guard, undo (`history.js`), search (`search.js`), the completion and hover
-popups, and IME and wide characters. Every one of the surface's recent bugs was in that list: the 8 px offset, the
-clip on scroll, a character width measured once, a CR drawn as a line break. What it costs: an SMI stream language
-(a port of `tokenize.js`, whose rules stay), Go's diagnostics fed to `linter`, the store kept as the source with
-transactions both ways, and the surface's tests rewritten. The verdict, the analysis and every component above are
-untouched by it. Decision: worth doing, as its own change, replacing the surface inside the panel and nothing else.
-
-`frontend/src/mibeditor/metrics.js` turns a (line, column) into pixels, which is what makes squiggles, hover
-cards and caret-anchored completion possible **here and not in a plain textarea**: the mirror lays out identically
-to the text (unit-tested) and both are monospace with a fixed line height, so a position is arithmetic once the
-character width is measured once. Editing inserts through `execCommand('insertText')` — deprecated, but the only
-way to write into a textarea AS AN EDIT, which is what the native undo stack records.
+**CodeMirror was weighed before it was adopted.** Measured (codemirror 6.0.2, view 6.43, state 6.7, with lint and a
+stream language): +323 KB minified / +105 KB gzip with `minimalSetup`, +389 / +126 with `basicSetup`, against
+about 2.99 MB / 701 KB gzip of JavaScript for the whole renderer — +13% / +18%, for an application that ships
+offline. It took over what was hand-made and had broken (layering, windowing, underline placement, undo, search,
+completion, hover, IME and wide characters), and the surface's own modules went with it: `render.js`,
+`metrics.js`, `history.js`, `search.js` and their tests.
 
 `CheckImports`/`FixImports` answer the question people actually have in front of a vendor MIB: which symbol is
 used without being imported, and which module it comes from. Only names the loaded tree knows are reported, which
@@ -1510,11 +1508,11 @@ a video.
 
 `tools/editorcheck.mjs` uses the same bundle for a CHECK rather than a picture: it loads the scene
 `check-mib-editor-geometry` (`checkScenes` in `scenes.js`, never captured) in Chrome over the DevTools
-protocol and, for every underline in the MIB editor, compares its box with the box of the same characters
-in the mirror — left edge, width, baseline, and what survives the ancestors that clip — at the top and after
-scrolling to the bottom. CI runs it. The underline layer had been 8 px up and left, gone after a screen of
-scrolling and placed from a character width measured before any file was open, and all three passed every
-other test.
+protocol and, for every problem the scene's MIB carries (`geometryMib`), checks that CodeMirror underlines exactly
+its word, at the line the gutter numbers and the column the line's own text gives, on screen — at the top and
+after scrolling to the bottom, with tabs, accented and CJK characters before the words. CI runs it. What it guards
+now is the line-and-column-to-offset conversion; the hand-made surface before CodeMirror had been 8 px off, gone
+after a screen of scrolling and drifting by a mismeasured character width, and all three passed every other test.
 
 `docs/demo/` is the same bundle again, built by `vite.demo.config.js`, and it is committed
 because Pages serves what is in the repository. What differs from the screenshot build is in

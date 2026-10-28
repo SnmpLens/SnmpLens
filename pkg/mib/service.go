@@ -65,6 +65,7 @@ func (s *Service) LoadAll() ([]*Node, error) {
 	// The loaded set is about to change, whatever the outcome: a partial load
 	// changes it too.
 	invalidateCatalogue()
+	mountLocked(s.path)
 
 	loadedModuleNames := []string{}
 	for _, fileName := range files {
@@ -94,7 +95,7 @@ func InitPath(path string) {
 	gosmiMu.Lock()
 	defer gosmiMu.Unlock()
 	gosmi.Init()
-	gosmi.AppendPath(path)
+	mountLocked(path)
 	invalidateCatalogue()
 }
 
@@ -131,6 +132,7 @@ func (s *Service) LoadSpecific(fileNames []string) ([]*Node, error) {
 	}
 
 	invalidateCatalogue()
+	mountLocked(s.path)
 
 	loadedModuleNames := []string{}
 	for _, fileName := range fileNames {
@@ -248,10 +250,17 @@ type MibLoadResult struct {
 	// unsatisfied import is really asking.
 	ModuleName string `json:"moduleName,omitempty"`
 	// Diagnosis explains a failure: the stage it stopped at, the located
-	// problems, the imports it could not satisfy. Present only for failures —
-	// it re-reads and re-parses the file, which is worth doing once something
-	// is already wrong and not on every file of a working directory.
+	// problems, the imports it could not satisfy. Present for failures, and for
+	// a module that loaded with objects it could not resolve — it re-reads and
+	// re-parses the file, which is worth doing once something is already wrong
+	// and not on every file of a working directory.
 	Diagnosis *LoadDiagnosis `json:"diagnosis,omitempty"`
+	// Warnings are what loaded and is not right: a repair the lenient reading
+	// made (CodeEscapedQuote, CodeBadDate, CodeImportAlias), or objects that
+	// resolved to no type or no OID (CodeNoType, CodeNoOid). "Loaded" used to be
+	// green for a module half of whose objects had no type. One per line and
+	// kind: two escaped quotes on one line are one thing to fix.
+	Warnings []Diagnostic `json:"warnings,omitempty"`
 }
 
 // MibLoadResponse wraps the tree and diagnostics for a load operation.
@@ -288,6 +297,7 @@ func (s *Service) loadWithDiagnosticsLocked(fileNames []string) MibLoadResponse 
 	// fallback quietly loaded nothing and looked correct.
 
 	invalidateCatalogue()
+	fsys := mountLocked(s.path)
 
 	// Shared across every diagnosis this loop triggers: the directory listing
 	// is the same for all of them.
@@ -298,10 +308,19 @@ func (s *Service) loadWithDiagnosticsLocked(fileNames []string) MibLoadResponse 
 	// stops. Refusing the files in the loop keeps everything else loadable.
 	cycles := s.findImportCycles(fileNames)
 
+	// Then one file per module. Two files declaring one module both loaded,
+	// and the second replaced the first in silence.
+	superseded := settleDuplicates(fsys, fileNames)
+
 	for _, fileName := range fileNames {
 		if cycle, inCycle := cycles[fileName]; inCycle {
 			log.Printf("Diagnostic: refusing '%s': import cycle %s", fileName, cycle)
 			diagnostics = append(diagnostics, cycleDiagnostic(fileName, cycle))
+			continue
+		}
+		if dup, ok := superseded[fileName]; ok {
+			log.Printf("Diagnostic: not loading '%s': %s", fileName, dup.Error)
+			diagnostics = append(diagnostics, dup)
 			continue
 		}
 
@@ -328,15 +347,28 @@ func (s *Service) loadWithDiagnosticsLocked(fileNames []string) MibLoadResponse 
 				Error:     diag.Summary,
 				Diagnosis: &diag,
 			})
-		} else {
-			log.Printf("Diagnostic: loaded '%s' as module '%s'", fileName, moduleName)
-			diagnostics = append(diagnostics, MibLoadResult{
-				FileName:   fileName,
-				Success:    true,
-				ModuleName: moduleName,
-			})
-			loadedModuleNames = append(loadedModuleNames, moduleName)
+			continue
 		}
+
+		log.Printf("Diagnostic: loaded '%s' as module '%s'", fileName, moduleName)
+		result := MibLoadResult{FileName: fileName, Success: true, ModuleName: moduleName}
+		seen := map[string]bool{}
+		for _, fix := range fsys.repairs[fileName] {
+			key := fmt.Sprintf("%d %s", fix.Line, fix.Code)
+			if !seen[key] {
+				seen[key] = true
+				result.Warnings = append(result.Warnings, fix)
+			}
+		}
+		if quality := moduleQuality(moduleName); len(quality) > 0 {
+			result.Warnings = append(result.Warnings, quality...)
+			// The diagnosis is what says WHY: the import that is missing, the
+			// type nothing defines.
+			diag := s.diagnose(fileName, ctx, "")
+			result.Diagnosis = &diag
+		}
+		diagnostics = append(diagnostics, result)
+		loadedModuleNames = append(loadedModuleNames, moduleName)
 	}
 
 	tree, err := s.buildTree(loadedModuleNames)
@@ -500,4 +532,88 @@ func isOidLess(oid1, oid2 string) bool {
 		}
 	}
 	return len(parts1) < len(parts2)
+}
+
+// settleDuplicates keeps one file per module among the ones being loaded, and
+// reports each of the others as not loaded, saying which file was and why.
+//
+// Among the files ASKED FOR: one the operator switched off is not a candidate,
+// so enabling the older of two copies and disabling the newer is how a choice
+// is overridden.
+func settleDuplicates(fsys *mibFS, fileNames []string) map[string]MibLoadResult {
+	byModule := map[string][]string{}
+	for _, f := range fileNames {
+		if module := fsys.declared[f]; module != "" {
+			byModule[module] = append(byModule[module], f)
+		}
+	}
+	out := map[string]MibLoadResult{}
+	for module, files := range byModule {
+		kept := fsys.prefer(module, files)
+		for _, f := range files {
+			if f == kept {
+				continue
+			}
+			summary := fmt.Sprintf("%s is also declared by %s, which was loaded instead because %s; disable or remove one of the two",
+				module, kept, fsys.reasons[f])
+			out[f] = MibLoadResult{
+				FileName: f, ModuleName: module, Error: summary,
+				Diagnosis: &LoadDiagnosis{FileName: f, ModuleName: module, Stage: StageDuplicate, Summary: summary},
+			}
+		}
+	}
+	return out
+}
+
+// Codes for what a loaded module left unresolved.
+const (
+	CodeNoType = "no-type"
+	CodeNoOid  = "no-oid"
+)
+
+// moduleQuality says what of a loaded module resolved to nothing.
+//
+// gosmi loads a module whose types or parents it cannot resolve, and gives the
+// objects concerned no type or no OID. A walk then shows their values raw and
+// unnamed, and nothing had said why.
+func moduleQuality(moduleName string) []Diagnostic {
+	module, err := gosmi.GetModule(moduleName)
+	if err != nil {
+		return nil
+	}
+	var untyped, unplaced []string
+	for _, n := range module.GetNodes() {
+		if n.Oid == nil || n.OidLen == 0 || n.Oid.String() == "" {
+			unplaced = append(unplaced, n.Name)
+			continue
+		}
+		if (n.Kind == types.NodeScalar || n.Kind == types.NodeColumn) && n.Type == nil {
+			untyped = append(untyped, n.Name)
+		}
+	}
+	var out []Diagnostic
+	if len(untyped) > 0 {
+		out = append(out, Diagnostic{
+			Severity: SevWarning, Code: CodeNoType, Symbol: fmt.Sprint(len(untyped)),
+			Message: fmt.Sprintf("%s no type (%s): their SYNTAX names a type no loaded module defines, so their values are shown raw",
+				plural(len(untyped), "object has", "objects have"), listSome(untyped)),
+		})
+	}
+	if len(unplaced) > 0 {
+		out = append(out, Diagnostic{
+			Severity: SevWarning, Code: CodeNoOid, Symbol: fmt.Sprint(len(unplaced)),
+			Message: fmt.Sprintf("%s no OID (%s): they hang from a node no loaded module defines, so they are not in the tree",
+				plural(len(unplaced), "definition has", "definitions have"), listSome(unplaced)),
+		})
+	}
+	return out
+}
+
+// listSome names the first few of a list and counts the rest.
+func listSome(names []string) string {
+	const shown = 4
+	if len(names) <= shown {
+		return strings.Join(names, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(names[:shown], ", "), len(names)-shown)
 }

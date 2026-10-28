@@ -20,6 +20,7 @@
     MibEditorReload,
     MibEditorSymbols,
     MibEditorFixImports,
+    MibEditorRepair,
   } from '../wailsjs/go/app/App';
 
   let files = [];
@@ -433,6 +434,25 @@
       insertAtCaret(fix.content, [0, buffer.length]);
       notificationStore.add(
         get(_)('mibEditor.importsFixed', { values: { count: fix.missing.length } }), 'success');
+    } catch (e) {
+      notificationStore.add(String(e), 'error');
+    }
+  }
+
+  // What SnmpLens reads leniently and other MIB tools refuse: an escaped quote,
+  // a date without its time, a misspelt module name. The file loads here; the
+  // fix writes the repair in, so it loads everywhere.
+  const REPAIRABLE = new Set(['escaped-quote', 'bad-date', 'import-alias']);
+  $: repairable = diagnostics.filter((d) => REPAIRABLE.has(d.code));
+
+  async function repair() {
+    try {
+      const fix = await MibEditorRepair(buffer);
+      if (!fix.content) return;
+      // One edit for the whole buffer, so it stays undoable.
+      insertAtCaret(fix.content, [0, buffer.length]);
+      notificationStore.add(
+        get(_)('mibEditor.repaired', { values: { count: fix.fixes.length } }), 'success');
     } catch (e) {
       notificationStore.add(String(e), 'error');
     }
@@ -967,6 +987,11 @@
           <Icon name="triangle-alert" size={13} /> {$_('mibEditor.externalWarning', { values: { name: source.name } })}
         </p>
       {/if}
+      {#if source.encoding === 'windows-1252'}
+        <p class="banner">
+          <Icon name="triangle-alert" size={13} /> {$_('mibEditor.encodingWarning')}
+        </p>
+      {/if}
 
       <!-- The textarea is transparent and sits over the coloured mirror. Both
            layers must use the same font metrics or they drift apart. -->
@@ -1122,6 +1147,15 @@
             values: { count: missingImports.length, symbols: missingImports.slice(0, 4).map((m) => m.symbol).join(', ') } })}</span>
           <span class="spacer"></span>
           <button class="btn btn-small" on:click={fixImports}>{$_('mibEditor.fixImports')}</button>
+        </div>
+      {/if}
+
+      {#if repairable.length}
+        <div class="fixbar">
+          <Icon name="triangle-alert" size={13} />
+          <span>{$_('mibEditor.repairable', { values: { count: repairable.length } })}</span>
+          <span class="spacer"></span>
+          <button class="btn btn-small" on:click={repair}>{$_('mibEditor.repair')}</button>
         </div>
       {/if}
 

@@ -199,22 +199,6 @@ END
 	}
 }
 
-// A file whose name does not match its module loads on its own and is
-// invisible until something imports it, which is the worst kind of problem to
-// find later.
-func TestDiagnoseWarnsWhenTheNameDoesNotMatchTheModule(t *testing.T) {
-	s := diagDir(t, map[string]string{"whatever.mib": goodMib})
-	d := s.Diagnose("whatever.mib")
-
-	if d.ModuleName != "TEST-MIB" {
-		t.Fatalf("module name = %q", d.ModuleName)
-	}
-	joined := strings.Join(d.Hints, " ")
-	if !strings.Contains(joined, "TEST-MIB") || !strings.Contains(joined, "renamed") {
-		t.Errorf("no hint about the mismatch: %+v", d.Hints)
-	}
-}
-
 // Loading is not the same as being correct: this one passes the loader and
 // resolves to a nil type and an empty OID.
 func TestDiagnoseReportsAModuleThatLoadedWrong(t *testing.T) {

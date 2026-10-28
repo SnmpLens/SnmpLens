@@ -31,6 +31,8 @@ const (
 	CodeNoDescription  = "no-description"
 	CodeIndexUndefined = "index-undefined"
 	CodeRowAccess      = "row-access"
+	CodeDuplicateName  = "duplicate-name"
+	CodeImportLost     = "import-lost"
 )
 
 // Analyse reports every semantic problem it can locate.
@@ -38,8 +40,8 @@ const (
 // cat is the loaded tree; when it is empty the checks that need it are skipped
 // rather than producing confident nonsense.
 func Analyse(content string, cat Catalogue) []Diagnostic {
-	module, err := parseOnce(content)
-	return analyseParsed(content, module, err, cat)
+	p := prepare(content)
+	return p.remap(analyseParsed(p.Text, p.module, p.err, cat))
 }
 
 // analyseParsed works from an already-parsed file.
@@ -62,6 +64,7 @@ func analyseParsed(content string, module *parser.Module, err error, cat Catalog
 	}
 	a.collect()
 	a.checkImportedModules()
+	a.checkLostImports()
 	a.checkSyntaxTypes()
 	a.checkOids()
 	a.checkTables()
@@ -177,9 +180,39 @@ func (a *analysis) checkImportedModules() {
 		if loaded[mod] || mod == string(a.module.Name) {
 			continue
 		}
-		a.add(at(imp.Pos.Line, imp.Pos.Column), SevError, CodeUnknownModule,
-			fmt.Sprintf("module %q is not loaded; add its MIB file to SnmpLens or this module will never resolve", mod),
-			mod)
+		names := make([]string, 0, len(imp.Names))
+		for _, n := range imp.Names {
+			names = append(names, string(n))
+		}
+		// gosmi reads some of these from the modules that replaced this one
+		// (implicit.go): saying it is missing would contradict a load that
+		// resolves every one of them.
+		needed, converted := notConverted(mod, names)
+		if converted && len(needed) == 0 {
+			continue
+		}
+		msg := fmt.Sprintf("module %q is not loaded; add its MIB file to SnmpLens or this module will never resolve", mod)
+		if converted {
+			msg = fmt.Sprintf("module %q is not loaded; SnmpLens reads %s from the modules that replaced it, but %s needs %s itself",
+				mod, plural(len(names)-len(needed), "import", "imports"), strings.Join(needed, ", "), mod)
+		}
+		a.add(at(imp.Pos.Line, imp.Pos.Column), SevError, CodeUnknownModule, msg, mod)
+	}
+}
+
+// checkLostImports flags an import gosmi rewrites to a module that does not
+// define it (implicit.go): it resolves to nothing, and no file fixes that.
+func (a *analysis) checkLostImports() {
+	for _, imp := range a.module.Body.Imports {
+		lost := gosmiLost[string(imp.Module)]
+		for _, n := range imp.Names {
+			if !lost[string(n)] {
+				continue
+			}
+			a.add(at(imp.Pos.Line, imp.Pos.Column), SevWarning, CodeImportLost,
+				fmt.Sprintf("SnmpLens reads %s from the module that replaced %s, which does not define it: "+
+					"it resolves to nothing, whichever MIBs are loaded", n, imp.Module), string(n))
+		}
 	}
 }
 
@@ -265,14 +298,40 @@ func (a *analysis) checkOids() {
 	}
 	sort.Strings(keys)
 
+	// One name defined twice: whichever definition gosmi keeps, the other is
+	// gone, and the module still "loads".
+	first := map[string]*parser.Node{}
+	for i := range a.module.Body.Nodes {
+		node := &a.module.Body.Nodes[i]
+		name := string(node.Name)
+		prev, seen := first[name]
+		if !seen {
+			first[name] = node
+			continue
+		}
+		a.add(at(node.Pos.Line, node.Pos.Column), SevError, CodeDuplicateName,
+			fmt.Sprintf("%s is defined twice, on lines %d and %d; only one of the two definitions survives",
+				name, prev.Pos.Line, node.Pos.Line),
+			name)
+	}
+
 	for _, key := range keys {
 		nodes := a.byOid[key]
 		if len(nodes) < 2 {
 			continue
 		}
-		names := make([]string, 0, len(nodes))
+		// Distinct names only: the same name twice is the duplicate above, and
+		// "assigned to x and x" said nothing a person could act on.
+		var names []string
+		seenName := map[string]bool{}
 		for _, n := range nodes {
-			names = append(names, string(n.Name))
+			if !seenName[string(n.Name)] {
+				seenName[string(n.Name)] = true
+				names = append(names, string(n.Name))
+			}
+		}
+		if len(names) < 2 {
+			continue
 		}
 		for _, n := range nodes[1:] {
 			a.add(at(n.Oid.Pos.Line, n.Oid.Pos.Column), SevError, CodeDuplicateOid,
@@ -426,15 +485,15 @@ type Analysis struct {
 // about 130 ms of work for 45 ms of answers. This is the entry point the bridge
 // uses; the three functions above remain for callers that want one of them.
 func AnalyseAll(content string, cat Catalogue) Analysis {
-	module, err := parseOnce(content)
+	p := prepare(content)
 	index := cat.index()
 
 	out := Analysis{
-		Diagnostics: validateParsed(content, module, err),
-		Missing:     checkImportsParsed(content, module, err, index),
+		Diagnostics: validateParsed(content, p),
+		Missing:     p.remapImports(checkImportsParsed(p.Text, p.module, p.err, index)),
 	}
-	out.Diagnostics = append(out.Diagnostics, analyseParsed(content, module, err, cat)...)
-	out.Outline = outlineOf(module)
+	out.Diagnostics = append(out.Diagnostics, p.remap(analyseParsed(p.Text, p.module, p.err, cat))...)
+	out.Outline = outlineOf(p.module)
 	if out.Missing == nil {
 		out.Missing = []MissingImport{}
 	}

@@ -45,7 +45,8 @@
         "imports": "imports",
         "build": "rejected",
         "semantic": "unresolved",
-        "loaded": "loaded"
+        "loaded": "loaded",
+        "duplicate": "duplicate"
       },
       "at": "line {line}, col {column}",
       "missingImports": "Imports that could not be satisfied",
@@ -710,7 +711,6 @@
       "depNotLoaded": "the file is here and is simply not loaded",
       "depNeededBy": "needed by {count} file(s)",
       "depSymbols": "for: {symbols}",
-      "depMismatch": "declares module {module}, so nothing importing it will find this file",
       "loaded": "{count} loaded",
       "failed": "{count} failed",
       "removeConfirm": "Remove MIB path: {path}?",
@@ -1095,6 +1095,7 @@
     "externalOpened": "{name} opened. Saving will write it into the SnmpLens MIB folder.",
     "externalWarning": "This file was opened from outside SnmpLens. Saving writes it into the MIB folder as \"{name}\", it does not write back to the original.",
     "bundledWarning": "This MIB ships with SnmpLens and almost every other MIB imports from it. A mistake here breaks the whole tree — the bundled copy can be restored at any time.",
+    "encodingWarning": "This file is not UTF-8: it was read as Windows-1252. Saving writes it as UTF-8. If accented letters look wrong, the file uses another encoding: close it without saving.",
     "snippet": {
       "objectType": "OBJECT-TYPE definition",
       "moduleIdentity": "MODULE-IDENTITY header",
@@ -1110,6 +1111,9 @@
     "missingImports": "Used but never imported: {symbols} ({count} in total).",
     "fixImports": "Add to IMPORTS",
     "importsFixed": "{count} symbol(s) added to IMPORTS.",
+    "repairable": "{count, plural, one {# mistake SnmpLens reads leniently and other MIB tools refuse} other {# mistakes SnmpLens reads leniently and other MIB tools refuse}}",
+    "repair": "Fix them",
+    "repaired": "{count, plural, one {# mistake fixed.} other {# mistakes fixed.}}",
     "draftRecovered": "Unsaved work on {name} was recovered from a previous session.",
     "find": "Find…",
     "findNext": "Next",

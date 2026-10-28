@@ -45,7 +45,8 @@
         "imports": "Importe",
         "build": "abgelehnt",
         "semantic": "ungelöst",
-        "loaded": "geladen"
+        "loaded": "geladen",
+        "duplicate": "Duplikat"
       },
       "at": "Zeile {line}, Sp. {column}",
       "missingImports": "Nicht erfüllbare Importe",
@@ -710,7 +711,6 @@
       "depNotLoaded": "die Datei ist vorhanden, nur nicht geladen",
       "depNeededBy": "benötigt von {count} Datei(en)",
       "depSymbols": "für: {symbols}",
-      "depMismatch": "deklariert Modul {module}; nichts, was es importiert, findet diese Datei",
       "loaded": "{count} geladen",
       "failed": "{count} fehlgeschlagen",
       "removeConfirm": "MIB-Pfad entfernen: {path}?",
@@ -1095,6 +1095,7 @@
     "externalOpened": "{name} geöffnet. Beim Speichern wird sie in den MIB-Ordner von SnmpLens geschrieben.",
     "externalWarning": "Diese Datei stammt von außerhalb von SnmpLens. Beim Speichern wird sie als „{name}“ in den MIB-Ordner geschrieben, das Original bleibt unberührt.",
     "bundledWarning": "Diese MIB wird mit SnmpLens geliefert und fast jede andere importiert aus ihr. Ein Fehler hier zerstört den gesamten Baum — die mitgelieferte Kopie kann jederzeit wiederhergestellt werden.",
+    "encodingWarning": "Diese Datei ist nicht UTF-8: Sie wurde als Windows-1252 gelesen. Beim Speichern wird sie als UTF-8 geschrieben. Wirken Umlaute oder Akzente falsch, verwendet die Datei eine andere Kodierung: Schließen Sie sie ohne zu speichern.",
     "snippet": {
       "objectType": "OBJECT-TYPE-Definition",
       "moduleIdentity": "MODULE-IDENTITY-Kopf",
@@ -1110,6 +1111,9 @@
     "missingImports": "Verwendet, aber nie importiert: {symbols} ({count} insgesamt).",
     "fixImports": "Zu IMPORTS hinzufügen",
     "importsFixed": "{count} Symbol(e) zu IMPORTS hinzugefügt.",
+    "repairable": "{count, plural, one {# Fehler, den SnmpLens toleriert und andere MIB-Werkzeuge ablehnen} other {# Fehler, die SnmpLens toleriert und andere MIB-Werkzeuge ablehnen}}",
+    "repair": "Beheben",
+    "repaired": "{count, plural, one {# Fehler behoben.} other {# Fehler behoben.}}",
     "draftRecovered": "Ungespeicherte Arbeit an {name} wurde aus einer früheren Sitzung wiederhergestellt.",
     "find": "Suchen…",
     "findNext": "Weiter",

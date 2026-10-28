@@ -928,6 +928,13 @@
             "notes": "Only reached by clicking 'Add to IMPORTS' in the fix bar. The export MUST exist or the ES import of the panel throws. A no-op stub returning {\"missing\":[],\"content\":\"\"} is safe: the panel returns early when content is empty."
           },
           {
+            "name": "MibEditorRepair",
+            "onMount": false,
+            "go": "internal/app/mibeditor.go -> mib.RepairResult; struct pkg/mib/repair.go {content,fixes}",
+            "example": "{\"fixes\":[]}",
+            "notes": "Only reached by the repair bar's button, which appears when the analysis reports an escaped quote, a malformed date or a misspelt module name. An empty content is the no-op: the panel returns early."
+          },
+          {
             "name": "MibEditorOpenExternal",
             "onMount": false,
             "go": "app_mibeditor.go:126 -> mib.Source (opens a native file dialog)",

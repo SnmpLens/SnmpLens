@@ -45,7 +45,8 @@
         "imports": "导入",
         "build": "被拒绝",
         "semantic": "未解析",
-        "loaded": "已加载"
+        "loaded": "已加载",
+        "duplicate": "重复"
       },
       "at": "第 {line} 行，第 {column} 列",
       "missingImports": "无法满足的导入",
@@ -710,7 +711,6 @@
       "depNotLoaded": "文件存在，只是未加载",
       "depNeededBy": "被 {count} 个文件需要",
       "depSymbols": "用于：{symbols}",
-      "depMismatch": "声明的模块是 {module}，因此导入它的任何文件都找不到该文件",
       "loaded": "{count} 个已加载",
       "failed": "{count} 个失败",
       "removeConfirm": "移除 MIB 路径：{path}？",
@@ -1095,6 +1095,7 @@
     "externalOpened": "{name} 已打开。保存时会写入 SnmpLens 的 MIB 目录。",
     "externalWarning": "此文件来自 SnmpLens 之外。保存会以「{name}」写入 MIB 目录，不会回写原文件。",
     "bundledWarning": "此 MIB 随 SnmpLens 一起提供，几乎所有其他 MIB 都从中导入。此处出错会破坏整棵树 — 内置副本随时可以恢复。",
+    "encodingWarning": "此文件不是 UTF-8：已按 Windows-1252 读取。保存时会写为 UTF-8。如果带重音的字母显示错误，说明文件使用了其他编码：请不保存直接关闭。",
     "snippet": {
       "objectType": "OBJECT-TYPE 定义",
       "moduleIdentity": "MODULE-IDENTITY 头部",
@@ -1110,6 +1111,9 @@
     "missingImports": "使用了但未导入：{symbols}（共 {count} 个）。",
     "fixImports": "添加到 IMPORTS",
     "importsFixed": "已将 {count} 个符号添加到 IMPORTS。",
+    "repairable": "{count} 处错误：SnmpLens 可容忍，但其他 MIB 工具会拒绝",
+    "repair": "修复",
+    "repaired": "已修复 {count} 处错误。",
     "draftRecovered": "已从上一次会话恢复 {name} 的未保存内容。",
     "find": "查找…",
     "findNext": "下一个",

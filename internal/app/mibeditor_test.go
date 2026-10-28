@@ -336,36 +336,43 @@ func TestAnalyseReturnsEverythingInOneCall(t *testing.T) {
 	}
 }
 
-// A file that is not valid UTF-8 must not reach the editor.
+// A vendor MIB that is not UTF-8 opens as what it says, and saving it writes
+// UTF-8.
 //
 // Wails marshals every bound result with encoding/json, which replaces each
-// invalid byte with U+FFFD — so a Latin-1 vendor MIB arrived already mangled,
+// invalid byte with U+FFFD — so a Latin-1 vendor MIB used to arrive mangled,
 // and saving it with NO edits wrote the replacement characters back over the
-// original bytes. Measured: 0x8a and 0xe9 both became ef bf bd. Irreversible,
-// and nothing said a word.
-func TestReadRefusesNonUtf8RatherThanCorruptingIt(t *testing.T) {
+// original bytes (0x8a and 0xe9 both became ef bf bd). The answer then was to
+// refuse such a file, which refused the vendor MIBs that most needed editing.
+// It is decoded as Windows-1252 before it crosses the bridge instead.
+func TestAWindows1252MibOpensAsItReads(t *testing.T) {
 	a, dir := newMibApp(t)
 
-	// Latin-1, which is what an old vendor MIB with accented names is.
-	latin1 := []byte("BAD-MIB DEFINITIONS ::= BEGIN\n-- r\xe9sum\xe9 caf\x8a\nEND\n")
-	path := filepath.Join(dir, "BAD-MIB")
-	if err := os.WriteFile(path, latin1, 0o644); err != nil {
+	cp1252 := []byte("OLD-MIB DEFINITIONS ::= BEGIN\r\n-- r\xe9sum\xe9 \x96 caf\x8a\r\nEND\r\n")
+	path := filepath.Join(dir, "OLD-MIB")
+	if err := os.WriteFile(path, cp1252, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := a.MibEditorRead("BAD-MIB"); err == nil {
-		t.Fatal("a non-UTF-8 file was opened for editing")
-	} else if !strings.Contains(err.Error(), "UTF-8") {
-		t.Errorf("the error should say what is wrong: %v", err)
-	}
-
-	// And the file on disk is untouched by the refusal.
-	after, err := os.ReadFile(path)
+	src, err := a.MibEditorRead("OLD-MIB")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("a Windows-1252 MIB was refused: %v", err)
 	}
-	if string(after) != string(latin1) {
-		t.Errorf("the file was modified by a failed open:\n before % x\n after  % x", latin1, after)
+	if src.Encoding != mib.EncodingWindows1252 || !strings.Contains(src.Content, "résumé – cafŠ") {
+		t.Fatalf("read as %s: %q", src.Encoding, src.Content)
+	}
+	if after, _ := os.ReadFile(path); string(after) != string(cp1252) {
+		t.Fatal("opening the file modified it")
+	}
+
+	// Saving what was read is not a conflict with what was read.
+	res, err := a.MibEditorSave("OLD-MIB", src.Content, src.Sha256, false)
+	if err != nil || res.Conflict || !res.Saved {
+		t.Fatalf("save: %+v %v", res, err)
+	}
+	after, _ := os.ReadFile(path)
+	if want := "OLD-MIB DEFINITIONS ::= BEGIN\r\n-- résumé – cafŠ\r\nEND\r\n"; string(after) != want {
+		t.Errorf("saved %q, want %q", after, want)
 	}
 }
 

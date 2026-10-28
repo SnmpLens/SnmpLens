@@ -9,8 +9,10 @@
   import { notificationStore } from '../stores/notifications';
   import Icon from '../Icon.svelte';
   import MibDiagnosis from '../mib/MibDiagnosis.svelte';
-  import { MibDiagnose, BrowseDialog, ListMibFiles, MibDependencyGraph } from '../../wailsjs/go/app/App';
+  import { MibDiagnose, BrowseDialog, ListMibFiles, MibDependencyGraph, OpenFolder } from '../../wailsjs/go/app/App';
   import { dependencyRoll, symbolsWanted, ABSENT, FAILED } from '../utils/mibDependencies';
+  import { byVerdict, countVerdicts, LEVELS, ICONS as VERDICT_ICONS } from '../utils/mibVerdict';
+  import { mibStatusStore } from '../stores/mibStatusStore';
   import {
     rootsOf, treeFrom, flattenTree, graphSummary, MISSING, NOT_LOADED,
   } from '../utils/mibGraph';
@@ -25,6 +27,21 @@
   // Svelte 5 tracks what the EXPRESSION reads, and a function reaching for a
   // store inside itself is not a dependency it can see.
   $: roll = dependencyRoll($mibDiagnostics);
+  // Every loaded file with the verdict the editor's list and the import report
+  // show too, decided in Go (pkg/mib/verdict.go): the load says whether the
+  // file is in the tree, the editor's analysis whether what is there is right.
+  // Counting the load alone said "26 loaded, 0 failed" beside a list marking
+  // files in error. Worst first: the files to look at were somewhere among
+  // two hundred that were fine.
+  $: loadResults = verdictRows($mibStatusStore);
+  $: verdictCounts = countVerdicts(loadResults.map((r) => r.v));
+
+  function verdictRows(statuses) {
+    return (Array.isArray(statuses) ? statuses : [])
+      .filter((s) => s && s.loaded && s.verdict)
+      .map((s) => ({ name: s.name, v: s.verdict }))
+      .sort((a, b) => byVerdict(a.v, b.v) || a.name.localeCompare(b.name));
+  }
 
   let newMibPath = '';
 
@@ -109,6 +126,17 @@
     }
   }
 
+  // Shown in the system's file manager: the quickest way to drop a vendor MIB
+  // in, take a backup, or see what the list above is reading.
+  async function openFolder(path) {
+    if (!path) return;
+    try {
+      await OpenFolder(path);
+    } catch (e) {
+      notificationStore.add(String(e), 'error');
+    }
+  }
+
   function handleRemovePath(path) {
     const t = get(_);
     if (confirm(t('settings.mibs.removeConfirm', { values: { path } }))) {
@@ -170,7 +198,11 @@
   <div class="mib-path-item default">
     <div class="path-header">
       <span class="path-badge">{$_('settings.mibs.default')}</span>
-      <span class="path-text">{defaultMibPath || $_('common.loading')}</span>
+      <span class="path-text" title={defaultMibPath}>{defaultMibPath || $_('common.loading')}</span>
+      <button class="btn-small btn-folder" on:click={() => openFolder(defaultMibPath)} disabled={!defaultMibPath}
+        title={$_('settings.mibs.openFolderHint')}>
+        <Icon name="folder-open" size={14} /> {$_('settings.mibs.openFolder')}
+      </button>
     </div>
     {#if $mibPathsStore.detectedMibs[defaultMibPath]}
       <div class="mib-list">
@@ -202,7 +234,10 @@
     <div class="mib-path-item">
       <div class="path-header">
         <span class="path-badge custom">{$_('settings.mibs.custom')}</span>
-        <span class="path-text">{customPath}</span>
+        <span class="path-text" title={customPath}>{customPath}</span>
+        <button class="btn-small btn-folder" on:click={() => openFolder(customPath)} title={$_('settings.mibs.openFolderHint')}>
+          <Icon name="folder-open" size={14} /> {$_('settings.mibs.openFolder')}
+        </button>
         <button class="btn-remove" on:click={() => handleRemovePath(customPath)} title={$_('common.remove')}><Icon name="x" size={14} /></button>
       </div>
       {#if $mibPathsStore.detectedMibs[customPath]}
@@ -349,31 +384,40 @@
     <div class="diagnostics-section">
       <h4>{$_('settings.mibs.diagnosticsTitle')}</h4>
       <div class="diagnostics-summary">
-        <span class="diag-success">{$_('settings.mibs.loaded', { values: { count: $mibDiagnostics.filter(d => d.success).length } })}</span>
-        <span class="diag-fail">{$_('settings.mibs.failed', { values: { count: $mibDiagnostics.filter(d => !d.success).length } })}</span>
+        {#each LEVELS as level}
+          {#if verdictCounts[level] > 0 || level === 'ok'}
+            <span class="diag-count {level}">
+              <Icon name={VERDICT_ICONS[level]} size={13} />
+              {$_('settings.mibs.verdict.' + level, { values: { count: verdictCounts[level] } })}
+            </span>
+          {/if}
+        {/each}
       </div>
+      <p class="diag-legend">{$_('settings.mibs.verdictHint')}</p>
       <div class="diagnostics-list">
-        {#each $mibDiagnostics as diag}
-          <div class="diag-item" class:diag-error={!diag.success}>
-            <span class="diag-icon">{#if diag.success}<Icon name="circle-check" class="icon-success" size={14} />{:else}<Icon name="circle-x" class="icon-error" size={14} />{/if}</span>
-            <span class="diag-filename">{diag.fileName}</span>
-            {#if diag.error}
-              <span class="diag-error-msg" title={diag.error}>{diag.error}</span>
-              <!-- The failure list said what broke and gave no way to act on
-                   it. The editor is where the line number lives. -->
-              <button class="diag-open" on:click={() => openInEditor(diag.fileName)}>
+        {#each loadResults as row (row.name)}
+          <div class="diag-item {row.v.level}">
+            <span class="diag-icon {row.v.level}"><Icon name={VERDICT_ICONS[row.v.level]} size={14} /></span>
+            <span class="diag-filename" title={row.name}>{row.name}</span>
+            {#if row.v.level !== 'ok'}
+              <!-- What is wrong, and the way to it: the editor is where the
+                   line number lives. -->
+              <span class="diag-msg {row.v.level}" title={row.v.detail}>
+                <strong>{$_('mibVerdict.' + row.v.level, { values: { count: row.v.count } })}</strong>{#if row.v.detail} — {row.v.detail}{/if}
+              </span>
+              <button class="diag-open" on:click={() => openInEditor(row.name)}>
                 {$_('settings.mibs.openInEditor')}
               </button>
             {/if}
             <!-- Offered on SUCCESSES too: a MIB whose IMPORTS cannot be
                  satisfied loads with no error at all and resolves to nothing,
                  so "it loaded" is exactly when this is worth asking. -->
-            <button class="diag-open" on:click={() => runDiagnosis(diag.fileName)} disabled={diagnosing === diag.fileName}>
-              {diagnosing === diag.fileName ? $_('settings.mibs.diagnosing') : $_('settings.mibs.diagnose')}
+            <button class="diag-open" on:click={() => runDiagnosis(row.name)} disabled={diagnosing === row.name}>
+              {diagnosing === row.name ? $_('settings.mibs.diagnosing') : $_('settings.mibs.diagnose')}
             </button>
           </div>
-          {#if diagnosisFor === diag.fileName && diagnosis}
-            <MibDiagnosis {diagnosis} fileName={diag.fileName} />
+          {#if diagnosisFor === row.name && diagnosis}
+            <MibDiagnosis {diagnosis} fileName={row.name} />
           {/if}
         {/each}
       </div>
@@ -518,6 +562,11 @@
     border-radius: 6px;
     padding: 20px;
     margin-bottom: 20px;
+    /* A fieldset is min-width: min-content by default, in every browser: one
+       long load error that does not wrap made the whole settings page as wide
+       as the sentence, and the dialog — which does not grow — scrolled
+       sideways. */
+    min-width: 0;
   }
 
   legend {
@@ -567,11 +616,20 @@
 
   .path-text {
     flex-grow: 1;
+    min-width: 0;
     font-family: 'Courier New', monospace;
     font-size: 0.9em;
     color: var(--text-color);
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-folder {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
     white-space: nowrap;
   }
 
@@ -708,19 +766,29 @@
 
   .diagnostics-summary {
     display: flex;
-    gap: 15px;
+    flex-wrap: wrap;
+    gap: 6px 15px;
     margin-bottom: 10px;
     font-size: 0.9em;
   }
 
-  .diag-success {
-    color: var(--success-color);
+  .diag-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
-  .diag-fail {
-    color: var(--error-color);
-    font-weight: 600;
+  .diag-count.ok { color: var(--success-color); }
+  .diag-count.warning { color: var(--warning-color); }
+  .diag-count.error,
+  .diag-count.failed { color: var(--error-color); }
+
+  .diag-legend {
+    margin: 0 0 10px;
+    font-size: 0.8em;
+    color: var(--text-muted);
   }
 
   .diagnostics-list {
@@ -744,27 +812,58 @@
     border-bottom: none;
   }
 
-  .diag-item.diag-error {
+  .diag-item.failed,
+  .diag-item.error {
     background-color: var(--error-subtle);
   }
+
+  .diag-item.warning {
+    background-color: var(--warning-subtle);
+  }
+
+  .diag-icon.ok { color: var(--success-color); }
+  .diag-icon.warning { color: var(--warning-color); }
+  .diag-icon.error,
+  .diag-icon.failed { color: var(--error-color); }
 
   .diag-icon {
     flex-shrink: 0;
   }
 
+  /* Every text in a row may shrink: a flex item will not go below its content
+     unless told it may, and a nowrap sentence is a very wide content. */
   .diag-filename {
     font-family: 'Courier New', monospace;
     font-weight: 500;
-    min-width: 150px;
-  }
-
-  .diag-error-msg {
-    color: var(--error-color);
-    font-size: 0.85em;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 40%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
+  }
+
+  /* Two lines of the message, then the tooltip: one line cut the part that
+     says what is wrong, and no limit at all is how the row grew. */
+  .diag-msg {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 0.85em;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
     cursor: help;
+  }
+
+  .diag-msg.warning {
+    color: var(--warning-color);
+  }
+
+  .diag-msg.error,
+  .diag-msg.failed {
+    color: var(--error-color);
   }
 </style>

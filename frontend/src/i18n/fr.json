@@ -697,6 +697,8 @@
     "mibs": {
       "directoriesTitle": "Répertoires MIB",
       "default": "Par défaut",
+      "openFolder": "Ouvrir le dossier",
+      "openFolderHint": "Afficher ce dossier dans l’explorateur de fichiers",
       "custom": "Personnalisé",
       "mibsDetected": "{count} MIB(s) détecté(s)",
       "addCustomTitle": "Ajouter un répertoire MIB",
@@ -711,8 +713,6 @@
       "depNotLoaded": "le fichier est là, il n’est simplement pas chargé",
       "depNeededBy": "réclamé par {count} fichier(s)",
       "depSymbols": "pour : {symbols}",
-      "loaded": "{count} chargé(s)",
-      "failed": "{count} échoué(s)",
       "removeConfirm": "Supprimer le chemin MIB : {path} ?",
       "openInEditor": "Ouvrir dans l'éditeur",
       "diagnose": "Diagnostiquer",
@@ -723,7 +723,14 @@
       "graphMissing": "manquant",
       "graphNotLoaded": "non chargé",
       "graphCycle": "cycle",
-      "graphRepeated": "déjà plus haut"
+      "graphRepeated": "déjà plus haut",
+      "verdict": {
+        "ok": "{count} sans problème",
+        "warning": "{count} avec avertissements",
+        "error": "{count} avec erreurs",
+        "failed": "{count} ne se chargent pas"
+      },
+      "verdictHint": "Avec erreurs : le module est dans l’arbre, mais certaines de ses définitions sont fausses ou en sont absentes. Ne se charge pas : rien du fichier n’est dans l’arbre."
     },
     "snmp": {
       "v1v2cTitle": "SNMP v1/v2c",
@@ -1063,6 +1070,18 @@
     "loginRegistered": "SnmpLens démarrera désormais à l'ouverture de session.",
     "loginRemoved": "SnmpLens ne démarrera plus à l'ouverture de session."
   },
+  "mibVerdict": {
+    "failed": "Ne se charge pas",
+    "error": "{count, plural, one {Chargé avec # erreur} other {Chargé avec # erreurs}}",
+    "warning": "{count, plural, one {Chargé avec # avertissement} other {Chargé avec # avertissements}}",
+    "ok": "Chargé sans problème",
+    "live": "tel que dans l’éditeur, pas encore enregistré",
+    "short": {
+      "failed": "Ne se chargent pas",
+      "error": "Chargés avec erreurs",
+      "warning": "Chargés avec avertissements"
+    }
+  },
   "mibEditor": {
     "filter": "Filtrer…",
     "refresh": "Rafraîchir la liste",
@@ -1131,7 +1150,12 @@
     "outline": "Plan",
     "outlineFilter": "Filtrer les définitions",
     "outlineEmpty": "Rien de défini pour l'instant.",
-    "outlineNoMatch": "Aucune définition ne correspond."
+    "outlineNoMatch": "Aucune définition ne correspond.",
+    "files": {
+      "onlyProblems": "Problèmes seulement",
+      "showAll": "Tous les fichiers",
+      "noProblems": "Aucun fichier à problème."
+    }
   },
   "preset": {
     "title": "Presets de tableau de bord",

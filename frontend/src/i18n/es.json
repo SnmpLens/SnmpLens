@@ -697,6 +697,8 @@
     "mibs": {
       "directoriesTitle": "Directorios de MIB",
       "default": "Predeterminado",
+      "openFolder": "Abrir carpeta",
+      "openFolderHint": "Mostrar esta carpeta en el explorador de archivos",
       "custom": "Personalizado",
       "mibsDetected": "{count} MIB(s) detectado(s)",
       "addCustomTitle": "Añadir directorio de MIB personalizado",
@@ -711,8 +713,6 @@
       "depNotLoaded": "el archivo está aquí, simplemente no está cargado",
       "depNeededBy": "requerido por {count} archivo(s)",
       "depSymbols": "para: {symbols}",
-      "loaded": "{count} cargado(s)",
-      "failed": "{count} fallido(s)",
       "removeConfirm": "¿Eliminar la ruta de MIB: {path}?",
       "openInEditor": "Abrir en el editor",
       "diagnose": "Diagnosticar",
@@ -723,7 +723,14 @@
       "graphMissing": "ausente",
       "graphNotLoaded": "no cargado",
       "graphCycle": "ciclo",
-      "graphRepeated": "ya mostrado arriba"
+      "graphRepeated": "ya mostrado arriba",
+      "verdict": {
+        "ok": "{count} sin problemas",
+        "warning": "{count} con advertencias",
+        "error": "{count} con errores",
+        "failed": "{count} no cargan"
+      },
+      "verdictHint": "Con errores: el módulo está en el árbol, pero algunas de sus definiciones son incorrectas o faltan. No carga: nada del archivo está en el árbol."
     },
     "snmp": {
       "v1v2cTitle": "SNMP v1/v2c",
@@ -1063,6 +1070,18 @@
     "loginRegistered": "SnmpLens se iniciará al iniciar sesión.",
     "loginRemoved": "SnmpLens ya no se iniciará al iniciar sesión."
   },
+  "mibVerdict": {
+    "failed": "No carga",
+    "error": "{count, plural, one {Cargado con # error} other {Cargado con # errores}}",
+    "warning": "{count, plural, one {Cargado con # advertencia} other {Cargado con # advertencias}}",
+    "ok": "Cargado sin problemas",
+    "live": "tal como en el editor, aún sin guardar",
+    "short": {
+      "failed": "No cargan",
+      "error": "Cargados con errores",
+      "warning": "Cargados con advertencias"
+    }
+  },
   "mibEditor": {
     "filter": "Filtrar…",
     "refresh": "Actualizar la lista",
@@ -1131,7 +1150,12 @@
     "outline": "Esquema",
     "outlineFilter": "Filtrar definiciones",
     "outlineEmpty": "Aún no hay nada definido.",
-    "outlineNoMatch": "Ninguna definición coincide."
+    "outlineNoMatch": "Ninguna definición coincide.",
+    "files": {
+      "onlyProblems": "Solo problemas",
+      "showAll": "Todos los archivos",
+      "noProblems": "Ningún archivo con problemas."
+    }
   },
   "preset": {
     "title": "Presets de panel",

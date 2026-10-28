@@ -9,6 +9,8 @@
   import { charWidth, positionOf, lineColumnAt, wordAt, offsetAt, lineStarts, lineColumnFrom } from './mibeditor/metrics.js';
   import { findMatches, findAllMatches, applyReplaceAll, nextIndex, MAX_MATCHES } from './mibeditor/search.js';
   import { createHistory } from './mibeditor/history.js';
+  import { verdictMap, countVerdicts, isProblem, ICONS as VERDICT_ICONS, FAILED, ERROR, WARNING } from './utils/mibVerdict';
+  import { mibStatusStore } from './stores/mibStatusStore';
   import { mibEditorStore } from './stores/mibEditorStore';
   import { mibPathsStore } from './stores/mibPathsStore';
   import { mibStore } from './stores/mibStore';
@@ -191,7 +193,18 @@
   );
   $: highlighted = renderWindow(buffer, lines, firstVisible, lastVisible);
 
-  $: shown = files.filter((f) => !filter || f.name.toLowerCase().includes(filter.toLowerCase()));
+  // A mark beside every file that does not load, loads with errors or with
+  // warnings — the one verdict the MIB settings and the import report show
+  // too, decided in Go (pkg/mib/verdict.go) — and a switch to list only those:
+  // in a directory of two hundred MIBs the broken ones were found by opening
+  // them one by one. The open file, while it has unsaved changes, is judged
+  // as it is being typed.
+  let onlyProblems = false;
+  $: openName = source && !source.external ? source.name : '';
+  $: statuses = verdictMap($mibStatusStore, openName, dirty ? $mibEditorStore.verdict : null);
+  $: problemCounts = countVerdicts(statuses);
+  $: shown = files.filter((f) => (!filter || f.name.toLowerCase().includes(filter.toLowerCase()))
+    && (!onlyProblems || isProblem(statuses[f.name]?.level)));
   $: errorCount = diagnostics.filter((d) => d.severity === 'error').length;
   $: warnCount = diagnostics.filter((d) => d.severity === 'warning').length;
 
@@ -229,6 +242,9 @@
     } catch (e) {
       notificationStore.add(String(e), 'error');
     }
+    // The marks fill in after the list: the first analysis of a large vendor
+    // directory takes a moment, and the names should not wait for it.
+    mibStatusStore.refresh();
   }
 
   async function open(name) {
@@ -340,7 +356,7 @@
         notificationStore.add(get(_)('mibEditor.saveFailed'), 'error');
         return;
       }
-      await mibEditorStore.markSaved(res.sha256, res.diagnostics || [], written);
+      await mibEditorStore.markSaved(res.sha256, written);
       notificationStore.add(
         get(_)(res.backupPath ? 'mibEditor.savedWithBackup' : 'mibEditor.saved',
           { values: { name: source.name } }), 'success');
@@ -385,8 +401,10 @@
       }
       // The rebuilt tree was being thrown away, so the MIB browser kept showing
       // the state from before the edit. mibStore owns that tree, so it is the
-      // one that has to be told.
-      mibStore.loadSilent();
+      // one that has to be told. Then the open file is judged again: its
+      // verdict weighs what the load just did with it.
+      await mibStore.loadSilent();
+      mibEditorStore.refresh();
       try {
         catalogue = (await MibEditorSymbols()) || catalogue;
       } catch (e) {
@@ -839,11 +857,37 @@
       <Icon name="folder-open" size={13} /> {$_('mibEditor.openExternal')}
     </button>
 
+    {#if problemCounts[FAILED] + problemCounts[ERROR] + problemCounts[WARNING] > 0 || onlyProblems}
+      <button class="only-problems" aria-pressed={onlyProblems} on:click={() => (onlyProblems = !onlyProblems)}
+        title={onlyProblems ? $_('mibEditor.files.showAll') : $_('mibEditor.files.onlyProblems')}>
+        <Icon name="list-filter" size={13} />
+        <span class="label">{onlyProblems ? $_('mibEditor.files.showAll') : $_('mibEditor.files.onlyProblems')}</span>
+        {#each [FAILED, ERROR, WARNING] as level}
+          {#if problemCounts[level] > 0}
+            <span class="count {level}" title={$_('mibVerdict.short.' + level)}>
+              <Icon name={VERDICT_ICONS[level]} size={12} /> {problemCounts[level]}
+            </span>
+          {/if}
+        {/each}
+      </button>
+    {/if}
+
     <ul class="files">
       {#each shown as f (f.name)}
         <li>
           <button class="file" class:active={source && !source.external && source.name === f.name}
-            on:click={() => open(f.name)}>
+            on:click={() => open(f.name)}
+            title={isProblem(statuses[f.name]?.level)
+              ? $_('mibVerdict.' + statuses[f.name].level, { values: { count: statuses[f.name].count } })
+                + (statuses[f.name].live ? ' (' + $_('mibVerdict.live') + ')' : '')
+                + (statuses[f.name].detail ? ' — ' + statuses[f.name].detail : '')
+              : f.name}>
+            <!-- One element whatever the verdict, its icon chosen by name:
+                 swapping {#if} branches is a destroy and a create, and showed
+                 the previous icon for a frame on every hover. -->
+            <span class="file-mark {statuses[f.name]?.level || ''}" aria-hidden="true">
+              {#if isProblem(statuses[f.name]?.level)}<Icon name={VERDICT_ICONS[statuses[f.name].level]} size={12} />{/if}
+            </span>
             <span class="fname">{f.name}</span>
             {#if f.bundled}
               <span class="tag" class:changed={f.modified}
@@ -855,7 +899,7 @@
         </li>
       {/each}
       {#if shown.length === 0}
-        <li class="empty">{$_('mibEditor.noFiles')}</li>
+        <li class="empty">{onlyProblems ? $_('mibEditor.files.noProblems') : $_('mibEditor.noFiles')}</li>
       {/if}
     </ul>
 
@@ -1360,6 +1404,63 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  /* Always there, empty for a file without a problem, so the names line up.
+     Not `.mark`: that is the editor's squiggle, absolutely positioned and
+     underlined, and sharing the name put both on every file in the list. */
+  .file-mark {
+    flex: 0 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 14px;
+  }
+
+  .file-mark.failed { color: var(--error-color); }
+  .file-mark.error { color: var(--error-color); }
+  .file-mark.warning { color: var(--warning-color); }
+
+  .only-problems {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 3px 6px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.78em;
+    cursor: pointer;
+  }
+
+  .only-problems[aria-pressed='true'] {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background: var(--accent-subtle);
+  }
+
+  .only-problems .label {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .only-problems .count {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .only-problems .count.failed,
+  .only-problems .count.error { color: var(--error-color); }
+  .only-problems .count.warning { color: var(--warning-color); }
 
   .tag {
     color: var(--text-muted);

@@ -697,6 +697,8 @@
     "mibs": {
       "directoriesTitle": "MIB-Verzeichnisse",
       "default": "Standard",
+      "openFolder": "Ordner öffnen",
+      "openFolderHint": "Diesen Ordner im Dateimanager anzeigen",
       "custom": "Benutzerdefiniert",
       "mibsDetected": "{count} MIB(s) erkannt",
       "addCustomTitle": "Benutzerdefiniertes MIB-Verzeichnis hinzufügen",
@@ -711,8 +713,6 @@
       "depNotLoaded": "die Datei ist vorhanden, nur nicht geladen",
       "depNeededBy": "benötigt von {count} Datei(en)",
       "depSymbols": "für: {symbols}",
-      "loaded": "{count} geladen",
-      "failed": "{count} fehlgeschlagen",
       "removeConfirm": "MIB-Pfad entfernen: {path}?",
       "openInEditor": "Im Editor öffnen",
       "diagnose": "Diagnose",
@@ -723,7 +723,14 @@
       "graphMissing": "fehlt",
       "graphNotLoaded": "nicht geladen",
       "graphCycle": "Zyklus",
-      "graphRepeated": "oben bereits gezeigt"
+      "graphRepeated": "oben bereits gezeigt",
+      "verdict": {
+        "ok": "{count} ohne Probleme",
+        "warning": "{count} mit Warnungen",
+        "error": "{count} mit Fehlern",
+        "failed": "{count} laden nicht"
+      },
+      "verdictHint": "Mit Fehlern: Das Modul ist im Baum, aber einige seiner Definitionen sind falsch oder fehlen darin. Lädt nicht: Nichts aus der Datei ist im Baum."
     },
     "snmp": {
       "v1v2cTitle": "SNMP v1/v2c",
@@ -1063,6 +1070,18 @@
     "loginRegistered": "SnmpLens startet nun bei der Anmeldung.",
     "loginRemoved": "SnmpLens startet nicht mehr bei der Anmeldung."
   },
+  "mibVerdict": {
+    "failed": "Lädt nicht",
+    "error": "{count, plural, one {Geladen mit # Fehler} other {Geladen mit # Fehlern}}",
+    "warning": "{count, plural, one {Geladen mit # Warnung} other {Geladen mit # Warnungen}}",
+    "ok": "Ohne Probleme geladen",
+    "live": "wie im Editor, noch nicht gespeichert",
+    "short": {
+      "failed": "Laden nicht",
+      "error": "Mit Fehlern geladen",
+      "warning": "Mit Warnungen geladen"
+    }
+  },
   "mibEditor": {
     "filter": "Filtern…",
     "refresh": "Liste aktualisieren",
@@ -1131,7 +1150,12 @@
     "outline": "Gliederung",
     "outlineFilter": "Definitionen filtern",
     "outlineEmpty": "Noch nichts definiert.",
-    "outlineNoMatch": "Keine Definition passt."
+    "outlineNoMatch": "Keine Definition passt.",
+    "files": {
+      "onlyProblems": "Nur Probleme",
+      "showAll": "Alle Dateien",
+      "noProblems": "Keine Datei mit Problemen."
+    }
   },
   "preset": {
     "title": "Dashboard-Vorlagen",

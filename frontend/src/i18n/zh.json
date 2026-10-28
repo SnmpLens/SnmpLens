@@ -697,6 +697,8 @@
     "mibs": {
       "directoriesTitle": "MIB 目录",
       "default": "默认",
+      "openFolder": "打开文件夹",
+      "openFolderHint": "在文件管理器中显示此文件夹",
       "custom": "自定义",
       "mibsDetected": "检测到 {count} 个 MIB",
       "addCustomTitle": "添加自定义 MIB 目录",
@@ -711,8 +713,6 @@
       "depNotLoaded": "文件存在，只是未加载",
       "depNeededBy": "被 {count} 个文件需要",
       "depSymbols": "用于：{symbols}",
-      "loaded": "{count} 个已加载",
-      "failed": "{count} 个失败",
       "removeConfirm": "移除 MIB 路径：{path}？",
       "openInEditor": "在编辑器中打开",
       "diagnose": "诊断",
@@ -723,7 +723,14 @@
       "graphMissing": "缺失",
       "graphNotLoaded": "未加载",
       "graphCycle": "循环",
-      "graphRepeated": "上文已列出"
+      "graphRepeated": "上文已列出",
+      "verdict": {
+        "ok": "{count} 个无问题",
+        "warning": "{count} 个有警告",
+        "error": "{count} 个有错误",
+        "failed": "{count} 个无法加载"
+      },
+      "verdictHint": "有错误：模块已在树中，但其中某些定义有误或缺失。无法加载：文件中的任何内容都不在树中。"
     },
     "snmp": {
       "v1v2cTitle": "SNMP v1/v2c",
@@ -1063,6 +1070,18 @@
     "loginRegistered": "SnmpLens 将在登录时启动。",
     "loginRemoved": "SnmpLens 将不再在登录时启动。"
   },
+  "mibVerdict": {
+    "failed": "无法加载",
+    "error": "{count, plural, other {已加载，有 # 个错误}}",
+    "warning": "{count, plural, other {已加载，有 # 个警告}}",
+    "ok": "已加载，无问题",
+    "live": "按编辑器中的内容，尚未保存",
+    "short": {
+      "failed": "无法加载",
+      "error": "已加载但有错误",
+      "warning": "已加载但有警告"
+    }
+  },
   "mibEditor": {
     "filter": "筛选…",
     "refresh": "刷新列表",
@@ -1131,7 +1150,12 @@
     "outline": "大纲",
     "outlineFilter": "筛选定义",
     "outlineEmpty": "尚未定义任何内容。",
-    "outlineNoMatch": "没有匹配的定义。"
+    "outlineNoMatch": "没有匹配的定义。",
+    "files": {
+      "onlyProblems": "仅有问题的",
+      "showAll": "所有文件",
+      "noProblems": "没有有问题的文件。"
+    }
   },
   "preset": {
     "title": "仪表板预设",

@@ -534,6 +534,17 @@ An analysis result is applied only if the buffer it describes is still the buffe
 while the user types, nothing orders their answers, and diagnostics carry line numbers: showing the ones computed
 two keystrokes ago points at lines that have moved.
 
+**Every MIB has ONE verdict, decided in Go** (`pkg/mib/verdict.go`): failed, error, warning or ok, from what the
+last load did with the file and what the analysis finds in it. The editor's file list, the MIB settings and the
+import report all read it from `MibFileStatuses` (`internal/app/mibstatus.go`, through `stores/mibStatusStore.js`).
+It used to be joined in the renderer from two answers, by each screen for itself, and the editor's list marked a
+file in error while the settings counted it loaded — both true, about different things, with nothing saying so.
+The load speaks for the file as it is ON DISK: while the buffer is that text, a module gosmi refused is failed
+whatever the analysis thinks; once it differs, the analysis alone judges it, except a refusal because another file
+holds the module (`judgeBuffer`). A file opens with its complete analysis — diagnostics, outline and verdict — from
+`MibEditorRead`; it used to open with the syntax check alone, so its mark turned from warning to error when the full
+analysis answered a moment later.
+
 `frontend/src/mibeditor/metrics.js` turns a (line, column) into pixels, which is what makes squiggles, hover
 cards and caret-anchored completion possible **here and not in a plain textarea**: the mirror lays out identically
 to the text (unit-tested) and both are monospace with a fixed line height, so a position is arithmetic once the

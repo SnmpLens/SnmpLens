@@ -476,6 +476,9 @@ type Analysis struct {
 	// asking for it separately would double the cost of every pause in typing
 	// to answer a question the parse already knows.
 	Outline []OutlineItem `json:"outline"`
+	// Verdict is the text's, from these diagnostics alone. A caller that knows
+	// what the last load did with the file judges again with it (Judge).
+	Verdict Verdict `json:"verdict"`
 }
 
 // AnalyseAll runs every check from ONE parse.
@@ -497,6 +500,7 @@ func AnalyseAll(content string, cat Catalogue) Analysis {
 	if out.Missing == nil {
 		out.Missing = []MissingImport{}
 	}
+	out.Verdict = Judge(nil, out.Diagnostics)
 	return out
 }
 

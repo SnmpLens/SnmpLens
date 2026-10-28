@@ -104,11 +104,12 @@ func (a *App) MibEditorRead(name string) (mib.Source, error) {
 	content, eol, encoding := mib.DecodeSource(raw)
 	_, bundled := a.bundledContent(name)
 
-	return mib.Source{
+	src := mib.Source{
 		Name: filepath.Base(name), Path: path, Content: content, Eol: eol, Encoding: encoding,
 		Bundled: bundled, Sha256: mib.Checksum(content),
-		Diagnostics: mib.Validate(content),
-	}, nil
+	}
+	src.SetAnalysis(a.analyseAs(src.Name, content))
+	return src, nil
 }
 
 // MibEditorOpenExternal opens a MIB from anywhere on disk, read-only.
@@ -147,11 +148,12 @@ func (a *App) MibEditorOpenExternal() (mib.Source, error) {
 		suggested = filepath.Base(path)
 	}
 
-	return mib.Source{
+	src := mib.Source{
 		Name: suggested, Path: path, Content: content, Eol: eol, Encoding: encoding,
 		External: true, Sha256: mib.Checksum(content),
-		Diagnostics: mib.Validate(content),
-	}, nil
+	}
+	src.SetAnalysis(a.analyseAs("", content))
+	return src, nil
 }
 
 // MibEditorValidate checks buffer text without touching disk or gosmi.
@@ -164,8 +166,11 @@ func (a *App) MibEditorValidate(content string) []mib.Diagnostic {
 // It used to call three functions that each parsed the file: 130 ms of work on
 // a 185 KB MIB for 45 ms of answers, on every pause in typing. The bridge call
 // was unified before the parse was, which is why the editor still felt slow.
-func (a *App) MibEditorAnalyse(content string) mib.Analysis {
-	return mib.AnalyseAll(content, mib.Symbols())
+//
+// name is the directory file the buffer is being edited as, "" for one opened
+// from elsewhere: the verdict takes the last load into account (judgeBuffer).
+func (a *App) MibEditorAnalyse(name, content string) mib.Analysis {
+	return a.analyseAs(name, content)
 }
 
 // MibEditorSave writes a MIB, backing up whatever was there first.
@@ -290,6 +295,7 @@ func (a *App) MibEditorRestoreBundled(name string) (mib.Source, error) {
 // Settings. An empty list now means an empty list.
 func (a *App) MibEditorReload(enabledFiles []string) mib.Reloaded {
 	result := a.mibService.Rebuild(enabledFiles)
+	a.mibStatuses.rememberLoads(result.Diagnostics)
 	if !result.Health.Ok {
 		a.recordSystemEvent(events.KindSystemMibLoadFailed, "major",
 			"The MIB tree no longer resolves after a reload: "+strings.Join(result.Health.Failures, "; "))

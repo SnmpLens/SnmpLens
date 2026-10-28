@@ -327,7 +327,7 @@ func TestReloadDoesNotReEnableEverything(t *testing.T) {
 // each re-parsed the file.
 func TestAnalyseReturnsEverythingInOneCall(t *testing.T) {
 	a, _ := newMibApp(t)
-	out := a.MibEditorAnalyse("BAD-MIB DEFINITIONS ::= BEGIN\nnot valid\nEND\n")
+	out := a.MibEditorAnalyse("", "BAD-MIB DEFINITIONS ::= BEGIN\nnot valid\nEND\n")
 	if len(out.Diagnostics) == 0 {
 		t.Error("no diagnostics")
 	}

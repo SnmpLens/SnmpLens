@@ -92,8 +92,20 @@ type Source struct {
 	External bool   `json:"external"`
 	// Sha256 of the content as read, so a save can notice the file changed
 	// underneath.
-	Sha256      string       `json:"sha256"`
-	Diagnostics []Diagnostic `json:"diagnostics"`
+	Sha256 string `json:"sha256"`
+	// The complete analysis, as AnalyseAll gives it. It used to be the quick
+	// syntax check alone, so a file opened marked "warning" and turned "error"
+	// a moment later, when the first full analysis answered, and its outline
+	// read "nothing defined" over a file defining forty things until then.
+	Diagnostics []Diagnostic    `json:"diagnostics"`
+	Missing     []MissingImport `json:"missing"`
+	Outline     []OutlineItem   `json:"outline"`
+	Verdict     Verdict         `json:"verdict"`
+}
+
+// SetAnalysis fills in what an analysis of the source found.
+func (s *Source) SetAnalysis(an Analysis) {
+	s.Diagnostics, s.Missing, s.Outline, s.Verdict = an.Diagnostics, an.Missing, an.Outline, an.Verdict
 }
 
 // SaveResult reports what a save did.

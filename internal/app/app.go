@@ -43,6 +43,9 @@ type App struct {
 	router           *eventRouter
 	dispatcher       *notify.Dispatcher
 	secrets          secrets.Store
+	// mibStatuses holds what the last load did with each MIB and the analysis
+	// of each, for the one verdict every screen shows (mibstatus.go).
+	mibStatuses mibStatusCache
 	// settingsKeyCache holds the renderer's sealing key. Every secrets.Get is
 	// a whole-file read and decrypt, and a settings save seals one value per
 	// sensitive field plus three per target override.
@@ -263,7 +266,9 @@ func (a *App) LoadMibsWithDiagnostics(enabledFiles []string) mib.MibLoadResponse
 	if len(enabledFiles) == 0 {
 		log.Println("Every MIB is disabled; loading none")
 	}
-	return a.mibService.LoadWithDiagnostics(enabledFiles)
+	response := a.mibService.LoadWithDiagnostics(enabledFiles)
+	a.mibStatuses.rememberLoads(response.Diagnostics)
+	return response
 }
 
 // GetOidDetails translates a numeric OID into its MIB details.

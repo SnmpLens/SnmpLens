@@ -595,6 +595,23 @@ MODULE-IDENTITY or, failing that, the definition most of the others descend from
 shallowest one is SNMPv2-SMI's `zeroDotZero`. `ContextMenu.svelte`, shared with the MIB tree, now takes the focus,
 moves with the arrow keys and stays inside the window.
 
+**The panel is the editing surface; the rest are components.** `MibEditorPanel.svelte` keeps the buffer's surface
+(textarea, coloured mirror, underlines, completion, find) and what drives it; the file list (`mibeditor/FileList`),
+the outline (`Outline`), the problem table (`ProblemTable`) and the file actions (`FileActions`) take what they show
+as props and ask through events. Nothing they do touches the buffer except through the panel, whose undo history it
+is — which is also what makes the surface replaceable on its own.
+
+**Replacing the surface with CodeMirror 6 was weighed, with numbers.** Measured (codemirror 6.0.2, view 6.43,
+state 6.7, with lint and a stream language): +323 KB minified / +105 KB gzip with `minimalSetup`, +389 / +126 with
+`basicSetup`, against about 2.99 MB / 701 KB gzip of JavaScript for the whole renderer — +13% / +18%. It would take
+over what is hand-made here and has broken: the layering and windowing (`render.js`, `metrics.js`), the underline
+placement `tools/editorcheck.mjs` exists to guard, undo (`history.js`), search (`search.js`), the completion and hover
+popups, and IME and wide characters. Every one of the surface's recent bugs was in that list: the 8 px offset, the
+clip on scroll, a character width measured once, a CR drawn as a line break. What it costs: an SMI stream language
+(a port of `tokenize.js`, whose rules stay), Go's diagnostics fed to `linter`, the store kept as the source with
+transactions both ways, and the surface's tests rewritten. The verdict, the analysis and every component above are
+untouched by it. Decision: worth doing, as its own change, replacing the surface inside the panel and nothing else.
+
 `frontend/src/mibeditor/metrics.js` turns a (line, column) into pixels, which is what makes squiggles, hover
 cards and caret-anchored completion possible **here and not in a plain textarea**: the mirror lays out identically
 to the text (unit-tested) and both are monospace with a fixed line height, so a position is arithmetic once the

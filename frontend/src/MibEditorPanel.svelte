@@ -9,17 +9,15 @@
   import { charWidth, positionOf, lineColumnAt, wordAt, offsetAt, lineStarts, lineColumnFrom } from './mibeditor/metrics.js';
   import { findMatches, findAllMatches, applyReplaceAll, nextIndex, MAX_MATCHES } from './mibeditor/search.js';
   import { createHistory } from './mibeditor/history.js';
-  import {
-    sortProblems, filterProblems, countBySeverity, positionOf as problemPosition, SEVERITIES,
-    withoutMuted, MUTABLE, FIXABLE, problemsText,
-  } from './mibeditor/problems';
+  import { withoutMuted } from './mibeditor/problems';
   import { mutedRules } from './stores/mutedRules';
-  import { copyToClipboard } from './utils/clipboard';
-  import { verdictMap, countVerdicts, isProblem, ICONS as VERDICT_ICONS, FAILED, ERROR, WARNING } from './utils/mibVerdict';
+  import { verdictMap } from './utils/mibVerdict';
   import { mibStatusStore } from './stores/mibStatusStore';
   import { mibEditorStore } from './stores/mibEditorStore';
   import FileActions from './mibeditor/FileActions.svelte';
-  import { select as selectFiles } from './mibeditor/fileMenu.js';
+  import FileList from './mibeditor/FileList.svelte';
+  import Outline from './mibeditor/Outline.svelte';
+  import ProblemTable from './mibeditor/ProblemTable.svelte';
   import { mibPathsStore } from './stores/mibPathsStore';
   import { mibStore } from './stores/mibStore';
   import {
@@ -48,7 +46,6 @@
   let atomicEdit = false;
   let showSnippets = false;
   let showSymbols = false;
-  let outlineFilter = '';
   let showOutline = true;
   let symbolFilter = '';
   let catalogue = { modules: [], symbols: [] };
@@ -210,18 +207,13 @@
   );
   $: highlighted = renderWindow(buffer, lines, firstVisible, lastVisible);
 
-  // A mark beside every file that does not load, loads with errors or with
-  // warnings — the one verdict the MIB settings and the import report show
-  // too, decided in Go (pkg/mib/verdict.go) — and a switch to list only those:
-  // in a directory of two hundred MIBs the broken ones were found by opening
-  // them one by one. The open file, while it has unsaved changes, is judged
-  // as it is being typed.
+  // Every file's verdict, the open one judged as it is typed while it has
+  // unsaved changes (utils/mibVerdict.js): the file list marks it, the file
+  // actions read it.
   let onlyProblems = false;
   $: openName = source && !source.external ? source.name : '';
   $: statuses = verdictMap($mibStatusStore, openName, dirty ? $mibEditorStore.verdict : null);
-  $: problemCounts = countVerdicts(statuses);
-  $: shown = files.filter((f) => (!filter || f.name.toLowerCase().includes(filter.toLowerCase()))
-    && (!onlyProblems || isProblem(statuses[f.name]?.level)));
+
   $: errorCount = listed.filter((d) => d.severity === 'error').length;
   $: warnCount = listed.filter((d) => d.severity === 'warning').length;
 
@@ -230,105 +222,10 @@
   // this, and Go leaves the same findings out of the verdict.
   $: listed = withoutMuted(diagnostics, $mutedRules);
 
-  // The problem table (mibeditor/problems.js): by severity unless a column is
-  // chosen, and filtered by severity, so the one error that stops a module
-  // loading is not under a dozen style infos.
-  const PROBLEM_COLUMNS = ['severity', 'line', 'message', 'code'];
-  let sortKey = 'severity';
-  let sortDir = 'asc';
-  let visibleSeverities = new Set(SEVERITIES);
-  $: severityCounts = countBySeverity(listed);
-  $: shownProblems = sortProblems(filterProblems(listed, visibleSeverities), sortKey, sortDir);
-  // A fix for every problem of a kind, offered once there are several.
-  $: fixAllCodes = [...FIXABLE]
-    .map((code) => ({ code, count: listed.filter((d) => d.code === code).length }))
-    .filter((f) => f.count > 1);
-
-  function sortBy(key) {
-    if (sortKey === key) {
-      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortKey = key;
-      sortDir = 'asc';
-    }
-  }
-
-  function toggleSeverity(sev) {
-    const next = new Set(visibleSeverities);
-    if (next.has(sev)) next.delete(sev);
-    else next.add(sev);
-    visibleSeverities = next;
-  }
-
-  // The problem table's height, dragged from its top edge: a vendor MIB can
-  // have forty problems, and a fixed 150 px showed six. The editor gives up
-  // what the table takes. Remembered per viewer; a store that refuses it only
-  // costs the default next time.
-  const PROBLEMS_KEY = 'snmplens.mibEditor.problemsHeight';
-  const PROBLEMS_MIN = 72;
-  const PROBLEMS_DEFAULT = 180;
+  // How tall the problem table may grow: never so tall that the editor has no
+  // room left.
   let mainEl;
-  let problemsHeight = storedProblemsHeight();
-  let resizing = null;
-
-  function storedProblemsHeight() {
-    try {
-      const v = Number(localStorage.getItem(PROBLEMS_KEY));
-      return v >= PROBLEMS_MIN ? v : PROBLEMS_DEFAULT;
-    } catch (e) {
-      return PROBLEMS_DEFAULT;
-    }
-  }
-
-  function keepProblemsHeight() {
-    try {
-      localStorage.setItem(PROBLEMS_KEY, String(Math.round(problemsHeight)));
-    } catch (e) {
-      /* remembered for this session only */
-    }
-  }
-
-  // At least the minimum, and never so tall that the editor has no room left.
-  function clampProblemsHeight(h) {
-    const max = Math.max(PROBLEMS_MIN, (mainEl?.clientHeight || 600) - 180);
-    return Math.min(max, Math.max(PROBLEMS_MIN, h));
-  }
-
-  function startResize(e) {
-    resizing = { y: e.clientY, h: problemsHeight };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
-
-  function onResize(e) {
-    if (!resizing) return;
-    problemsHeight = clampProblemsHeight(resizing.h + (resizing.y - e.clientY));
-  }
-
-  async function endResize() {
-    if (!resizing) return;
-    resizing = null;
-    keepProblemsHeight();
-    await tick();
-    measureViewport();
-  }
-
-  async function resizeByKey(e) {
-    const step = e.shiftKey ? 80 : 20;
-    if (e.key === 'ArrowUp') problemsHeight = clampProblemsHeight(problemsHeight + step);
-    else if (e.key === 'ArrowDown') problemsHeight = clampProblemsHeight(problemsHeight - step);
-    else return;
-    e.preventDefault();
-    keepProblemsHeight();
-    await tick();
-    measureViewport();
-  }
-
-  // Every problem SHOWN — filtered and sorted as on screen — as text, one per
-  // line, to paste into a ticket or a message to whoever wrote the MIB.
-  function copyProblems() {
-    const { label, text } = problemsText(source?.name, shownProblems, get(_));
-    copyToClipboard(text, label);
-  }
+  const problemsMaxHeight = () => (mainEl?.clientHeight || 600) - 180;
 
   // The fix Go writes for a problem (pkg/mib/quickfix.go), into the buffer as
   // one edit, so it is undone as one. symbols empty fixes every one of a kind.
@@ -342,18 +239,6 @@
     } catch (e) {
       notificationStore.add(String(e), 'error');
     }
-  }
-
-  // Muting changes the verdict of every file; the list asks again by itself
-  // (stores/mibStatusStore.js), the open buffer here.
-  async function mute(code) {
-    await mutedRules.mute(code);
-    mibEditorStore.refresh();
-  }
-
-  async function unmute(code) {
-    await mutedRules.unmute(code);
-    mibEditorStore.refresh();
   }
 
   // The visible window depends on how much is on screen, so it is re-read on
@@ -452,50 +337,6 @@
     } catch (e) {
       notificationStore.add(String(e), 'error');
       return false;
-    }
-  }
-
-  // --- the file list's selection and context menu ---------------------------
-
-  // A plain click opens the file and selects it alone; Ctrl (Cmd) and Shift
-  // select without opening, as in a file manager.
-  function clickFile(e, name) {
-    const toggle = e.ctrlKey || e.metaKey;
-    const range = e.shiftKey;
-    ({ selected, anchor } = selectFiles(selected, anchor, name, shown.map((f) => f.name), { toggle, range }));
-    if (!toggle && !range) open(name);
-  }
-
-  // A right-click on a file outside the selection selects that file alone,
-  // without opening it; inside, the menu acts on the whole selection.
-  function namesFor(name) {
-    if (selected.includes(name)) return selected;
-    selected = [name];
-    anchor = name;
-    return selected;
-  }
-
-  function fileContextMenu(e, name) {
-    fileActions?.openMenu(e.clientX, e.clientY, namesFor(name));
-  }
-
-  function listContextMenu(e) {
-    if (e.target.closest('.file')) return;
-    e.preventDefault();
-    fileActions?.openListMenu(e.clientX, e.clientY);
-  }
-
-  function fileKeydown(e, name) {
-    if (e.key === 'F2') {
-      e.preventDefault();
-      fileActions?.run('rename', [name]);
-    } else if (e.key === 'Delete') {
-      e.preventDefault();
-      fileActions?.run('delete', namesFor(name));
-    } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
-      e.preventDefault();
-      const r = e.currentTarget.getBoundingClientRect();
-      fileActions?.openMenu(r.left + 16, r.bottom, namesFor(name));
     }
   }
 
@@ -906,25 +747,6 @@
   // a callee is not a dependency it can see — reactive.test.mjs exists for
   // exactly that.
   $: outline = $mibEditorStore.outline || [];
-  $: shownOutline = filterOutline(outline, outlineFilter);
-
-  // Takes what it reads as arguments, for the same reason.
-  function filterOutline(items, needle) {
-    const q = needle.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) =>
-      it.name.toLowerCase().includes(q) || (it.syntax || '').toLowerCase().includes(q));
-  }
-
-  // A one-character badge, because the list is narrow and the kind is the thing
-  // that tells a table from the row inside it from the columns inside that —
-  // three definitions that read almost identically in the source.
-  const OUTLINE_BADGE = {
-    module: 'M', object: 'o', table: 'T', row: 'R', identity: 'i',
-    notification: 'N', group: 'G', compliance: 'C', capabilities: 'A',
-    trap: 'N', node: '·', type: 't', macro: 'm',
-  };
-  const badgeOf = (kind) => OUTLINE_BADGE[kind] || '·';
 
   // Hover: the word under the pointer, looked up in the loaded tree.
   let hoverTimer;
@@ -1119,93 +941,18 @@
       <Icon name="folder-open" size={13} /> {$_('mibEditor.openExternal')}
     </button>
 
-    {#if problemCounts[FAILED] + problemCounts[ERROR] + problemCounts[WARNING] > 0 || onlyProblems}
-      <button class="only-problems" aria-pressed={onlyProblems} on:click={() => (onlyProblems = !onlyProblems)}
-        title={onlyProblems ? $_('mibEditor.files.showAll') : $_('mibEditor.files.onlyProblems')}>
-        <Icon name="list-filter" size={13} />
-        <span class="label">{onlyProblems ? $_('mibEditor.files.showAll') : $_('mibEditor.files.onlyProblems')}</span>
-        {#each [FAILED, ERROR, WARNING] as level}
-          {#if problemCounts[level] > 0}
-            <span class="count {level}" title={$_('mibVerdict.short.' + level)}>
-              <Icon name={VERDICT_ICONS[level]} size={12} /> {problemCounts[level]}
-            </span>
-          {/if}
-        {/each}
-      </button>
-    {/if}
+    <FileList {files} {statuses} {filter} activeName={openName} bind:onlyProblems bind:selected bind:anchor
+      on:open={(e) => open(e.detail)}
+      on:menu={(e) => fileActions?.openMenu(e.detail.x, e.detail.y, e.detail.names)}
+      on:listmenu={(e) => fileActions?.openListMenu(e.detail.x, e.detail.y)}
+      on:rename={(e) => fileActions?.run('rename', [e.detail])}
+      on:delete={(e) => fileActions?.run('delete', e.detail)} />
 
-    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-    <ul class="files" on:contextmenu={listContextMenu}>
-      {#each shown as f (f.name)}
-        <li>
-          <button class="file" class:active={source && !source.external && source.name === f.name}
-            class:selected={selected.length > 1 && selected.includes(f.name)}
-            on:click={(e) => clickFile(e, f.name)}
-            on:contextmenu|preventDefault={(e) => fileContextMenu(e, f.name)}
-            on:keydown={(e) => fileKeydown(e, f.name)}
-            title={isProblem(statuses[f.name]?.level)
-              ? $_('mibVerdict.' + statuses[f.name].level, { values: { count: statuses[f.name].count } })
-                + (statuses[f.name].live ? ' (' + $_('mibVerdict.live') + ')' : '')
-                + (statuses[f.name].detail ? ' — ' + statuses[f.name].detail : '')
-              : f.name}>
-            <!-- One element whatever the verdict, its icon chosen by name:
-                 swapping {#if} branches is a destroy and a create, and showed
-                 the previous icon for a frame on every hover. -->
-            <span class="file-mark {statuses[f.name]?.level || ''}" aria-hidden="true">
-              {#if isProblem(statuses[f.name]?.level)}<Icon name={VERDICT_ICONS[statuses[f.name].level]} size={12} />{/if}
-            </span>
-            <span class="fname">{f.name}</span>
-            {#if f.bundled}
-              <span class="tag" class:changed={f.modified}
-                title={f.modified ? $_('mibEditor.bundledModified') : $_('mibEditor.bundled')}>
-                {f.modified ? '±' : '◆'}
-              </span>
-            {/if}
-          </button>
-        </li>
-      {/each}
-      {#if shown.length === 0}
-        <li class="empty">{onlyProblems ? $_('mibEditor.files.noProblems') : $_('mibEditor.noFiles')}</li>
-      {/if}
-    </ul>
-
-    <!-- The outline. A MIB has no indentation to navigate by and no folding to
-         collapse, so scrolling is the only tool and a 185 KB file is a lot of
-         scrolling. It costs nothing: every field comes off the parse the
-         analysis already makes on every pause in typing. -->
+    <!-- The outline: what the buffer defines, to jump to (mibeditor/Outline.svelte). -->
     {#if source}
-      <div class="outline">
-        <button class="outline-head" on:click={() => (showOutline = !showOutline)}
-          aria-expanded={showOutline}>
-          <Icon name={showOutline ? 'chevron-down' : 'chevron-right'} size={12} />
-          {$_('mibEditor.outline')}
-          <span class="count">{outline.length}</span>
-        </button>
-
-        {#if showOutline}
-          <input type="search" class="outline-filter" bind:value={outlineFilter}
-            placeholder={$_('mibEditor.outlineFilter')} />
-
-          <ul class="outline-list">
-            {#each shownOutline as item (item.kind + item.name + item.line)}
-              <li>
-                <button class="outline-item" on:click={() => jumpTo(item)}
-                  title={item.description || item.name}>
-                  <span class="badge kind-{item.kind}">{badgeOf(item.kind)}</span>
-                  <span class="oname">{item.name}</span>
-                  {#if item.syntax}<span class="osyntax">{item.syntax}</span>{/if}
-                </button>
-              </li>
-            {/each}
-            {#if outline.length === 0}
-              <li class="empty">{$_('mibEditor.outlineEmpty')}</li>
-            {:else if shownOutline.length === 0}
-              <li class="empty">{$_('mibEditor.outlineNoMatch')}</li>
-            {/if}
-          </ul>
-        {/if}
-      </div>
+      <Outline {outline} bind:open={showOutline} on:jump={(e) => jumpTo(e.detail)} />
     {/if}
+
   </aside>
 
   <!-- ---------------- editor ---------------- -->
@@ -1477,99 +1224,11 @@
       {/if}
 
       {#if diagnostics.length}
-        <!-- Dragged, or moved with the arrow keys, to give the table more of
-             the height and the editor less. -->
-        <div class="problems-resize" class:active={resizing !== null}
-          role="slider" tabindex="0" aria-orientation="vertical"
-          aria-label={$_('mibEditor.problemTable.resize')} title={$_('mibEditor.problemTable.resize')}
-          aria-valuemin={PROBLEMS_MIN} aria-valuenow={Math.round(problemsHeight)}
-          on:pointerdown={startResize} on:pointermove={onResize}
-          on:pointerup={endResize} on:pointercancel={endResize} on:keydown={resizeByKey}>
-          <span class="grip"></span>
-        </div>
-        <div class="problems">
-          <div class="problems-filter" role="group" aria-label={$_('mibEditor.problemTable.filter')}>
-            {#each SEVERITIES as sev}
-              <button class="sev-filter {sev}" aria-pressed={visibleSeverities.has(sev)}
-                disabled={severityCounts[sev] === 0} title={$_('mibEditor.problemTable.filterHint')}
-                on:click={() => toggleSeverity(sev)}>
-                {$_('mibEditor.problemTable.sev.' + sev)} <span class="n">{severityCounts[sev]}</span>
-              </button>
-            {/each}
-            {#each fixAllCodes as f (f.code)}
-              <button class="problems-action" on:click={() => quickFix(f.code, [])}
-                title={$_('mibEditor.problemTable.fixAllHint')}>
-                <Icon name="zap" size={13} /> {$_('mibEditor.problemTable.fixAll', { values: { count: f.count, code: f.code } })}
-              </button>
-            {/each}
-            <button class="problems-action problems-copy" on:click={copyProblems} disabled={shownProblems.length === 0}
-              title={$_('mibEditor.problemTable.copyHint')}>
-              <Icon name="clipboard-list" size={13} /> {$_('mibEditor.problemTable.copy')}
-            </button>
-          </div>
-          {#if $mutedRules.size > 0}
-            <!-- What is hidden stays one click from coming back. -->
-            <div class="problems-muted">
-              <Icon name="eye-off" size={12} />
-              <span>{$_('mibEditor.problemTable.muted', { values: { count: diagnostics.length - listed.length } })}</span>
-              {#each [...$mutedRules] as code (code)}
-                <button class="muted-chip" on:click={() => unmute(code)} title={$_('mibEditor.problemTable.unmuteHint')}>
-                  {code} <Icon name="x" size={11} />
-                </button>
-              {/each}
-            </div>
-          {/if}
-          <div class="problems-scroll" style="height: {problemsHeight}px;">
-            <table>
-              <thead>
-                <tr>
-                  {#each PROBLEM_COLUMNS as col}
-                    <th class="col-{col}"
-                      aria-sort={sortKey === col ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                      <button on:click={() => sortBy(col)} title={$_('mibEditor.problemTable.sortHint')}>
-                        {$_('mibEditor.problemTable.col.' + col)}
-                        {#if sortKey === col}
-                          <Icon name={sortDir === 'asc' ? 'chevron-up' : 'chevron-down'} size={12} />
-                        {/if}
-                      </button>
-                    </th>
-                  {/each}
-                  <th class="col-actions"><span class="visually-hidden">{$_('mibEditor.problemTable.col.actions')}</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each shownProblems as d, i (i)}
-                  <tr class={d.severity}>
-                    <td class="col-severity"><span class="problem-sev {d.severity}">{$_('mibEditor.problemTable.sev.' + d.severity)}</span></td>
-                    <td class="col-line problem-pos">{problemPosition(d)}</td>
-                    <!-- The row's jump: its ::after covers the row up to the
-                         actions, so a click anywhere jumps, and the keyboard
-                         has a button to reach. -->
-                    <td class="col-message"><button class="jump" on:click={() => jumpTo(d)}>{d.message}</button></td>
-                    <td class="col-code problem-code">{d.code}</td>
-                    <td class="col-actions">
-                      {#if FIXABLE.has(d.code) && d.symbol}
-                        <button class="row-action" on:click={() => quickFix(d.code, [d.symbol])}
-                          title={$_('mibEditor.problemTable.fixHint')} aria-label={$_('mibEditor.problemTable.fix')}>
-                          <Icon name="zap" size={12} />
-                        </button>
-                      {/if}
-                      {#if MUTABLE.has(d.code) && d.severity !== 'error'}
-                        <button class="row-action" on:click={() => mute(d.code)}
-                          title={$_('mibEditor.problemTable.muteHint', { values: { code: d.code } })}
-                          aria-label={$_('mibEditor.problemTable.mute', { values: { code: d.code } })}>
-                          <Icon name="eye-off" size={12} />
-                        </button>
-                      {/if}
-                    </td>
-                  </tr>
-                {:else}
-                  <tr><td class="none" colspan="5">{$_('mibEditor.problemTable.none')}</td></tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ProblemTable {diagnostics} {listed} fileName={source.name} maxHeight={problemsMaxHeight}
+          on:jump={(e) => jumpTo(e.detail)}
+          on:fix={(e) => quickFix(e.detail.code, e.detail.symbols)}
+          on:muted={() => mibEditorStore.refresh()}
+          on:resized={measureViewport} />
       {/if}
     {/if}
   </section>
@@ -1586,106 +1245,6 @@
     gap: var(--space-sm);
     height: 100%;
     min-height: 0;
-  }
-
-  .outline {
-    display: flex;
-    flex-direction: column;
-    /* A share of the rail rather than the remainder of it, and a floor so it
-       cannot be squeezed out of existence by a long file list. */
-    flex: 1 1 60%;
-    min-height: 6rem;
-    border-top: 1px solid var(--border-color);
-    padding-top: 0.35rem;
-  }
-
-  .outline-head {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.2rem 0.3rem;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-  }
-
-  .outline-head .count {
-    margin-left: auto;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .outline-filter {
-    margin: 0.2rem 0.3rem 0.3rem;
-    font-size: 0.75rem;
-  }
-
-  .outline-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    overflow-y: auto;
-    min-height: 0;
-    flex: 1 1 auto;
-  }
-
-  .outline-item {
-    display: flex;
-    align-items: baseline;
-    gap: 0.35rem;
-    width: 100%;
-    padding: 0.12rem 0.3rem;
-    background: none;
-    border: none;
-    color: inherit;
-    font: inherit;
-    font-size: 0.76rem;
-    text-align: left;
-    cursor: pointer;
-    min-width: 0;
-  }
-
-  .outline-item:hover {
-    background-color: var(--bg-lighter-color);
-  }
-
-  .outline-item .badge {
-    flex: 0 0 auto;
-    width: 1.05em;
-    text-align: center;
-    border-radius: 2px;
-    background-color: var(--bg-lighter-color);
-    color: var(--text-muted);
-    font-size: 0.66rem;
-    font-family: var(--font-mono, monospace);
-  }
-
-  /* A table, the row inside it and the columns inside that read almost
-     identically in the source, so the badge is where they differ. */
-  .outline-item .kind-table,
-  .outline-item .kind-row {
-    background-color: var(--accent-subtle, var(--bg-lighter-color));
-    color: var(--accent-color, var(--text-color));
-  }
-
-  .outline-item .oname {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .outline-item .osyntax {
-    margin-left: auto;
-    flex: 0 1 auto;
-    color: var(--text-muted);
-    font-size: 0.68rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .rail {
@@ -1716,129 +1275,6 @@
   .full {
     width: 100%;
     justify-content: center;
-  }
-
-  /* The rail holds TWO lists and has to divide its height between them.
-     `flex: 1` here claimed everything left over, so the outline below rendered
-     at zero height: present in the DOM, scrollable, and invisible. With no file
-     open there is no outline and this still takes the whole rail. */
-  .files {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    overflow-y: auto;
-    min-height: 4rem;
-    flex: 1 1 40%;
-  }
-
-  .file {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    width: 100%;
-    padding: 4px 6px;
-    background: none;
-    border: none;
-    border-radius: 3px;
-    color: var(--text-color);
-    font-size: 0.8em;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .file:hover {
-    background-color: var(--hover-overlay);
-  }
-
-  .file.active {
-    background-color: var(--accent-subtle);
-    color: var(--accent-color);
-  }
-
-  /* Several selected: marked apart from the file open in the editor. */
-  .file.selected {
-    box-shadow: inset 2px 0 0 var(--accent-color);
-    background-color: var(--hover-overlay);
-  }
-
-  .fname {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Always there, empty for a file without a problem, so the names line up.
-     Not `.mark`: that is the editor's squiggle, absolutely positioned and
-     underlined, and sharing the name put both on every file in the list. */
-  .file-mark {
-    flex: 0 0 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 14px;
-  }
-
-  .file-mark.failed { color: var(--error-color); }
-  .file-mark.error { color: var(--error-color); }
-  .file-mark.warning { color: var(--warning-color); }
-
-  .only-problems {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    padding: 3px 6px;
-    background: none;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: 0.78em;
-    cursor: pointer;
-  }
-
-  .only-problems[aria-pressed='true'] {
-    border-color: var(--accent-color);
-    color: var(--accent-color);
-    background: var(--accent-subtle);
-  }
-
-  .only-problems .label {
-    flex: 1;
-    min-width: 0;
-    text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .only-problems .count {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .only-problems .count.failed,
-  .only-problems .count.error { color: var(--error-color); }
-  .only-problems .count.warning { color: var(--warning-color); }
-
-  .tag {
-    color: var(--text-muted);
-    font-size: 0.9em;
-  }
-
-  .tag.changed {
-    color: var(--warning-color);
-  }
-
-  .empty {
-    padding: 8px 6px;
-    font-size: 0.78em;
-    color: var(--text-muted);
   }
 
   .main {
@@ -2337,288 +1773,6 @@
   .pill.ok { color: var(--success-color); border-color: var(--success-border); }
   .pill.warn { color: var(--warning-color); border-color: var(--warning-border); }
   .pill.err { color: var(--error-color); border-color: var(--error-border); }
-
-  .problems {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 0.76em;
-  }
-
-  .problems-filter {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  /* The actions go to the right of the filters. */
-  .sev-filter + .problems-action {
-    margin-left: auto;
-  }
-
-  .sev-filter {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 1px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-    background: none;
-    color: var(--text-muted);
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .sev-filter[aria-pressed='true'].error { color: var(--error-color); border-color: var(--error-border); background: var(--error-subtle); }
-  .sev-filter[aria-pressed='true'].warning { color: var(--warning-color); border-color: var(--warning-border); background: var(--warning-subtle); }
-  .sev-filter[aria-pressed='true'].info { color: var(--text-color); background: var(--hover-overlay); }
-  .sev-filter[aria-pressed='false'] { text-decoration: line-through; opacity: 0.7; }
-  .sev-filter:disabled { opacity: 0.4; cursor: default; text-decoration: none; }
-
-  .sev-filter .n {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-  }
-
-  .problems-resize {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 8px;
-    margin: -2px 0;
-    cursor: row-resize;
-    touch-action: none;
-  }
-
-  .problems-resize .grip {
-    width: 36px;
-    height: 3px;
-    border-radius: 2px;
-    background: var(--border-color);
-  }
-
-  .problems-resize:hover .grip,
-  .problems-resize.active .grip,
-  .problems-resize:focus-visible .grip {
-    background: var(--accent-color);
-  }
-
-  .problems-resize:focus-visible {
-    outline: none;
-  }
-
-  .problems-action {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-    background: none;
-    color: var(--text-muted);
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .problems-action:hover:not(:disabled) {
-    color: var(--accent-color);
-    border-color: var(--accent-color);
-  }
-
-  .problems-action:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .problems-scroll {
-    overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-  }
-
-  .problems table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-  }
-
-  .problems th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--bg-light-color);
-    border-bottom: 1px solid var(--border-color);
-    padding: 0;
-    text-align: left;
-  }
-
-  .problems th button {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    width: 100%;
-    padding: 3px 8px;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font: inherit;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .problems th[aria-sort='ascending'] button,
-  .problems th[aria-sort='descending'] button {
-    color: var(--text-color);
-  }
-
-  .problems th button:focus-visible,
-  .problems .jump:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: -2px;
-  }
-
-  .col-severity { width: 92px; }
-  .col-line { width: 64px; }
-  .col-code { width: 120px; }
-
-  .problems tbody tr {
-    position: relative;
-    border-top: 1px solid var(--border-color);
-  }
-
-  .problems tbody tr:first-child {
-    border-top: none;
-  }
-
-  .problems tbody tr:hover {
-    background-color: var(--hover-overlay);
-  }
-
-  .problems td {
-    padding: 3px 8px;
-    vertical-align: baseline;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .jump {
-    padding: 0;
-    background: none;
-    border: none;
-    color: var(--text-color);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    overflow-wrap: anywhere;
-  }
-
-  .jump::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-  }
-
-  /* Prefixed: `.code` is the editor surface (position: relative, flex: 1),
-     and a table cell given that name became one. */
-  .problem-sev {
-    text-transform: uppercase;
-    font-size: 0.85em;
-    font-weight: 600;
-  }
-
-  .problem-sev.error { color: var(--error-color); }
-  .problem-sev.warning { color: var(--warning-color); }
-  .problem-sev.info { color: var(--text-muted); }
-
-  .problem-pos {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .problem-code {
-    color: var(--text-dimmed);
-    font-size: 0.9em;
-    white-space: nowrap;
-  }
-
-  .problems .none {
-    color: var(--text-muted);
-    font-style: italic;
-  }
-
-  .col-actions { width: 52px; }
-
-  /* Above the row's jump, whose ::after covers the row. */
-  .problems td.col-actions {
-    position: relative;
-    z-index: 1;
-    padding: 1px 4px;
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  .row-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 18px;
-    padding: 0;
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
-
-  .row-action:hover,
-  .row-action:focus-visible {
-    color: var(--accent-color);
-    border-color: var(--accent-color);
-    outline: none;
-  }
-
-  .problems-muted {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
-    color: var(--text-muted);
-  }
-
-  .muted-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 0 6px;
-    border-radius: 10px;
-    border: 1px dashed var(--border-color);
-    background: none;
-    color: var(--text-muted);
-    font: inherit;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    cursor: pointer;
-  }
-
-  .muted-chip:hover,
-  .muted-chip:focus-visible {
-    color: var(--accent-color);
-    border-color: var(--accent-color);
-    outline: none;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
 
   .find-count.capped {
     color: var(--warning, #b7791f);

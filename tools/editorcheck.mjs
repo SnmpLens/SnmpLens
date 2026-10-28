@@ -171,10 +171,14 @@ class CDP {
   }
 }
 
-async function debuggerUrl(profileDir, timeoutMs = 20000) {
+// A Chrome that exits or never listens is reported with what it printed: the
+// launch is not what this checks, and "never reported a debugging port" alone
+// says nothing about why.
+async function debuggerUrl(profileDir, chrome, timeoutMs = 60000) {
   const portFile = join(profileDir, 'DevToolsActivePort');
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (chrome.exited) throw new Error(`Chrome exited (${chrome.exited}) before it listened${chrome.said()}`);
     if (existsSync(portFile)) {
       const p = parseInt(readFileSync(portFile, 'utf8').split('\n')[0], 10);
       if (p > 0) {
@@ -187,7 +191,20 @@ async function debuggerUrl(profileDir, timeoutMs = 20000) {
     }
     await sleep(120);
   }
-  throw new Error('Chrome never reported a debugging port');
+  throw new Error(`Chrome never reported a debugging port in ${timeoutMs / 1000} s${chrome.said()}`);
+}
+
+// The end of what Chrome writes to stderr, kept for the error above.
+function watchChrome(child) {
+  const state = { exited: '', tail: '' };
+  child.stderr.on('data', (chunk) => {
+    state.tail = (state.tail + chunk).slice(-4000);
+  });
+  child.on('exit', (code, signal) => {
+    state.exited = signal || `code ${code}`;
+  });
+  state.said = () => (state.tail.trim() ? `; it said:\n${state.tail.trim()}` : '');
+  return state;
 }
 
 function killTree(child) {
@@ -291,12 +308,13 @@ const child = spawn(chrome, [
   '--hide-scrollbars',
   '--window-size=1400,900',
   'about:blank',
-], { stdio: 'ignore' });
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+const chromeState = watchChrome(child);
 
 let failed = false;
 let cdp = null;
 try {
-  cdp = await new CDP(await debuggerUrl(profile)).open();
+  cdp = await new CDP(await debuggerUrl(profile, chromeState)).open();
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
   await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html?scene=${SCENE}` });

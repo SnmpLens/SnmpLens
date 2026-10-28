@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { buildScenes, TABS } from './screenshots/scenes.js';
+import { buildScenes, checkScenes, TABS } from './screenshots/scenes.js';
 
 /**
  * The build used to take screenshots of the application for the project site.
@@ -56,7 +56,9 @@ function injectScene() {
   const seeds = JSON.parse(
     readFileSync(fileURLToPath(new URL('./screenshots/bridge/seeds.json', import.meta.url)), 'utf8'),
   );
-  const scenes = buildScenes(seeds);
+  // The site's scenes, and the ones tools/editorcheck.mjs measures: the same
+  // bundle serves both, and only the first are ever captured.
+  const scenes = [...buildScenes(seeds), ...checkScenes(seeds)];
 
   const TAB_KEY = {
     operations: '1', traps: '2', history: '3', monitor: '4',

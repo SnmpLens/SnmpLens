@@ -185,7 +185,17 @@
   let dragOver = false;
   let dragLeaveTimer = null;
 
-  function handleDragOver() {
+  // Only a drag that carries FILES is an import. Text dragged inside the MIB
+  // editor — a selection moved with the mouse — is a drag too, and the
+  // overlay offered to import it. Not preventing the default for it also
+  // leaves the textarea's own drop, which is how the text gets moved, alone.
+  function carriesFiles(event) {
+    return Array.from(event?.dataTransfer?.types || []).includes('Files');
+  }
+
+  function handleDragOver(event) {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
     clearTimeout(dragLeaveTimer);
     dragOver = true;
   }
@@ -466,7 +476,7 @@
   on:keydown={handleGlobalKeydown}
   on:mousemove={handleMouseMove}
   on:mouseup={stopResize}
-  on:dragover|preventDefault={handleDragOver}
+  on:dragover={handleDragOver}
   on:dragleave={handleDragLeave}
   on:drop={handleDragEnd}
   on:dragend={handleDragEnd}

@@ -90,14 +90,30 @@
 
   $: lines = buffer.split('\n');
   // Only errors and warnings get an underline; advice would be visual noise.
+  //
+  // Placed by TEXT, not by arithmetic. Each underline is its line's own text
+  // up to the column, transparent, then the characters it underlines, in the
+  // mirror's font and tab size: it lands where the mirror drew them whatever
+  // the font resolved to, however wide a tab is, whichever characters sit
+  // before it. Pixels from a measured character width put it beside the word
+  // as soon as the measure was wrong — and it was: taken once, at mount,
+  // before any file was open, it stayed at its 7.2 px default against
+  // Consolas's 6.6, drifting further right with every column.
   $: marks = diagnostics
     .filter((d) => d.line > 0 && d.severity !== 'info')
     .slice(0, 200)
     .map((d) => {
-      const pos = positionOf(lines, d.line, d.column || 1, cw, LINE_HEIGHT);
       const text = lines[d.line - 1] || '';
-      const width = Math.max(cw * 2, cw * Math.max(1, (d.symbol || '').length || wordAt(text, (d.column || 1) - 1).word.length || 6));
-      return { ...d, x: pos.x, y: pos.y, width };
+      const at = Math.min(Math.max(0, (d.column || 1) - 1), text.length);
+      const chars = Math.max(2, (d.symbol || '').length || wordAt(text, at).word.length || 6);
+      const under = text.slice(at, at + chars);
+      return {
+        ...d,
+        y: (d.line - 1) * LINE_HEIGHT,
+        before: text.slice(0, at),
+        // Past the end of the line, something to underline all the same.
+        under: under + 'x'.repeat(Math.max(0, chars - under.length)),
+      };
     });
 
   // The buffer lives in a store, not here: this component is destroyed on
@@ -155,6 +171,15 @@
   // Highlighting carries `inString` across lines, so starting mid-file needs
   // the state at that point. stringStateAt answers it by scanning without
   // producing anything: 4 ms where tokenising is 29.
+  // The width of one character, for what is still placed by arithmetic: search
+  // hits, the completion popup, the hover card. Measured whenever the mirror
+  // APPEARS — it exists only while a file is open, and measuring once at
+  // mount, usually before any file was, left the 7.2 px default in place.
+  $: if (mirror) cw = charWidth(mirror);
+
+  // The padding of the mirror and the textarea (.mirror, .surface textarea):
+  // where the first character of the first line is drawn.
+  const TEXT_PAD = 8;
   const VIEW_MARGIN = 40; // lines rendered beyond the viewport, so small scrolls do not re-render
   let viewportHeight = 600;
 
@@ -187,7 +212,6 @@
     // EMPTY document. The first keystroke then recorded ''-to-whole-file as
     // one entry, and one Ctrl+Z emptied the file.
     resetHistory();
-    if (mirror) cw = charWidth(mirror);
     measureViewport();
     window.addEventListener('resize', measureViewport);
     await refreshList();
@@ -1008,21 +1032,30 @@
           <!-- Underlines sit between the mirror and the textarea, so they are
                visible through the transparent text layer without catching the
                pointer. -->
-          <!-- Search hits, drawn under the transparent text so focus can stay
-               in the search box. -->
-          <div class="marks" aria-hidden="true"
-            style="transform: translate({-scrollLeft}px, {-scrollTop}px)">
-            {#each matchBoxes as m, i (i)}
-              <span class="hit" class:current={m.current}
-                style="left: {m.x}px; top: {m.y}px; width: {m.width}px;"></span>
-            {/each}
-          </div>
-          <div class="marks" aria-hidden="true"
-            style="transform: translate({-scrollLeft}px, {-scrollTop}px)">
-            {#each marks as m, i (i)}
-              <span class="mark {m.severity}"
-                style="left: {m.x}px; top: {m.y}px; width: {m.width}px;"></span>
-            {/each}
+          <!-- Search hits and problem underlines, drawn under the transparent
+               text so focus can stay where it is.
+
+               Two boxes, because one cannot do both jobs. The outer one is the
+               visible area and CLIPS; the inner one carries the content and
+               MOVES with the scroll, from where the text starts (TEXT_PAD, the
+               mirror's padding). It used to be one box doing both, and a box
+               that moves with the scroll and clips to its own size is off
+               screen after one screen of scrolling — taking every underline
+               with it — while its padding, which absolutely positioned
+               children ignore, put each one 8 px up and left: through the
+               middle of the word rather than under it. -->
+          <div class="overlay" aria-hidden="true">
+            <div class="overlay-layer"
+              style="transform: translate({TEXT_PAD - scrollLeft}px, {TEXT_PAD - scrollTop}px)">
+              {#each matchBoxes as m, i (i)}
+                <span class="hit" class:current={m.current}
+                  style="left: {m.x}px; top: {m.y}px; width: {m.width}px;"></span>
+              {/each}
+              {#each marks as m, i (i)}
+                <span class="mark-line" style="top: {m.y}px;">{m.before}<span class="mark {m.severity}"
+                  data-line={m.line} data-column={m.before.length + 1} data-length={m.under.length}>{m.under}</span></span>
+              {/each}
+            </div>
           </div>
           <textarea
             bind:this={textarea}
@@ -1652,27 +1685,48 @@
 
   /* Underlines live under the transparent textarea, so they never intercept
      the pointer or the caret. */
-  .marks {
+  .overlay {
     position: absolute;
     inset: 0;
-    padding: 8px;
-    pointer-events: none;
     overflow: hidden;
+    pointer-events: none;
+  }
+
+  .overlay-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    /* The mirror's metrics: the text an underline is placed by is laid out
+       exactly as the mirror lays out the same text. */
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 18px;
+    tab-size: 4;
+  }
+
+  .mark-line {
+    position: absolute;
+    left: 0;
+    height: 18px;
+    white-space: pre;
+    color: transparent;
+    user-select: none;
   }
 
   .mark {
-    position: absolute;
-    height: 18px;
-    border-bottom: 2px solid transparent;
-    box-sizing: border-box;
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-skip-ink: none;
   }
 
   .mark.error {
-    border-bottom-color: var(--error-color);
+    text-decoration-color: var(--error-color);
   }
 
   .mark.warning {
-    border-bottom-color: var(--warning-color);
+    text-decoration-color: var(--warning-color);
   }
 
   .hovercard {

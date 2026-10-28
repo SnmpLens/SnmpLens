@@ -1374,6 +1374,14 @@ measured: on flat interface text x264 at crf 24 gave 164 KB where VP9 needed crf
 the size and 256 KB to match the quality. `--gif` remains for a README, which cannot autoplay
 a video.
 
+`tools/editorcheck.mjs` uses the same bundle for a CHECK rather than a picture: it loads the scene
+`check-mib-editor-geometry` (`checkScenes` in `scenes.js`, never captured) in Chrome over the DevTools
+protocol and, for every underline in the MIB editor, compares its box with the box of the same characters
+in the mirror — left edge, width, baseline, and what survives the ancestors that clip — at the top and after
+scrolling to the bottom. CI runs it. The underline layer had been 8 px up and left, gone after a screen of
+scrolling and placed from a character width measured before any file was open, and all three passed every
+other test.
+
 `docs/demo/` is the same bundle again, built by `vite.demo.config.js`, and it is committed
 because Pages serves what is in the repository. What differs from the screenshot build is in
 `screenshots/demo.js`: it seeds WITHOUT `localStorage.clear()` — the demo shares an origin

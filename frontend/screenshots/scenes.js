@@ -554,3 +554,96 @@ export function buildScenes(seeds) {
     THEMES.map((theme) => scene(base, `${entry.base}-${theme}`, { ...entry, theme })),
   );
 }
+
+/**
+ * Scenes for CHECKS, not for the site. tools/editorcheck.mjs loads them in a
+ * real browser and measures the page; they are in the bundle beside the site's
+ * scenes, and tools/screenshots.mjs, which reads buildScenes alone, never
+ * captures them.
+ */
+export function checkScenes(seeds) {
+  const base = baseSeeds(seeds);
+  const { content, diagnostics } = geometryMib();
+  return [
+    scene(base, 'check-mib-editor-geometry', {
+      tab: TABS.mibeditor,
+      theme: 'dark',
+      width: 1400,
+      height: 900,
+      bindings: {
+        MibEditorList: [{ name: 'GEOMETRY-MIB', size: content.length, bundled: false, modified: false, problems: 0 }],
+        MibEditorRead: {
+          name: 'GEOMETRY-MIB', path: '', content, eol: 'lf', encoding: 'utf-8',
+          bundled: false, external: false, sha256: 'geometry', diagnostics,
+        },
+        MibEditorAnalyse: { diagnostics, missing: [], outline: [] },
+        MibEditorReadDraft: '',
+      },
+      act: ['GEOMETRY-MIB'],
+      describe: 'A MIB whose problems sit after tabs, accented and wide characters, near the top and far down.',
+    }),
+  ];
+}
+
+/**
+ * A MIB written to make underlines hard to place: tab indentation, accented and
+ * CJK characters before the word on the same line, and a problem two hundred
+ * lines down so the check has to scroll to it. Each diagnostic is located by
+ * searching the text, so the positions cannot drift from the content.
+ */
+function geometryMib() {
+  const lines = [
+    'GEOMETRY-MIB DEFINITIONS ::= BEGIN',
+    'IMPORTS',
+    '\tOBJECT-TYPE, Integer32, enterprises',
+    '\t\tFROM SNMPv2-SMI;',
+    '',
+    'geoRoot OBJECT IDENTIFIER ::= { enterprises 99979 }',
+    '',
+    'geoTabbed OBJECT-TYPE',
+    '\tSYNTAX\tIntegerr32',
+    '\tMAX-ACCESS\tread-only',
+    '\tSTATUS\tcurrent',
+    '\tDESCRIPTION\t"Température — 温度 ±" ::= { geoRot 1 }',
+    '',
+  ];
+  for (let i = 2; i <= 32; i++) {
+    lines.push(
+      `geoFiller${i} OBJECT-TYPE`,
+      '    SYNTAX      Integer32',
+      '    MAX-ACCESS  read-only',
+      '    STATUS      current',
+      `    DESCRIPTION "Filler ${i}, so that the last problem is far down."`,
+      `    ::= { geoRoot ${i} }`,
+      '',
+    );
+  }
+  lines.push(
+    'geoLast OBJECT-TYPE',
+    '\t\tSYNTAX\t\tUnknownType',
+    '    MAX-ACCESS  read-only',
+    '    STATUS      current',
+    '    DESCRIPTION "The last one."',
+    '    ::= { geoRoot 99 }',
+    'END',
+    '',
+  );
+  const content = lines.join('\n');
+
+  const find = (needle, severity, code) => {
+    const index = lines.findIndex((l) => l.includes(needle));
+    return {
+      line: index + 1, column: lines[index].indexOf(needle) + 1,
+      severity, code, symbol: needle, message: `${needle} is placed here for the geometry check`,
+    };
+  };
+  return {
+    content,
+    diagnostics: [
+      find('geoTabbed', 'warning', 'no-description'),
+      find('Integerr32', 'error', 'unknown-type'),
+      find('geoRot', 'error', 'unknown-parent'),
+      find('UnknownType', 'error', 'unknown-type'),
+    ],
+  };
+}

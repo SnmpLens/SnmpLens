@@ -27,15 +27,9 @@
     "mibDrop": {
       "overlay": "MIB-Dateien hier ablegen",
       "overlayHint": "Dateien werden in das MIB-Verzeichnis importiert und automatisch geladen",
-      "success": "{count} MIB-Datei(en) importiert und geladen",
-      "noFiles": "Keine Dateien konnten importiert werden",
       "error": "Import der MIB-Dateien fehlgeschlagen",
-      "errorTitle": "MIB-Importfehler",
-      "errorDesc": "Die folgenden Dateien konnten nicht importiert werden:",
       "colFile": "Datei",
       "colError": "Fehler",
-      "parseError": "MIB-Datei konnte nicht geparst werden",
-      "skipped": "{count} bereits vorhanden (übersprungen)",
       "allSkipped": "Alle {count} Datei(en) bereits vorhanden — nichts zu importieren",
       "stageHint": "Wie weit die Datei kam, bevor sie stehen blieb",
       "stage": {
@@ -1275,6 +1269,76 @@
       "identical": "Beide sind identisch.",
       "unchanged": "{count, plural, one {# unveränderte Zeile} other {# unveränderte Zeilen}}"
     }
+  },
+  "mibImport": {
+    "title": "MIB-Import",
+    "toast": "{count, plural, =0 {Kein Modul importiert} one {# Modul importiert} other {# Module importiert}}{problems, plural, =0 {} one { — # zu prüfen} other { — # zu prüfen}}",
+    "summary": {
+      "modules": "{count, plural, one {# Modul} other {# Module}}",
+      "warned": "{count, plural, one {# mit Warnungen} other {# mit Warnungen}}",
+      "failed": "{count, plural, one {# lädt nicht} other {# laden nicht}}",
+      "errors": "{count, plural, one {# Fehler} other {# Fehler}}",
+      "setAside": "{count, plural, one {# weitere Version zurückgestellt} other {# weitere Versionen zurückgestellt}}",
+      "ignored": "{count, plural, one {# Datei ignoriert} other {# Dateien ignoriert}}",
+      "errored": "{count, plural, one {# mit Fehlern geladen} other {# mit Fehlern geladen}}"
+    },
+    "errorsTitle": "Konnte nicht importiert werden",
+    "modulesTitle": "Module",
+    "ignoredTitle": "{count, plural, one {Ignoriert — # Datei, die keine MIB ist} other {Ignoriert — # Dateien, die keine MIBs sind}}",
+    "row": {
+      "fail": "lädt nicht",
+      "warnings": "{count, plural, one {# Warnung} other {# Warnungen}}",
+      "replaced": "ersetzt",
+      "present": "bereits installiert",
+      "setAside": "{count, plural, one {+# Version} other {+# Versionen}}",
+      "errors": "{count, plural, one {# Fehler} other {# Fehler}}"
+    },
+    "detail": {
+      "storedAs": "Gespeichert als",
+      "source": "Herkunft",
+      "date": "Zuletzt aktualisiert",
+      "replaced": "Ersetzt",
+      "backup": "eine Kopie liegt in mib-backups",
+      "setAside": "Zurückgestellte Versionen",
+      "analysis": "Es lädt, und der Editor findet Fehler darin: Öffnen Sie es, um jeden mit seiner Zeile zu sehen."
+    },
+    "line": "Zeile {line}",
+    "tolerated": "SnmpLens toleriert diese Fehler; andere MIB-Werkzeuge würden die Datei ablehnen. Der Editor kann sie beheben.",
+    "warning": {
+      "escaped-quote": "Maskiertes Anführungszeichen (\\\") in einer Zeichenkette",
+      "bad-date": "Ungültiges Datum",
+      "import-alias": "Falsch geschriebener Modulname",
+      "no-type": "Objekte ohne Typ",
+      "no-oid": "Definitionen ohne OID"
+    },
+    "lost": {
+      "older": "älter",
+      "unparsable": "nicht lesbar",
+      "identical": "identische Kopie",
+      "undecided": "kein Datum zum Vergleich",
+      "chosen": "auf Ihren Wunsch ersetzt"
+    },
+    "error": {
+      "bundled": "dieses Modul wird mit SnmpLens ausgeliefert; ändern Sie es im MIB-Editor statt per Import",
+      "toolarge": "zu groß für eine MIB",
+      "unreadable": "die Datei konnte nicht gelesen werden",
+      "conflict": "eine Datei dieses Namens enthält bereits ein anderes Modul",
+      "write": "das MIB-Verzeichnis konnte nicht beschrieben werden"
+    },
+    "kind": {
+      "binary": "Binärdateien",
+      "archive": "Archive und Dokumente (zip, docx…)",
+      "pdf": "PDF-Dokumente",
+      "html": "Webseiten",
+      "utf16": "UTF-16-Text",
+      "empty": "Leere Dateien",
+      "nodefinitions": "Text ohne MIB-Modul"
+    },
+    "useVersion": "Diese Fassung verwenden",
+    "usingVersion": "Wird importiert…",
+    "useVersionHint": "Diese Fassung anstelle der behaltenen importieren; jene kommt nach mib-backups",
+    "useVersionFailed": "Diese Fassung konnte nicht importiert werden",
+    "versionUsed": "Die gewählte Fassung von {module} ist jetzt die im MIB-Ordner"
   },
   "preset": {
     "title": "Dashboard-Vorlagen",

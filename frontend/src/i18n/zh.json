@@ -27,15 +27,9 @@
     "mibDrop": {
       "overlay": "将 MIB 文件拖放到此处",
       "overlayHint": "文件将被导入到 MIB 目录并自动加载",
-      "success": "已导入并加载 {count} 个 MIB 文件",
-      "noFiles": "没有文件可以导入",
       "error": "导入 MIB 文件失败",
-      "errorTitle": "MIB 导入错误",
-      "errorDesc": "以下文件无法导入：",
       "colFile": "文件",
       "colError": "错误",
-      "parseError": "MIB 文件解析失败",
-      "skipped": "{count} 个已存在（已跳过）",
       "allSkipped": "所有 {count} 个文件已存在 — 无需导入",
       "stageHint": "文件在停止前进行到哪一步",
       "stage": {
@@ -1275,6 +1269,76 @@
       "identical": "两者完全相同。",
       "unchanged": "{count, plural, other {# 行未更改}}"
     }
+  },
+  "mibImport": {
+    "title": "MIB 导入",
+    "toast": "{count, plural, other {已导入 # 个模块}}{problems, plural, =0 {} other {，# 个需要处理}}",
+    "summary": {
+      "modules": "{count, plural, other {# 个模块}}",
+      "warned": "{count, plural, other {# 个有警告}}",
+      "failed": "{count, plural, other {# 个无法加载}}",
+      "errors": "{count, plural, other {# 个错误}}",
+      "setAside": "{count, plural, other {另有 # 个版本未采用}}",
+      "ignored": "{count, plural, other {已忽略 # 个文件}}",
+      "errored": "{count, plural, other {# 个已加载但有错误}}"
+    },
+    "errorsTitle": "无法导入",
+    "modulesTitle": "模块",
+    "ignoredTitle": "{count, plural, other {已忽略 — # 个不是 MIB 的文件}}",
+    "row": {
+      "fail": "无法加载",
+      "warnings": "{count, plural, other {# 个警告}}",
+      "replaced": "已替换",
+      "present": "已安装",
+      "setAside": "{count, plural, other {+# 个版本}}",
+      "errors": "{count, plural, other {# 个错误}}"
+    },
+    "detail": {
+      "storedAs": "保存为",
+      "source": "来源",
+      "date": "最后更新",
+      "replaced": "替换了",
+      "backup": "mib-backups 中有副本",
+      "setAside": "未采用的版本",
+      "analysis": "它可以加载，但编辑器发现了错误：打开它即可逐条查看所在行。"
+    },
+    "line": "第 {line} 行",
+    "tolerated": "SnmpLens 可容忍这些错误，但其他 MIB 工具会拒绝该文件。编辑器可以修复它们。",
+    "warning": {
+      "escaped-quote": "字符串中的转义引号 (\\\")",
+      "bad-date": "日期无效",
+      "import-alias": "模块名拼写错误",
+      "no-type": "无类型的对象",
+      "no-oid": "无 OID 的定义"
+    },
+    "lost": {
+      "older": "较旧",
+      "unparsable": "无法解析",
+      "identical": "相同副本",
+      "undecided": "没有可比较的日期",
+      "chosen": "已按您的选择替换"
+    },
+    "error": {
+      "bundled": "此模块随 SnmpLens 提供；请在 MIB 编辑器中修改，而不是通过导入",
+      "toolarge": "文件过大，不可能是 MIB",
+      "unreadable": "无法读取该文件",
+      "conflict": "同名文件已包含另一个模块",
+      "write": "无法写入 MIB 目录"
+    },
+    "kind": {
+      "binary": "二进制文件",
+      "archive": "压缩包和文档（zip、docx…）",
+      "pdf": "PDF 文档",
+      "html": "网页",
+      "utf16": "UTF-16 文本",
+      "empty": "空文件",
+      "nodefinitions": "不含 MIB 模块的文本"
+    },
+    "useVersion": "使用此版本",
+    "usingVersion": "正在导入…",
+    "useVersionHint": "导入此版本以替换保留的版本；被替换的版本移至 mib-backups",
+    "useVersionFailed": "无法导入此版本",
+    "versionUsed": "您选择的 {module} 版本现已位于 MIB 文件夹中"
   },
   "preset": {
     "title": "仪表板预设",

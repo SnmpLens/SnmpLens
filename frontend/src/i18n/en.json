@@ -27,15 +27,9 @@
     "mibDrop": {
       "overlay": "Drop MIB files here",
       "overlayHint": "Files will be imported into the MIB directory and loaded automatically",
-      "success": "{count} MIB file(s) imported and loaded",
-      "noFiles": "No files could be imported",
       "error": "Failed to import MIB files",
-      "errorTitle": "MIB Import Errors",
-      "errorDesc": "The following files could not be imported:",
       "colFile": "File",
       "colError": "Error",
-      "parseError": "Failed to parse MIB file",
-      "skipped": "{count} already present (skipped)",
       "allSkipped": "All {count} file(s) already present — nothing to import",
       "stageHint": "How far the file got before it stopped",
       "stage": {
@@ -1275,6 +1269,76 @@
       "identical": "The two are identical.",
       "unchanged": "{count, plural, one {# unchanged line} other {# unchanged lines}}"
     }
+  },
+  "mibImport": {
+    "title": "MIB import",
+    "toast": "{count, plural, =0 {No module imported} one {# module imported} other {# modules imported}}{problems, plural, =0 {} one { — # needs attention} other { — # need attention}}",
+    "summary": {
+      "modules": "{count, plural, one {# module} other {# modules}}",
+      "warned": "{count, plural, one {# with warnings} other {# with warnings}}",
+      "failed": "{count, plural, one {# does not load} other {# do not load}}",
+      "errors": "{count, plural, one {# error} other {# errors}}",
+      "setAside": "{count, plural, one {# other version set aside} other {# other versions set aside}}",
+      "ignored": "{count, plural, one {# file ignored} other {# files ignored}}",
+      "errored": "{count, plural, one {# loads with errors} other {# load with errors}}"
+    },
+    "errorsTitle": "Could not be imported",
+    "modulesTitle": "Modules",
+    "ignoredTitle": "{count, plural, one {Ignored — # file that is not a MIB} other {Ignored — # files that are not MIBs}}",
+    "row": {
+      "fail": "does not load",
+      "warnings": "{count, plural, one {# warning} other {# warnings}}",
+      "replaced": "replaced",
+      "present": "already installed",
+      "setAside": "{count, plural, one {+# version} other {+# versions}}",
+      "errors": "{count, plural, one {# error} other {# errors}}"
+    },
+    "detail": {
+      "storedAs": "Stored as",
+      "source": "From",
+      "date": "Last updated",
+      "replaced": "Replaced",
+      "backup": "a copy is in mib-backups",
+      "setAside": "Versions set aside",
+      "analysis": "It loads, and the editor finds errors in it: open it to see each one with its line."
+    },
+    "line": "line {line}",
+    "tolerated": "SnmpLens tolerates these; other MIB tools would refuse the file. The editor can fix them.",
+    "warning": {
+      "escaped-quote": "Escaped quote (\\\") inside a string",
+      "bad-date": "Invalid date",
+      "import-alias": "Misspelt module name",
+      "no-type": "Objects without a type",
+      "no-oid": "Definitions without an OID"
+    },
+    "lost": {
+      "older": "older",
+      "unparsable": "does not parse",
+      "identical": "identical copy",
+      "undecided": "no date to compare",
+      "chosen": "replaced by your choice"
+    },
+    "error": {
+      "bundled": "this module ships with SnmpLens; change it in the MIB editor rather than by importing",
+      "toolarge": "too large to be a MIB",
+      "unreadable": "the file could not be read",
+      "conflict": "a file of that name already holds another module",
+      "write": "the MIB directory could not be written"
+    },
+    "kind": {
+      "binary": "Binary files",
+      "archive": "Archives and documents (zip, docx…)",
+      "pdf": "PDF documents",
+      "html": "Web pages",
+      "utf16": "UTF-16 text",
+      "empty": "Empty files",
+      "nodefinitions": "Text without a MIB module"
+    },
+    "useVersion": "Use this version",
+    "usingVersion": "Importing…",
+    "useVersionHint": "Import this version in place of the one kept; that one goes to mib-backups",
+    "useVersionFailed": "This version could not be imported",
+    "versionUsed": "The version you chose of {module} is now the one in the MIB folder"
   },
   "preset": {
     "title": "Dashboard presets",

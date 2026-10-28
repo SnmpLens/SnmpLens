@@ -509,8 +509,13 @@ write and `monitoring.db`, `service.json` and the secret store all sit one direc
 
 A MIB that is not UTF-8 opens as Windows-1252 (`Source.Encoding`), with a banner saying so before anything is
 saved, and saving writes UTF-8. It used to be refused outright — the right answer to encoding/json turning every
-invalid byte into U+FFFD on its way over the bridge, and the wrong one for vendor MIBs, which load. The conflict
-check decodes the file on disk the same way, or such a file is "changed on disk" the moment it is opened.
+invalid byte into U+FFFD on its way over the bridge, and the wrong one for vendor MIBs, which load. Windows-1252 is a
+guess, wrong for a file written in Shift_JIS or GBK, so the status bar offers the encodings of `pkg/mib/encodings.go`
+(`MibEditorReadAs`; a file from outside the directory is read again from the bytes kept when it was opened,
+`MibEditorReopenExternalAs`, never from a path the renderer names). UTF-8 is refused for bytes that are not UTF-8,
+since decoding them anyway turns each into U+FFFD and saving writes that over the original. The conflict check
+compares the BYTES (`Source.Sha256` is `ChecksumBytes`): compared as decoded text it depended on the encoding, and a
+file read in another one was "changed on disk" the moment it was opened.
 
 The editor's buffer lives in `stores/mibEditorStore.js`, **not** in the panel component: the tab shell mounts
 panels with `{#if activeTab === …}`, which destroys the component on every switch, and component state took the

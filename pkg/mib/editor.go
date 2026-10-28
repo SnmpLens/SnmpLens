@@ -94,8 +94,8 @@ type Source struct {
 	Encoding string `json:"encoding"`
 	Bundled  bool   `json:"bundled"`
 	External bool   `json:"external"`
-	// Sha256 of the content as read, so a save can notice the file changed
-	// underneath.
+	// Sha256 of the file's bytes as read (ChecksumBytes), so a save can notice
+	// the file changed underneath, whatever encoding it was read in.
 	Sha256 string `json:"sha256"`
 	// The complete analysis, as AnalyseAll gives it. It used to be the quick
 	// syntax check alone, so a file opened marked "warning" and turned "error"

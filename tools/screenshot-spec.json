@@ -1033,6 +1033,27 @@
             "notes": "Reached only from the MIB editor file list's context menu (mibeditor/FileActions.svelte). Refused in the browser demo (bridge/dynamic.js, DEMO_ONLY): it writes to the MIB folder or asks the operating system. An empty path is a cancelled dialog."
           },
           {
+            "name": "MibEditorEncodings",
+            "onMount": true,
+            "go": "internal/app/mibeditor.go -> []string (pkg/mib/encodings.go Encodings)",
+            "example": "[\"utf-8\", \"windows-1252\", \"iso-8859-1\", \"iso-8859-15\", \"windows-1250\", \"windows-1251\", \"koi8-r\", \"shift_jis\", \"euc-jp\", \"gbk\", \"gb18030\", \"big5\", \"euc-kr\"]",
+            "notes": "The encodings offered in the MIB editor's status bar. The panel keeps its default (UTF-8, Windows-1252) when this answers nothing."
+          },
+          {
+            "name": "MibEditorReadAs",
+            "onMount": false,
+            "go": "internal/app/mibeditor.go MibEditorReadAs(name, encoding) -> mib.Source",
+            "example": "null",
+            "notes": "Only reached by choosing another encoding in the status bar. A null answer is the no-op: the select goes back to the file's encoding."
+          },
+          {
+            "name": "MibEditorReopenExternalAs",
+            "onMount": false,
+            "go": "internal/app/mibeditor.go MibEditorReopenExternalAs(encoding) -> mib.Source (from the bytes kept when the file was opened)",
+            "example": "null",
+            "notes": "The same for a file opened from outside the MIB directory."
+          },
+          {
             "name": "MibEditorRepair",
             "onMount": false,
             "go": "internal/app/mibeditor.go -> mib.RepairResult; struct pkg/mib/repair.go {content,fixes}",

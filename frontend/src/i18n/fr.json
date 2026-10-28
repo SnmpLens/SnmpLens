@@ -1108,7 +1108,10 @@
     "externalOpened": "{name} ouverte. L'enregistrement l'écrira dans le dossier MIB de SnmpLens.",
     "externalWarning": "Ce fichier a été ouvert hors de SnmpLens. L'enregistrement l'écrit dans le dossier MIB sous le nom « {name} », il ne réécrit pas l'original.",
     "bundledWarning": "Cette MIB est livrée avec SnmpLens et presque toutes les autres en dépendent. Une erreur ici casse tout l'arbre — la copie intégrée reste restaurable à tout moment.",
-    "encodingWarning": "Ce fichier n’est pas en UTF-8 : il a été lu comme du Windows-1252. L’enregistrer l’écrit en UTF-8. Si des lettres accentuées sont fausses, le fichier utilise un autre encodage : fermez-le sans l’enregistrer.",
+    "encodingWarning": "Lu en {encoding} : ce fichier n’est pas en UTF-8. Si ses accents ou son texte paraissent faux, choisissez en bas à droite l’encodage dans lequel il a été écrit. L’enregistrement l’écrit en UTF-8.",
+    "encodingLabel": "Encodage",
+    "encodingHint": "Relire ce fichier dans un autre encodage",
+    "encodingChanged": "{name} lu en {encoding}",
     "snippet": {
       "objectType": "Définition OBJECT-TYPE",
       "moduleIdentity": "En-tête MODULE-IDENTITY",

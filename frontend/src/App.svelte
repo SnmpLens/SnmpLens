@@ -20,7 +20,8 @@
   import Icon from './Icon.svelte';
   import UpdateBanner from './UpdateBanner.svelte';
   import SimulatorModal from './SimulatorModal.svelte';
-  import MibDiagnosis from './mib/MibDiagnosis.svelte';
+  import ImportReport from './mib/ImportReport.svelte';
+  import { buildImportReport, chooseVersion, reportNeedsAttention, IMPORTED, REPLACED, PRESENT } from './utils/importReport';
   import { trapStore } from './stores/trapStore';
   import { updateStore } from './stores/updateStore';
   import { mibPathsStore } from './stores/mibPathsStore';
@@ -30,7 +31,7 @@
   import { historyStore } from './stores/historyStore';
   import { eventCounts, eventsStore } from './stores/eventsStore';
   import { simulatorStore, runningSimulated } from './stores/simulatorStore';
-  import { GetPersistentMibDirectory, ListMibFiles, ImportMibFiles, ImportPresetFiles, TraySetLabels } from '../wailsjs/go/app/App';
+  import { GetPersistentMibDirectory, ListMibFiles, ImportMibFiles, ImportPresetFiles, TraySetLabels, MibFileStatuses } from '../wailsjs/go/app/App';
   import MibEditorPanel from './MibEditorPanel.svelte';
   import { mibEditorStore } from './stores/mibEditorStore';
   import { tabRequest } from './stores/tabRequest';
@@ -208,9 +209,13 @@
     dragOver = false;
   }
 
-  // MIB import result modal state
-  let importErrors = [];   // [{ fileName, error }]
-  let showImportErrors = false;
+  // What the last MIB drop did, one row per module (utils/importReport.js).
+  // Opened only when there is something to read: a problem, versions set
+  // aside, files that are not MIBs. A clean import says it in a notification.
+  let importReport = null;
+  let showImportReport = false;
+  // The version set aside being imported in place of the one kept, while it is.
+  let choosingVersion = '';
 
   // A preset that imports with problems is still imported: the error list with
   // its field paths is what the library is for, and you cannot fix a file you
@@ -261,88 +266,90 @@
     const droppedNames = paths.map(p => p.replace(/.*[/\\]/, ''));
 
     try {
-      // 1. Copy files to MIB directory
-      const copyResults = await ImportMibFiles(paths);
-      const copyFailed = copyResults.filter(r => !r.success);
-      const skipped = copyResults.filter(r => r.success && r.skipped);
-      const newlyImported = copyResults.filter(r => r.success && !r.skipped);
-      const copiedNames = newlyImported.map(r => r.fileName);
+      const results = await ImportMibFiles(paths);
+      const written = results.filter((r) => r.outcome === IMPORTED || r.outcome === REPLACED);
 
-      if (newlyImported.length === 0 && copyFailed.length === 0) {
-        // Everything was skipped (already exists)
-        notificationStore.add(t('app.mibDrop.allSkipped', { values: { count: skipped.length } }), 'info');
-        return;
+      // Reload only when the directory changed, without the store's own
+      // notification: this one says more.
+      if (written.length > 0) {
+        const defaultPath = await GetPersistentMibDirectory();
+        const mibFiles = await ListMibFiles(defaultPath);
+        mibPathsStore.setDetectedMibs(defaultPath, mibFiles);
+        await mibStore.loadSilent();
       }
 
-      if (newlyImported.length === 0 && copyFailed.length > 0) {
-        // All new files failed, only skips otherwise
-        importErrors = copyFailed;
-        showImportErrors = true;
-        return;
+      const report = buildImportReport(results, get(mibDiagnostics), await fileStatuses());
+      const c = report.counts;
+      const present = results.filter((r) => r.outcome === PRESENT).length;
+      if (written.length === 0 && present > 0 && c.errors === 0) {
+        notificationStore.add(t('app.mibDrop.allSkipped', { values: { count: present } }), 'info');
+      } else if (written.length > 0 || c.errors > 0) {
+        const problems = c.failed + c.errored + c.errors;
+        notificationStore.add(
+          t('mibImport.toast', { values: { count: written.length, problems } }),
+          problems > 0 ? 'warning' : 'success',
+        );
       }
-
-      // 2. Re-scan and reload MIBs (suppress default notification via silent flag)
-      const defaultPath = await GetPersistentMibDirectory();
-      const mibFiles = await ListMibFiles(defaultPath);
-      mibPathsStore.setDetectedMibs(defaultPath, mibFiles);
-      await mibStore.loadSilent();
-
-      // 3. Check load diagnostics for the files we just dropped
-      const diag = get(mibDiagnostics);
-      const loadFailed = diag
-        .filter(d => !d.success && copiedNames.includes(d.fileName))
-        .map(d => ({
-          fileName: d.fileName,
-          error: d.error || t('app.mibDrop.parseError'),
-          diagnosis: d.diagnosis || null,
-        }));
-
-      // 4. Combine copy failures + load/parse failures
-      const allErrors = [...copyFailed, ...loadFailed];
-      const fullySucceeded = copiedNames.length - loadFailed.length;
-
-      // 5. Build notification message
-      let msg = '';
-      if (fullySucceeded > 0) {
-        msg = t('app.mibDrop.success', { values: { count: fullySucceeded } });
-      }
-      if (skipped.length > 0) {
-        const skipMsg = t('app.mibDrop.skipped', { values: { count: skipped.length } });
-        msg = msg ? msg + ' — ' + skipMsg : skipMsg;
-      }
-      if (msg) {
-        notificationStore.add(msg, allErrors.length > 0 ? 'info' : 'success');
-      }
-
-      if (allErrors.length > 0) {
-        importErrors = allErrors;
-        showImportErrors = true;
-        if (fullySucceeded === 0 && !msg) {
-          notificationStore.add(t('app.mibDrop.noFiles'), 'error');
-        }
+      if (reportNeedsAttention(report)) {
+        importReport = report;
+        showImportReport = true;
       }
     } catch (e) {
       console.error('MIB drop import failed:', e);
-      importErrors = [{ fileName: droppedNames.join(', '), error: String(e) }];
-      showImportErrors = true;
+      importReport = buildImportReport(
+        [{ fileName: droppedNames.join(', '), outcome: 'error', reason: '', error: String(e) }], []);
+      showImportReport = true;
+    }
+  }
+
+  // Every file's verdict, as Go decides it, for the report's rows. A report
+  // without them still says what was imported.
+  async function fileStatuses() {
+    try {
+      return (await MibFileStatuses()) || [];
+    } catch (e) {
+      console.error('MibFileStatuses failed', e);
+      return [];
+    }
+  }
+
+  // "Use this version": the version the import set aside is imported in place
+  // of the one it kept, which goes to mib-backups like any version replaced.
+  async function chooseImportVersion(event) {
+    const { module, version } = event.detail;
+    const t = get(_);
+    choosingVersion = version.path;
+    try {
+      const [result] = (await ImportMibFiles([version.path])) || [];
+      if (!result || !result.success) {
+        notificationStore.add(result?.error || t('mibImport.useVersionFailed'), 'error');
+        return;
+      }
+      await mibStore.loadSilent();
+      importReport = chooseVersion(importReport, module, version, result, get(mibDiagnostics), await fileStatuses());
+      notificationStore.add(t('mibImport.versionUsed', { values: { module } }), 'success');
+    } catch (e) {
+      notificationStore.add(String(e), 'error');
+    } finally {
+      choosingVersion = '';
     }
   }
 
   // Initialize MIB paths store on startup
   // Something elsewhere asked for a tab — the MIB settings' "open in editor"
   // link, today.
+  $: if ($tabRequest) {
+    activeTab = $tabRequest;
+    showSettings = false;
+    tabRequest.set(null);
+  }
+
   // A node asked for in the MIB tree is shown, so the tree is unfolded first.
   $: if ($treeRequest && mibPanelCollapsed) unfoldMibPanel();
 
   function unfoldMibPanel() {
     mibPanelCollapsed = false;
     savePanelWidth();
-  }
-
-  $: if ($tabRequest) {
-    activeTab = $tabRequest;
-    showSettings = false;
-    tabRequest.set(null);
   }
 
   // Something elsewhere asked for Settings at a given place — the Traps tab's
@@ -467,8 +474,8 @@
     // Escape closes whichever dialog this component owns. SettingsModal
     // handles its own, so it is deliberately not listed here.
     if (event.key === 'Escape') {
-      if (showImportErrors) {
-        showImportErrors = false;
+      if (showImportReport) {
+        showImportReport = false;
         return;
       }
       if (showTargets) {
@@ -512,21 +519,19 @@
     <SimulatorModal on:close={() => (showSimulator = false)} />
   {/if}
 
-  {#if showImportErrors}
-    <div class="modal-backdrop" on:click={onBackdrop(() => showImportErrors = false)} role="presentation">
-      <div class="import-error-modal" role="dialog" aria-modal="true" tabindex="-1">
-        <div class="import-error-header">
-          <span class="import-error-title">{$_('app.mibDrop.errorTitle')}</span>
-          <button class="btn btn-small" on:click={() => showImportErrors = false}>&times;</button>
+  {#if showImportReport}
+    <div class="modal-backdrop" on:click={onBackdrop(() => showImportReport = false)} role="presentation">
+      <div class="import-report-modal" role="dialog" aria-modal="true" aria-labelledby="import-report-title" tabindex="-1">
+        <div class="import-report-header">
+          <span class="import-report-title" id="import-report-title">{$_('mibImport.title')}</span>
+          <button class="btn btn-small" on:click={() => showImportReport = false} aria-label={$_('common.close')}>&times;</button>
         </div>
-        <div class="import-error-body">
-          <p class="import-error-desc">{$_('app.mibDrop.errorDesc')}</p>
-          {#each importErrors as err}
-            <MibDiagnosis
-              diagnosis={err.diagnosis || { stage: "", summary: err.error }}
-              fileName={err.fileName}
-              summary={err.error} />
-          {/each}
+        <div class="import-report-body">
+          <ImportReport report={importReport} choosing={choosingVersion}
+            on:choose={chooseImportVersion} on:close={() => showImportReport = false} />
+        </div>
+        <div class="import-report-footer">
+          <button class="btn btn-small" on:click={() => showImportReport = false}>{$_('common.close')}</button>
         </div>
       </div>
     </div>
@@ -1155,42 +1160,43 @@
     margin-top: 6px;
   }
 
-  /* Import error modal */
-  .import-error-modal {
+  /* MIB import report */
+  .import-report-modal {
     background: var(--bg-light-color);
-    border: 1px solid var(--error-border);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    width: 520px;
-    max-width: 90vw;
-    max-height: 70vh;
+    width: 680px;
+    max-width: calc(100vw - 32px);
+    max-height: 80vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
 
-  .import-error-header {
+  .import-report-header,
+  .import-report-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 16px;
+    padding: 10px 16px;
+  }
+
+  .import-report-header {
     border-bottom: 1px solid var(--border-color);
-    background: var(--error-subtle);
   }
 
-  .import-error-title {
+  .import-report-footer {
+    justify-content: flex-end;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .import-report-title {
     font-weight: 700;
-    color: var(--error-color);
   }
 
-  .import-error-body {
-    padding: 16px;
+  .import-report-body {
+    padding: 14px 16px;
     overflow-y: auto;
-  }
-
-  .import-error-desc {
-    margin: 0 0 12px;
-    font-size: 0.9em;
-    color: var(--text-muted);
   }
 
   /* Targets Modal */

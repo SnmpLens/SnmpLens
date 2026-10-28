@@ -205,6 +205,20 @@ Multi-target operations run concurrently with goroutines; one `BulkResult` per t
 
 Standard SNMPv2 MIBs are embedded via `//go:embed mibs` in `main.go`. On **first run only**, `app.startup` extracts them to the per-user config dir, points gosmi's search path there, and loads core modules (`SNMPv2-SMI`, `SNMPv2-TC`). Users add their own MIBs into that same persistent directory (via the import UI / drag-&-drop), so it is the single source of truth at runtime — not the embedded `mibs/`.
 
+**An import stores a file under the module it declares, once** (`internal/app/mibimport.go`). An archive of MIBs
+can hold one folder per release with the same file name in each, named after products rather than modules: the
+import used to copy every file under its own name, so a folder of several releases kept whichever was written last
+and reported a success for each, and two modules shipped as `mib.txt` overwrote each other. Now the files are
+grouped by declared module, identical copies are one version, and `mib.Preferred` keeps one — a text that parses,
+then the newest LAST-UPDATED or REVISION, then the caller's order (shallower folder, then the later path read with
+`NaturalLess`, since LAST-UPDATED is often left unchanged and "1.10" is newer than "1.9"). Every other version is a
+skipped result saying which was kept and why it lost, with its `Source` path, so the report can import it instead
+("use this version" — `ImportMibFiles` of that one path, which replaces the kept one). A module the directory
+already holds, under any name, is replaced with the previous file in `mib-backups/`. A bundled module is refused by
+MODULE, not by file name: `snmpv2-smi.txt` declaring SNMPv2-SMI went in beside the bundled one and, the module map
+being last-wins, replaced it. The report (`utils/importReport.js`, `mib/ImportReport.svelte`) is one row per module
+with Go's verdict on it, and opens only when there is something to read.
+
 Persistent data location (`os.UserConfigDir()` + `SnmpLens/`):
 
 | OS | Path |

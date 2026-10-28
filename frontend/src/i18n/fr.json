@@ -27,15 +27,9 @@
     "mibDrop": {
       "overlay": "Déposez les fichiers MIB ici",
       "overlayHint": "Les fichiers seront importés dans le répertoire MIB et chargés automatiquement",
-      "success": "{count} fichier(s) MIB importé(s) et chargé(s)",
-      "noFiles": "Aucun fichier n'a pu être importé",
       "error": "Échec de l'importation des fichiers MIB",
-      "errorTitle": "Erreurs d'import MIB",
-      "errorDesc": "Les fichiers suivants n'ont pas pu être importés :",
       "colFile": "Fichier",
       "colError": "Erreur",
-      "parseError": "Échec du parsing du fichier MIB",
-      "skipped": "{count} déjà présent(s) (ignoré(s))",
       "allSkipped": "Les {count} fichier(s) sont déjà présents — rien à importer",
       "stageHint": "Jusqu'où le fichier est allé avant de s'arrêter",
       "stage": {
@@ -1275,6 +1269,76 @@
       "identical": "Les deux sont identiques.",
       "unchanged": "{count, plural, one {# ligne inchangée} other {# lignes inchangées}}"
     }
+  },
+  "mibImport": {
+    "title": "Import de MIB",
+    "toast": "{count, plural, =0 {Aucun module importé} one {# module importé} other {# modules importés}}{problems, plural, =0 {} one { — # à vérifier} other { — # à vérifier}}",
+    "summary": {
+      "modules": "{count, plural, one {# module} other {# modules}}",
+      "warned": "{count, plural, one {# avec avertissements} other {# avec avertissements}}",
+      "failed": "{count, plural, one {# ne se charge pas} other {# ne se chargent pas}}",
+      "errors": "{count, plural, one {# erreur} other {# erreurs}}",
+      "setAside": "{count, plural, one {# autre version écartée} other {# autres versions écartées}}",
+      "ignored": "{count, plural, one {# fichier ignoré} other {# fichiers ignorés}}",
+      "errored": "{count, plural, one {# chargé avec erreurs} other {# chargés avec erreurs}}"
+    },
+    "errorsTitle": "Impossible à importer",
+    "modulesTitle": "Modules",
+    "ignoredTitle": "{count, plural, one {Ignoré — # fichier qui n’est pas une MIB} other {Ignorés — # fichiers qui ne sont pas des MIB}}",
+    "row": {
+      "fail": "ne se charge pas",
+      "warnings": "{count, plural, one {# avertissement} other {# avertissements}}",
+      "replaced": "remplacé",
+      "present": "déjà installé",
+      "setAside": "{count, plural, one {+# version} other {+# versions}}",
+      "errors": "{count, plural, one {# erreur} other {# erreurs}}"
+    },
+    "detail": {
+      "storedAs": "Enregistré sous",
+      "source": "Provenance",
+      "date": "Dernière mise à jour",
+      "replaced": "Remplace",
+      "backup": "une copie est dans mib-backups",
+      "setAside": "Versions écartées",
+      "analysis": "Il se charge, et l’éditeur y trouve des erreurs : ouvrez-le pour les voir chacune avec sa ligne."
+    },
+    "line": "ligne {line}",
+    "tolerated": "SnmpLens tolère ces erreurs ; d’autres outils MIB refuseraient le fichier. L’éditeur peut les corriger.",
+    "warning": {
+      "escaped-quote": "Guillemet échappé (\\\") dans une chaîne",
+      "bad-date": "Date invalide",
+      "import-alias": "Nom de module mal orthographié",
+      "no-type": "Objets sans type",
+      "no-oid": "Définitions sans OID"
+    },
+    "lost": {
+      "older": "plus ancienne",
+      "unparsable": "illisible",
+      "identical": "copie identique",
+      "undecided": "aucune date pour départager",
+      "chosen": "remplacée à votre demande"
+    },
+    "error": {
+      "bundled": "ce module est livré avec SnmpLens : modifiez-le dans l’éditeur de MIB plutôt que par un import",
+      "toolarge": "trop volumineux pour être une MIB",
+      "unreadable": "le fichier n’a pas pu être lu",
+      "conflict": "un fichier de ce nom contient déjà un autre module",
+      "write": "le dossier des MIB n’a pas pu être écrit"
+    },
+    "kind": {
+      "binary": "Fichiers binaires",
+      "archive": "Archives et documents (zip, docx…)",
+      "pdf": "Documents PDF",
+      "html": "Pages web",
+      "utf16": "Texte UTF-16",
+      "empty": "Fichiers vides",
+      "nodefinitions": "Texte sans module MIB"
+    },
+    "useVersion": "Utiliser cette version",
+    "usingVersion": "Import…",
+    "useVersionHint": "Importer cette version à la place de celle gardée ; celle-ci part dans mib-backups",
+    "useVersionFailed": "Cette version n’a pas pu être importée",
+    "versionUsed": "La version de {module} que vous avez choisie est désormais celle du dossier des MIB"
   },
   "preset": {
     "title": "Presets de tableau de bord",

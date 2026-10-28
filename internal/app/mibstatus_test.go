@@ -174,3 +174,40 @@ func TestTheBufferIsJudgedByTheLoadOnlyWhileItIsTheFile(t *testing.T) {
 		t.Errorf("a module another file holds stays refused: %+v", v)
 	}
 }
+
+// A muted rule leaves the verdict on every screen at once, and an error cannot
+// be muted.
+func TestAMutedRuleLeavesTheVerdict(t *testing.T) {
+	bare := `BARE-MIB DEFINITIONS ::= BEGIN
+IMPORTS OBJECT-TYPE, Integer32, enterprises FROM SNMPv2-SMI;
+bare OBJECT IDENTIFIER ::= { enterprises 99984 }
+bareValue OBJECT-TYPE
+    SYNTAX Integer32
+    MAX-ACCESS read-only
+    STATUS current
+    ::= { bare 1 }
+END
+`
+	a, _, _ := verdictApp(t, map[string]string{"BARE-MIB": bare, "TWICE-MIB": twiceMib})
+
+	if s := statusesByName(a)["BARE-MIB"]; s.Verdict.Level != mib.VerdictWarning {
+		t.Fatalf("the fixture should warn about the missing DESCRIPTION: %+v", s)
+	}
+	taken := a.MibEditorSetMutedRules([]string{mib.CodeNoDescription, mib.CodeDuplicateName, "nonsense", mib.CodeNoDescription})
+	if len(taken) != 1 || taken[0] != mib.CodeNoDescription {
+		t.Errorf("only advice is taken, once: %v", taken)
+	}
+	if s := statusesByName(a)["BARE-MIB"]; s.Verdict.Level != mib.VerdictOK {
+		t.Errorf("muted, in the list: %+v", s)
+	}
+	if v := a.MibEditorAnalyse("BARE-MIB", bare+"\n").Verdict; v.Level != mib.VerdictOK {
+		t.Errorf("muted, in the editor: %+v", v)
+	}
+	if s := statusesByName(a)["TWICE-MIB"]; s.Verdict.Level != mib.VerdictError {
+		t.Errorf("an error stays: %+v", s)
+	}
+	a.MibEditorSetMutedRules(nil)
+	if s := statusesByName(a)["BARE-MIB"]; s.Verdict.Level != mib.VerdictWarning {
+		t.Errorf("unmuted: %+v", s)
+	}
+}

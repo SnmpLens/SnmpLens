@@ -942,6 +942,20 @@
             "notes": "Every MIB's verdict, decided in Go (pkg/mib/verdict.go) from the last load and the editor's analysis. Read by stores/mibStatusStore.js for the editor's file list, the MIB settings and the import report. The open file's mark comes from its own analysis while it has unsaved changes."
           },
           {
+            "name": "MibEditorQuickFix",
+            "onMount": false,
+            "go": "internal/app/mibeditor.go MibEditorQuickFix(content, code, symbols) -> mib.QuickFixResult; struct pkg/mib/quickfix.go {content,fixed}",
+            "example": "{\"fixed\":[]}",
+            "notes": "Only reached by a problem row's fix button, or the table's 'fix all' for unused-import and row-access. An empty content is the no-op: the panel returns early, so the generated fixture is safe in the demo."
+          },
+          {
+            "name": "MibEditorSetMutedRules",
+            "onMount": true,
+            "go": "internal/app/mibstatus.go MibEditorSetMutedRules(codes) -> []string (the codes taken; only advice may be muted, pkg/mib/mute.go)",
+            "example": "[]",
+            "notes": "Called once by stores/mutedRules.js before the first verdict is asked for, with this viewer's muted rules from localStorage, and again on every mute or unmute. A null answer (the demo's) leaves the list as asked."
+          },
+          {
             "name": "MibEditorRepair",
             "onMount": false,
             "go": "internal/app/mibeditor.go -> mib.RepairResult; struct pkg/mib/repair.go {content,fixes}",

@@ -1151,6 +1151,37 @@
     "outlineFilter": "Filtrar definiciones",
     "outlineEmpty": "Aún no hay nada definido.",
     "outlineNoMatch": "Ninguna definición coincide.",
+    "problemTable": {
+      "filter": "Mostrar problemas por gravedad",
+      "filterHint": "Mostrar u ocultar esta gravedad",
+      "sortHint": "Ordenar por esta columna",
+      "none": "Ningún problema de las gravedades mostradas.",
+      "col": {
+        "severity": "Gravedad",
+        "line": "Línea",
+        "message": "Problema",
+        "code": "Código",
+        "actions": "Acciones"
+      },
+      "sev": {
+        "error": "Error",
+        "warning": "Advertencia",
+        "info": "Info"
+      },
+      "copy": "Copiar",
+      "copyHint": "Copiar los problemas mostrados, como texto",
+      "copiedLabel": "{count, plural, one {# problema} other {# problemas}}",
+      "resize": "Arrastrar para ampliar o reducir la lista de problemas",
+      "fix": "Corregir",
+      "fixHint": "Escribir la corrección en el archivo (Ctrl+Z para deshacer)",
+      "fixAll": "{count, plural, other {Corregir los # {code}}}",
+      "fixAllHint": "Escribir la corrección de todos los problemas de este tipo (Ctrl+Z para deshacer)",
+      "fixed": "{count, plural, one {# problema corregido} other {# problemas corregidos}}",
+      "mute": "Ocultar {code}",
+      "muteHint": "Ocultar todos los hallazgos {code}, aquí y en el veredicto de cada archivo, hasta que los vuelva a mostrar",
+      "muted": "{count, plural, =0 {Reglas ocultas:} one {# hallazgo oculto por reglas ocultas:} other {# hallazgos ocultos por reglas ocultas:}}",
+      "unmuteHint": "Volver a mostrar los hallazgos de esta regla"
+    },
     "files": {
       "onlyProblems": "Solo problemas",
       "showAll": "Todos los archivos",

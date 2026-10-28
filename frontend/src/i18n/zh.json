@@ -1151,6 +1151,37 @@
     "outlineFilter": "筛选定义",
     "outlineEmpty": "尚未定义任何内容。",
     "outlineNoMatch": "没有匹配的定义。",
+    "problemTable": {
+      "filter": "按严重程度显示问题",
+      "filterHint": "显示或隐藏此严重程度",
+      "sortHint": "按此列排序",
+      "none": "所显示的严重程度下没有问题。",
+      "col": {
+        "severity": "严重程度",
+        "line": "行",
+        "message": "问题",
+        "code": "代码",
+        "actions": "操作"
+      },
+      "sev": {
+        "error": "错误",
+        "warning": "警告",
+        "info": "提示"
+      },
+      "copy": "复制",
+      "copyHint": "以文本形式复制显示的问题",
+      "copiedLabel": "{count, plural, other {# 个问题}}",
+      "resize": "拖动以调整问题列表的高度",
+      "fix": "修复",
+      "fixHint": "将修复写入文件（按 Ctrl+Z 撤销）",
+      "fixAll": "{count, plural, other {修复全部 # 个 {code}}}",
+      "fixAllHint": "为此类的每个问题写入修复（按 Ctrl+Z 撤销）",
+      "fixed": "{count, plural, other {已修复 # 个问题}}",
+      "mute": "屏蔽 {code}",
+      "muteHint": "隐藏所有 {code} 结果，包括此处和每个文件的判定，直到您重新显示",
+      "muted": "{count, plural, =0 {已屏蔽的规则：} other {# 个结果被已屏蔽的规则隐藏：}}",
+      "unmuteHint": "重新显示此规则的结果"
+    },
     "files": {
       "onlyProblems": "仅有问题的",
       "showAll": "所有文件",

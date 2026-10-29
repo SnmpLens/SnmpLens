@@ -14,8 +14,13 @@ permissions:
 
 # Superseded pushes to the same pull request are pointless work. Pushes to main
 # are never cancelled: every commit on the default branch gets its own verdict.
+#
+# Which is why a push is a group of its OWN, by commit. One group for main did
+# not cancel the running push, but a group holds one run waiting and a newer
+# one replaces it: of the last sixty pushes to main, twelve were cancelled that
+# way while waiting, and those commits never had a verdict at all.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

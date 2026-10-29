@@ -80,7 +80,10 @@ Each Go job of `ci.yml` keeps its OWN Go caches (`go-<os>-<job>-<go.sum>-<sha>`,
 same job, saved by pushes to main only), with setup-go's off. setup-go keys by OS and go.sum alone, so the three
 Linux jobs shared one entry, written by whichever finished first and never refreshed until go.sum moved: the race
 test build restored the security job's plain one. Measured on Linux: the Wails CLI install went from 23 s to 2 s
-and `wails build` from 34 s to 6-11 s; macOS and Windows, with one Go job each, were unchanged.
+and `wails build` from 34 s to 6-11 s; macOS and Windows, with one Go job each, were unchanged. On Windows
+`GOCACHE`, `GOMODCACHE` and `GOTMPDIR` are on D:, the workspace's disk, set before anything asks `go env` for them:
+the job went from 221 s to 122 s, most of it in tests that write files (internal/app 103 s to 46, pkg/storage 76 s
+to 21).
 
 Go unit tests live beside the code they cover (`go test ./...`, run in CI). They are deliberately few and target
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold

@@ -1,6 +1,7 @@
 package mib
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -92,30 +93,40 @@ func TestGosmiRewritesExactlyTheImportsWeList(t *testing.T) {
 	// rewrite. Without them a test that resolved everything would pass.
 	controls := []probe{{"RFC1213-MIB", "ifInOctets"}, {"RFC1155-SMI", "NetworkAddress"}}
 
+	// The corpus is loaded once, and each probe is a module of its own beside
+	// it, with an object of its own: a module imports for itself alone, so
+	// nothing one probe brings in reaches another. Reloading the corpus for
+	// every probe made this a third of the package's test time.
+	gosmi.Exit()
+	gosmi.Init()
+	gosmi.SetPath(dir)
+	captureStdout(func() {
+		for _, n := range names {
+			_, _ = gosmi.LoadModule(n)
+		}
+	})
+	probed := 0
 	resolves := func(p probe) bool {
-		user := "CONTRACT-USER-MIB DEFINITIONS ::= BEGIN\nIMPORTS OBJECT-TYPE, enterprises FROM SNMPv2-SMI\n    " +
+		probed++
+		module := fmt.Sprintf("CONTRACT-USER-%d-MIB", probed)
+		obj := fmt.Sprintf("contractObj%d", probed)
+		user := module + " DEFINITIONS ::= BEGIN\nIMPORTS OBJECT-TYPE, enterprises FROM SNMPv2-SMI\n    " +
 			p.name + " FROM " + p.module + ";\n"
 		if p.name[0] >= 'A' && p.name[0] <= 'Z' {
 			// A type: an object whose SYNTAX it is.
-			user += "contractObj OBJECT-TYPE\n    SYNTAX " + p.name +
+			user += obj + " OBJECT-TYPE\n    SYNTAX " + p.name +
 				"\n    MAX-ACCESS read-only\n    STATUS current\n    DESCRIPTION \"x\"\n    ::= { enterprises 99971 }\nEND\n"
 		} else {
 			// A node: something placed under it.
-			user += "contractObj OBJECT IDENTIFIER ::= { " + p.name + " 99 }\nEND\n"
+			user += obj + " OBJECT IDENTIFIER ::= { " + p.name + " 99 }\nEND\n"
 		}
-		if err := os.WriteFile(filepath.Join(dir, "CONTRACT-USER-MIB"), []byte(user), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, module), []byte(user), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		gosmi.Exit()
-		gosmi.Init()
-		gosmi.SetPath(dir)
 		captureStdout(func() {
-			for _, n := range names {
-				_, _ = gosmi.LoadModule(n)
-			}
-			_, _ = gosmi.LoadModule("CONTRACT-USER-MIB")
+			_, _ = gosmi.LoadModule(module)
 		})
-		node, err := gosmi.GetNode("contractObj")
+		node, err := gosmi.GetNode(obj)
 		if err != nil {
 			return false
 		}

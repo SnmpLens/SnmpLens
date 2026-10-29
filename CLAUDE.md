@@ -1435,8 +1435,15 @@ vendor.
 
 Tagging `v*` triggers `.github/workflows/release.yml`, which builds all three platforms and produces: Windows portable zip + NSIS installer (`build/windows/installer/project.nsi`, version string substituted at build time), macOS `.zip` + `.dmg`, Linux `.tar.gz` + `.deb`.
 
-Four things about that workflow are security properties rather than packaging, and each answers a different
+Five things about that workflow are security properties rather than packaging, and each answers a different
 question.
+
+**It restores no cache.** A tag's run restores what runs on `main` saved, and any code a CI job runs there can
+write those entries — Go's build cache and its extracted modules are trusted without being checked again. The
+release job compiled and ran the signer with the key in its environment on a Go cache CI had written. Every
+`setup-go` here says `cache: false` and `setup-node` `package-manager-cache: false`, and the Linux build names
+`ubuntu-24.04`, the image CI tests on: `ubuntu-latest` moved to 26.04 and linked the release against a newer glibc
+than any tested build.
 
 **The build jobs cannot write to the repository.** `permissions: contents: read` at the workflow level;
 `contents: write` is granted to the `release` job alone. The three build jobs run npm packages, Go modules and

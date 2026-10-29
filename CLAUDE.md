@@ -85,6 +85,12 @@ and `wails build` from 34 s to 6-11 s; macOS and Windows, with one Go job each, 
 the job went from 221 s to 122 s, most of it in tests that write files (internal/app 103 s to 46, pkg/storage 76 s
 to 21).
 
+In CI, `pkg/mib`'s tests run as two `go test` processes beside the other packages (`-run '^Test[A-H]'` and `-skip`
+with the same pattern, complementary by construction), because it is the longest package everywhere and gosmi's
+global state keeps its tests serial inside one process. Measured against a baseline on the same commit: the test
+step went from 90 s to 45-69 s on Linux and 106-139 s to 46-81 s on macOS, Windows within noise. If the split
+drifts out of balance, `go test -v ./pkg/mib/` gives the per-test times to move the letter by.
+
 Go unit tests live beside the code they cover (`go test ./...`, run in CI). They are deliberately few and target
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.

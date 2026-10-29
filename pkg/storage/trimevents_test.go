@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -27,33 +26,31 @@ import (
 // seedEvents fills a category to a given depth.
 func seedEvents(t *testing.T, st *Storage, category, kind string, n int, withPayload bool) {
 	t.Helper()
-	tx, err := st.db.Begin()
-	if err != nil {
-		t.Fatal(err)
+	if n <= 0 {
+		return
+	}
+	// One statement generating the n rows inside SQLite, rather than n
+	// statements: under -race every call into the transpiled SQLite costs
+	// enough that seeding past the retention caps took most of this
+	// package's test time.
+	size := 0
+	if withPayload {
+		size = 8
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	for i := 0; i < n; i++ {
-		id := fmt.Sprintf("%s-%06d", category, i)
-		size := 0
-		if withPayload {
-			size = 8
-		}
-		if _, err := tx.Exec(`INSERT INTO events
+	if _, err := st.db.Exec(`WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i + 1 < ?)
+		INSERT INTO events
 			(id, ts, category, kind, severity, state, title_key, params, summary, payload_size, acked)
-			VALUES (?, ?, ?, ?, 3, 'oneshot', 'k', '{}', 's', ?, 0)`,
-			id, now, category, kind, size); err != nil {
-			tx.Rollback()
+		SELECT printf('%s-%06d', ?, i), ?, ?, ?, 3, 'oneshot', 'k', '{}', 's', ?, 0 FROM n`,
+		n, category, now, category, kind, size); err != nil {
+		t.Fatal(err)
+	}
+	if withPayload {
+		if _, err := st.db.Exec(`WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i + 1 < ?)
+			INSERT INTO event_payloads (event_id, body) SELECT printf('%s-%06d', ?, i), 'payload' FROM n`,
+			n, category); err != nil {
 			t.Fatal(err)
 		}
-		if withPayload {
-			if _, err := tx.Exec(`INSERT INTO event_payloads (event_id, body) VALUES (?, 'payload')`, id); err != nil {
-				tx.Rollback()
-				t.Fatal(err)
-			}
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatal(err)
 	}
 }
 

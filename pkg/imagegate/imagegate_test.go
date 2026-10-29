@@ -2,6 +2,8 @@ package imagegate
 
 import (
 	"bytes"
+	"encoding/binary"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/gif"
@@ -11,8 +13,9 @@ import (
 	"testing"
 )
 
-// pngOf encodes a real PNG, because the gate is a DECODE and a handmade header
-// would test the sniffer this package deliberately does not have.
+// pngOf encodes a real PNG, because the gate is a DECODE and a handmade file
+// would test a sniffer this package deliberately does not have. The one
+// exception is pngHeaderOf below, for what a header DECLARES.
 func pngOf(t *testing.T, w, h int) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -22,6 +25,23 @@ func pngOf(t *testing.T, w, h int) []byte {
 		t.Fatalf("encoding a PNG: %v", err)
 	}
 	return buf.Bytes()
+}
+
+// pngHeaderOf is a PNG that is only its header: the signature and an IHDR
+// declaring w x h RGBA, with its CRC. It is what a decompression bomb looks
+// like to DecodeConfig, which stops reading there — and it costs nothing to
+// make, where encoding 64 real megapixels under -race took most of this
+// package's test time.
+func pngHeaderOf(w, h uint32) []byte {
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:], w)
+	binary.BigEndian.PutUint32(ihdr[4:], h)
+	ihdr[8], ihdr[9] = 8, 6 // 8 bits per sample, RGBA
+	chunk := append([]byte("IHDR"), ihdr...)
+	out := []byte("\x89PNG\r\n\x1a\n")
+	out = binary.BigEndian.AppendUint32(out, uint32(len(ihdr)))
+	out = append(out, chunk...)
+	return binary.BigEndian.AppendUint32(out, crc32.ChecksumIEEE(chunk))
 }
 
 // The three formats that get in, and what the gate learned about them.
@@ -129,18 +149,21 @@ func TestWhatPeopleActuallyPickByMistake(t *testing.T) {
 
 // Two shapes of the same trick, and DecodeConfig is what makes refusing them
 // cheap: it reads the header and never allocates the pixels, so the bomb is
-// refused without ever being built.
+// refused without ever being built — by the gate, and by this test.
 func TestADecompressionBombIsRefusedByItsHeader(t *testing.T) {
-	if _, err := Inspect(pngOf(t, 30000, 4)); err == nil {
-		t.Error("a 30000-pixel side was accepted")
+	// An ordinary size gets in, which is also what proves the header alone is
+	// read as the image it declares: otherwise a refusal below could be the
+	// decoder rejecting a malformed header, and prove nothing.
+	if info, err := Inspect(pngHeaderOf(1200, 800)); err != nil || info.Width != 1200 || info.Height != 800 {
+		t.Fatalf("a header declaring 1200x800: %+v, %v", info, err)
+	}
+	if _, err := Inspect(pngHeaderOf(30000, 4)); err == nil || !strings.Contains(err.Error(), "on a side") {
+		t.Errorf("a 30000-pixel side: %v", err)
 	}
 	// 8000 x 8000 is 64 megapixels: inside the per-side bound and past the
 	// area one. Both bounds are needed; either alone lets one shape through.
-	if _, err := Inspect(pngOf(t, 8000, 8000)); err == nil {
-		t.Error("a 64-megapixel image was accepted")
-	}
-	if _, err := Inspect(pngOf(t, 1200, 800)); err != nil {
-		t.Errorf("an ordinary picture was refused: %v", err)
+	if _, err := Inspect(pngHeaderOf(8000, 8000)); err == nil || !strings.Contains(err.Error(), "megapixels") {
+		t.Errorf("a 64-megapixel image: %v", err)
 	}
 }
 

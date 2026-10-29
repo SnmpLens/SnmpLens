@@ -242,17 +242,15 @@ dynamic.LoadHistory = () => {
 import ACME_POE_MIB_FILE from './acme-poe-mib.txt?raw';
 
 // In LF, as Go hands every buffer to the editor (pkg/mib DecodeSource). A
-// checkout on Windows gives the file CRLF, and the editor's mirror then drew a
-// line too many after every line ending in a comment — the comment's <span>
-// closed between the CR and the LF, and a lone CR is a line break — so every
-// underline below the first such line sat on the line above its word.
+// checkout on Windows gives the file CRLF, which the editor would hold as a
+// text nobody typed: CodeMirror splits lines at a CR too and gives the text
+// back in LF. (The hand-made surface before it drew a line too many instead.)
 const ACME_POE_MIB = ACME_POE_MIB_FILE.replace(/\r\n?/g, '\n');
 
 // The copy ON DISK is sound: `SYNTAX Gauge32`. The unsaved draft below is what
 // introduced `Integerr32`, and that difference is what makes the editor recover
-// the draft — which is also the only path that runs the analysis on open. So one
-// picture shows two things: work surviving a closed window, and the semantic
-// pass catching what loading alone would not.
+// the draft. So one picture shows two things: work surviving a closed window,
+// and the semantic pass catching what loading alone would not.
 const ON_DISK = ACME_POE_MIB.split('\n')
   .map((line, i) => (i === 17 ? '    SYNTAX      Gauge32' : line))
   .join('\n');

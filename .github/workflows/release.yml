@@ -22,7 +22,13 @@ jobs:
             platform: windows/amd64
           - os: macos-latest
             platform: darwin/universal
-          - os: ubuntu-latest
+          # The image CI tests on, named rather than `ubuntu-latest`: a
+          # binary links against the glibc and WebKitGTK of the image it is
+          # built on, and `latest` moved to 26.04 while CI stayed on 24.04 —
+          # releasing a binary no CI run had built, against libraries newer
+          # than the ones every tested build used, which older systems may
+          # not have.
+          - os: ubuntu-24.04
             platform: linux/amd64
 
     runs-on: ${{ matrix.os }}
@@ -38,13 +44,20 @@ jobs:
           # From go.mod, so a release is built with the toolchain the project
           # actually pins rather than whatever '1.25' resolves to that day.
           go-version-file: go.mod
+          # No cache, here or in any job of this workflow. A tag's run restores
+          # what runs on main SAVED, and any code a CI job runs on main can
+          # write those entries; Go trusts its build cache and an extracted
+          # module without checking either again. Restored, they would put
+          # whatever a compromised dependency left there into the signed
+          # binaries — the reason linux-deps.sh's cache is kept out as well.
+          cache: false
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          # No cache: see Setup Go above.
+          package-manager-cache: false
 
       - name: Install Wails CLI
         # Pinned to the version in go.mod. The CLI generates the bridge
@@ -213,6 +226,9 @@ jobs:
           # From go.mod, so a release is built with the toolchain the project
           # actually pins rather than whatever '1.25' resolves to that day.
           go-version-file: go.mod
+          # Above all here: this job compiles and runs the signer with the
+          # release key in its environment. See the build job.
+          cache: false
 
       - name: Download all artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

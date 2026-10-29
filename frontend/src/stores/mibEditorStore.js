@@ -103,8 +103,9 @@ function createMibEditorStore() {
     if (token !== openToken) return { source, recovered: false, superseded: true };
 
     // In LF, as every text the editor holds: Go normalises what it reads, and
-    // a draft is the one text that comes back as it was stored. A CR left in
-    // the buffer is a line break the mirror draws and the textarea does not.
+    // a draft is the one text that comes back as it was stored. CodeMirror
+    // splits lines at a CR as well and gives the text back in LF, so a CR left
+    // in the buffer would be a change nobody made.
     draft = (draft || '').replace(/\r\n?/g, '\n');
     const recovered = draft && draft !== source.content;
 

@@ -160,11 +160,23 @@ jobs:
         # -count=1 defeats the test cache. A cached PASS is a result from a
         # previous toolchain and a previous dependency set, reported as though
         # this run had verified it.
+        #
+        # pkg/mib is the longest package by far, and its tests cannot run in
+        # parallel inside one process: gosmi is global state. So it runs as two
+        # processes beside the rest, split where its test time halves. The two
+        # are complementary by construction — one runs ^Test[A-H], the other
+        # skips exactly that — so a test added under any name runs once.
         run: |
           TAGS=""
           if [ "$RUNNER_OS" = "Linux" ]; then TAGS="-tags webkit2_41"; fi
           go vet $TAGS ./...
-          go test $TAGS -race -count=1 ./...
+          others=$(go list $TAGS ./... | grep -v '/pkg/mib$')
+          go test $TAGS -race -count=1 $others & rest=$!
+          go test $TAGS -race -count=1 -run '^Test[A-H]' ./pkg/mib & first=$!
+          go test $TAGS -race -count=1 -skip '^Test[A-H]' ./pkg/mib & second=$!
+          status=0
+          for p in $rest $first $second; do wait $p || status=1; done
+          exit $status
 
       - name: Save the Go caches
         if: always() && github.event_name == 'push'

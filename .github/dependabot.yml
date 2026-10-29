@@ -38,3 +38,8 @@ updates:
       codeql-action:
         patterns:
           - github/codeql-action*
+      # actions/cache, actions/cache/restore and actions/cache/save are one
+      # action at one version, which tools/actionpins.mjs requires.
+      actions-cache:
+        patterns:
+          - actions/cache*

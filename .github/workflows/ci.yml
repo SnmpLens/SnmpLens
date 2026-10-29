@@ -58,6 +58,33 @@ jobs:
         with:
           # From go.mod, so the toolchain has exactly one source of truth.
           go-version-file: go.mod
+          # Its own cache is off; the Go caches are restored below.
+          cache: false
+
+      # The Go caches are this JOB's, not setup-go's. setup-go keys them by OS
+      # and go.sum alone, so every job on one OS shares one entry, written by
+      # whichever finished first: the race-instrumented test build restored
+      # the security job's plain one and compiled everything again. Here each
+      # job keeps its own, saved by pushes to main and restored by pull
+      # requests from the newest one.
+      - name: Locate the Go caches
+        id: gopaths
+        shell: bash
+        run: |
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Go caches
+        id: gocache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.gopaths.outputs.build }}
+            ${{ steps.gopaths.outputs.mod }}
+          key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.sum') }}-
+            go-${{ runner.os }}-${{ github.job }}-
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -124,6 +151,15 @@ jobs:
           go vet $TAGS ./...
           go test $TAGS -race -count=1 ./...
 
+      - name: Save the Go caches
+        if: always() && github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.gopaths.outputs.build }}
+            ${{ steps.gopaths.outputs.mod }}
+          key: ${{ steps.gocache.outputs.cache-primary-key }}
+
   quality:
     name: Quality (lint, tests, tidy)
     runs-on: ubuntu-24.04
@@ -142,6 +178,27 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
+
+      # This job's own Go caches; the build job says why.
+      - name: Locate the Go caches
+        id: gopaths
+        shell: bash
+        run: |
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Go caches
+        id: gocache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.gopaths.outputs.build }}
+            ${{ steps.gopaths.outputs.mod }}
+          key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.sum') }}-
+            go-${{ runner.os }}-${{ github.job }}-
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -272,6 +329,15 @@ jobs:
           go mod tidy
           git diff --exit-code go.mod go.sum
 
+      - name: Save the Go caches
+        if: always() && github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.gopaths.outputs.build }}
+            ${{ steps.gopaths.outputs.mod }}
+          key: ${{ steps.gocache.outputs.cache-primary-key }}
+
   # Blocks a pull request that introduces a dependency carrying a known
   # advisory. govulncheck cannot do this: it reports on what is already merged.
   dependency-review:
@@ -299,13 +365,34 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
 
+      # This job's own Go caches; the build job says why.
+      - name: Locate the Go caches
+        id: gopaths
+        shell: bash
+        run: |
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Go caches
+        id: gocache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.gopaths.outputs.build }}
+            ${{ steps.gopaths.outputs.mod }}
+          key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.sum') }}-
+            go-${{ runner.os }}-${{ github.job }}-
+
+      # No npm cache: nothing here installs the frontend, and npm audit reads
+      # the lockfile.
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
       # The packages come from the Actions cache when it holds them, not the
       # mirror; .github/linux-deps.sh says why, and why release.yml does not.
@@ -361,3 +448,12 @@ jobs:
       - name: npm audit (production dependencies)
         run: npm audit --omit=dev --audit-level=high
         working-directory: frontend
+
+      - name: Save the Go caches
+        if: always() && github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.gopaths.outputs.build }}
+            ${{ steps.gopaths.outputs.mod }}
+          key: ${{ steps.gocache.outputs.cache-primary-key }}

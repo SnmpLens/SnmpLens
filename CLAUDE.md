@@ -76,6 +76,12 @@ installed packages apt chose for, and a failed replay falls back to apt. `releas
 it: a cache entry can be written by any code running in a CI job on `main`, and `dpkg` does not re-check what apt
 verified, so the job that builds the signed binaries installs from the mirror every time.
 
+Each Go job of `ci.yml` keeps its OWN Go caches (`go-<os>-<job>-<go.sum>-<sha>`, restored from the newest of the
+same job, saved by pushes to main only), with setup-go's off. setup-go keys by OS and go.sum alone, so the three
+Linux jobs shared one entry, written by whichever finished first and never refreshed until go.sum moved: the race
+test build restored the security job's plain one. Measured on Linux: the Wails CLI install went from 23 s to 2 s
+and `wails build` from 34 s to 6-11 s; macOS and Windows, with one Go job each, were unchanged.
+
 Go unit tests live beside the code they cover (`go test ./...`, run in CI). They are deliberately few and target
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.

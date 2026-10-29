@@ -13,7 +13,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.17.0
 	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0
-	golang.org/x/text v0.42.0
+	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.61.0
 )
 

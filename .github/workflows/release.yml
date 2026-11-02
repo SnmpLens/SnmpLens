@@ -19,9 +19,7 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            platform: windows/amd64
           - os: macos-latest
-            platform: darwin/universal
           # The image CI tests on, named rather than `ubuntu-latest`: a
           # binary links against the glibc and WebKitGTK of the image it is
           # built on, and `latest` moved to 26.04 while CI stayed on 24.04 —
@@ -29,7 +27,6 @@ jobs:
           # than the ones every tested build used, which older systems may
           # not have.
           - os: ubuntu-24.04
-            platform: linux/amd64
 
     runs-on: ${{ matrix.os }}
 
@@ -61,10 +58,10 @@ jobs:
 
       - name: Install Wails CLI
         # Pinned to the version in go.mod. The CLI generates the bridge
-        # bindings and drives the build, so letting it float means a future
-        # release can change the output — or drift from the library it is
-        # generating against — with nothing in this repository changing.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
+        # bindings, so letting it float means a future release can change the
+        # output — or drift from the library it is generating against — with
+        # nothing in this repository changing.
+        run: go install -tags gtk3 github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
       # Linux dependencies
       - name: Install Linux dependencies
@@ -80,13 +77,8 @@ jobs:
         shell: pwsh
 
       # Build
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
-        run: wails build -platform ${{ matrix.platform }} -tags webkit2_41 -ldflags "-X SnmpLens/pkg/updater.Version=${{ github.ref_name }}"
-
-      - name: Build (non-Linux)
-        if: runner.os != 'Linux'
-        run: wails build -platform ${{ matrix.platform }} -ldflags "-X SnmpLens/pkg/updater.Version=${{ github.ref_name }}"
+      - name: Build
+        run: node tools/build.mjs --universal --version ${{ github.ref_name }}
 
       # ── Windows packaging ──
 

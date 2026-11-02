@@ -18,7 +18,6 @@ import (
 	"SnmpLens/pkg/secrets"
 	"SnmpLens/pkg/simulator"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // simulatorFile holds the simulated devices, beside monitoring.db, and not one
@@ -217,11 +216,7 @@ func (s *simulatorService) view(d simulator.Device) SimulatedDevice {
 
 // emitSimulatorChanged tells the renderer to list the devices again.
 func (a *App) emitSimulatorChanged() {
-	// No context is a test's App, and the Wails runtime answers a nil context
-	// by ending the process.
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "simulator:changed")
-	}
+	a.emit("simulator:changed")
 }
 
 var errNoSimulator = errors.New("the simulator is not running in this session")

@@ -125,7 +125,7 @@ func TestPingAndTracerouteRefuseAnOptionAsATarget(t *testing.T) {
 		if _, err := Ping(target, 1); err == nil {
 			t.Errorf("Ping(%q) was attempted", target)
 		}
-		if _, err := Traceroute(context.Background(), target); err == nil {
+		if _, err := Traceroute(context.Background(), target, func(TracerouteHop) {}); err == nil {
 			t.Errorf("Traceroute(%q) was attempted", target)
 		}
 	}
@@ -138,7 +138,7 @@ func TestPingAndTracerouteRefuseAnOptionAsATarget(t *testing.T) {
 // table with nothing to explain it. Measured on this machine: tracert writes
 // "cannot resolve the target system name" and exits non-zero.
 func TestTracerouteReportsAFailureInsteadOfNoHops(t *testing.T) {
-	hops, err := Traceroute(context.Background(), "nonexistent-xyz-host.invalid")
+	hops, err := Traceroute(context.Background(), "nonexistent-xyz-host.invalid", func(TracerouteHop) {})
 	if err == nil {
 		t.Errorf("a failed traceroute returned %d hops and no error", len(hops))
 	}

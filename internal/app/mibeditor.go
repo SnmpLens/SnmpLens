@@ -11,7 +11,6 @@ import (
 	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/mib"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // The MIB editor.
@@ -188,15 +187,7 @@ func (a *App) externalSource(ext externalFile, content, eol, encoding string) mi
 // back to an arbitrary path is how an editor turns into a way to overwrite any
 // file the user can reach.
 func (a *App) MibEditorOpenExternal() (mib.Source, error) {
-	if a.ctx == nil {
-		return mib.Source{}, fmt.Errorf("no window")
-	}
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Open a MIB file",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "MIB files", Pattern: "*.mib;*.txt;*.my;*"},
-		},
-	})
+	path, err := a.openFile("Open a MIB file", fileFilter("MIB files", "*.mib;*.txt;*.my;*"))
 	if err != nil {
 		return mib.Source{}, err
 	}

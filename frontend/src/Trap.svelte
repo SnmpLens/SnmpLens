@@ -1,6 +1,6 @@
 <script>
   import { _ } from 'svelte-i18n';
-  import { GetOidDetails } from '../wailsjs/go/app/App';
+  import { GetOidDetails } from './bridge/App';
   import { anonMode, anonymizeIp } from './utils/anonymize';
   import { copyToClipboard } from './utils/clipboard';
   import { formatBySnmpType } from './utils/formatting';

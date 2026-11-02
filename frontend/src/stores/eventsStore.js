@@ -6,8 +6,8 @@ import {
   EventsAckAll,
   EventsDelete,
   EventsClear,
-} from '../../wailsjs/go/app/App';
-import { EventsOn } from '../../wailsjs/runtime/runtime';
+} from '../bridge/App';
+import { EventsOn } from '../bridge/runtime';
 import { _ } from 'svelte-i18n';
 import { notificationStore } from './notifications';
 import { settingsStore } from './settingsStore';

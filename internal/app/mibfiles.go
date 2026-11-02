@@ -16,7 +16,6 @@ import (
 
 	"SnmpLens/pkg/mib"
 
-	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // What the MIB editor's file list can do to a file besides opening it: the
@@ -400,18 +399,11 @@ func (a *App) MibEditorExportWithDependencies(names []string) (MibExportResult, 
 	if err != nil {
 		return MibExportResult{}, err
 	}
-	if a.ctx == nil {
-		return MibExportResult{}, fmt.Errorf("no window")
-	}
 	suggested := "mibs.zip"
 	if len(names) == 1 {
 		suggested = strings.TrimSuffix(filepath.Base(names[0]), filepath.Ext(names[0])) + ".zip"
 	}
-	dest, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
-		Title:           "Export MIBs with their dependencies",
-		DefaultFilename: suggested,
-		Filters:         []wruntime.FileFilter{{DisplayName: "ZIP archive", Pattern: "*.zip"}},
-	})
+	dest, err := a.saveFile("Export MIBs with their dependencies", suggested, fileFilter("ZIP archive", "*.zip"))
 	if err != nil || dest == "" {
 		return MibExportResult{Missing: missing, Files: files}, err
 	}

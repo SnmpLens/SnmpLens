@@ -38,7 +38,7 @@
     MibEditorBundledContent,
     MibEditorModuleRoot,
     MibEditorExportWithDependencies,
-  } from '../../wailsjs/go/app/App';
+  } from '../bridge/App';
 
   // What the MIB editor's file list does besides opening a file: its context
   // menu (mibeditor/fileMenu.js decides what it offers), the dialogs it opens,

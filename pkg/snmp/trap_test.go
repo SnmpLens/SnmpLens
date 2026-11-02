@@ -1,7 +1,6 @@
 package snmp
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -113,7 +112,7 @@ func TestRecordTrapSurvivesRecorderFailure(t *testing.T) {
 // NewClient must leave a usable recorder in place so a trap arriving before
 // storage is wired cannot nil-panic inside the listener goroutine.
 func TestNewClientHasNonNilRecorder(t *testing.T) {
-	c := NewClient(context.TODO())
+	c := NewClient()
 	if c.recorder == nil {
 		t.Fatal("recorder is nil; a trap would panic the listener")
 	}

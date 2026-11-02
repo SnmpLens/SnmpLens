@@ -31,13 +31,13 @@
   import { historyStore } from './stores/historyStore';
   import { eventCounts, eventsStore } from './stores/eventsStore';
   import { simulatorStore, runningSimulated } from './stores/simulatorStore';
-  import { GetPersistentMibDirectory, ListMibFiles, ImportMibFiles, ImportPresetFiles, TraySetLabels, MibFileStatuses } from '../wailsjs/go/app/App';
+  import { GetPersistentMibDirectory, ListMibFiles, ImportMibFiles, ImportPresetFiles, TraySetLabels, MibFileStatuses } from './bridge/App';
   import MibEditorPanel from './MibEditorPanel.svelte';
   import { mibEditorStore } from './stores/mibEditorStore';
   import { tabRequest } from './stores/tabRequest';
   import { treeRequest } from './stores/treeRequest';
   import { settingsRequest } from './stores/settingsRequest';
-  import { OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime';
+  import { OnFileDrop, OnFileDropOff } from './bridge/runtime';
 
   let activeTab = 'operations'; // 'operations', 'traps', or 'history'
   let historyHighlightId = null; // entry to highlight when opening the History tab
@@ -243,7 +243,7 @@
     }
   }
 
-  async function handleFileDrop(_x, _y, paths) {
+  async function handleFileDrop(paths) {
     dragOver = false;
     if (!paths || paths.length === 0) return;
 
@@ -373,7 +373,7 @@
     initNotifications();
 
     // Register Wails file drop handler
-    OnFileDrop(handleFileDrop, true);
+    OnFileDrop(handleFileDrop);
 
     mibPathsStore.load();
 
@@ -508,7 +508,7 @@
   </div>
 {/if}
 
-<main style="--wails-drop-target:drop">
+<main data-file-drop-target>
   <Notifications />
   {#if showSettings}
     <SettingsModal {showDebug} initial={settingsTarget} on:toggleDebug={() => showDebug = !showDebug}

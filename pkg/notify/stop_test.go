@@ -39,7 +39,7 @@ func (q *blockingQueue) MarkFailed(int64, string, time.Time, bool) error {
 //
 // It closed a channel and returned, so the drain loop finished the pass it was
 // in — on its own goroutine, with nobody waiting. On shutdown that is a send in
-// flight when the process exits: OnBeforeClose returns, Wails tears the app
+// flight when the process exits: shutdown returns, Wails tears the app
 // down, and an SMTP conversation or an HTTP POST is cut mid-way. The delivery is
 // left `pending` with an attempt spent, and the operator's alert is neither
 // sent nor reported as failed.
@@ -80,7 +80,7 @@ func TestStopWaitsForAnInFlightDrain(t *testing.T) {
 	}
 }
 
-// Stop is called from OnBeforeClose and from tests; calling it twice must not
+// Stop is called from shutdown and from tests; calling it twice must not
 // panic on a closed channel.
 func TestStopIsIdempotent(t *testing.T) {
 	d := NewDispatcher(&blockingQueue{entered: make(chan struct{}), release: make(chan struct{})},

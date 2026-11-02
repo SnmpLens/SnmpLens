@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleName</key>
+        <string>SnmpLens</string>
+        <key>CFBundleExecutable</key>
+        <string>SnmpLens</string>
+        <!-- WebKit keeps a bundle's web storage under this identifier, and web
+             storage is where the settings and the sealed credentials live. It is
+             the one Wails 2 gave every release, and changing it loses them. -->
+        <key>CFBundleIdentifier</key>
+        <string>com.wails.snmplens</string>
+        <key>CFBundleVersion</key>
+        <string>{{VERSION}}</string>
+        <key>CFBundleShortVersionString</key>
+        <string>{{VERSION}}</string>
+        <key>CFBundleIconFile</key>
+        <string>icons</string>
+        <key>LSMinimumSystemVersion</key>
+        <string>12.0.0</string>
+        <key>NSHighResolutionCapable</key>
+        <string>true</string>
+        <key>NSHumanReadableCopyright</key>
+        <string>(c) 2026 Geoffrey Lecoq</string>
+    </dict>
+</plist>

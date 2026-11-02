@@ -1,5 +1,5 @@
 <script>
-  import { SnmpGet, SnmpSet, SnmpSetMultiple, SnmpWalk, SnmpGetNext, SnmpGetBulk, ResolveOids } from '../wailsjs/go/app/App';
+  import { SnmpGet, SnmpSet, SnmpSetMultiple, SnmpWalk, SnmpGetNext, SnmpGetBulk, ResolveOids } from './bridge/App';
   import { buildSnmpRequest, buildSetRequest, buildSetMultiRequest, buildGetBulkRequest } from './utils/snmpParams';
   import { notificationStore } from './stores/notifications';
   import { settingsStore } from './stores/settingsStore';
@@ -17,7 +17,7 @@
   import { get } from 'svelte/store';
 
   /**
-   * @typedef {import('../wailsjs/go/models').mib.Node} MibNode
+   * @typedef {import('../bindings/SnmpLens/pkg/mib/models.js').Node} MibNode
    */
 
   /** @type {MibNode | null} */

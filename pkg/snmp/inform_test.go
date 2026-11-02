@@ -1,7 +1,6 @@
 package snmp
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"regexp"
@@ -91,7 +90,7 @@ func (r *receiver) count() int {
 func TestSendInformIsAcknowledged(t *testing.T) {
 	port := freePort(t)
 	rec := startReceiver(t, port)
-	c := NewClient(context.Background())
+	c := NewClient()
 
 	res := c.SendInform("127.0.0.1", port, "public", "v2c", "1.3.6.1.6.3.1.1.5.3",
 		[]TrapVariable{{Oid: "1.3.6.1.2.1.2.2.1.1.1", Type: "integer", Value: "1"}})
@@ -116,7 +115,7 @@ func TestSendInformIsAcknowledged(t *testing.T) {
 // because UDP cannot tell; an inform must not.
 func TestSendInformReportsNoAnswer(t *testing.T) {
 	port := freePort(t)
-	c := NewClient(context.Background())
+	c := NewClient()
 
 	res := c.SendInform("127.0.0.1", port, "public", "v2c", "1.3.6.1.6.3.1.1.5.3", nil)
 	if res.Acknowledged {
@@ -130,7 +129,7 @@ func TestSendInformReportsNoAnswer(t *testing.T) {
 // v1 has no InformRequest PDU. Refusing beats silently sending a trap and
 // telling the caller their notification was confirmed.
 func TestSendInformRefusesV1(t *testing.T) {
-	c := NewClient(context.Background())
+	c := NewClient()
 	res := c.SendInform("127.0.0.1", 162, "public", "v1", "1.3.6.1.6.3.1.1.5.3", nil)
 	if res.Acknowledged || res.Error == "" {
 		t.Fatalf("v1 inform was accepted: %+v", res)
@@ -144,7 +143,7 @@ func TestSendInformRefusesV1(t *testing.T) {
 func TestSendTrapStillSendsATrap(t *testing.T) {
 	port := freePort(t)
 	rec := startReceiver(t, port)
-	c := NewClient(context.Background())
+	c := NewClient()
 
 	if err := c.SendTrap("127.0.0.1", port, "public", "v2c", "1.3.6.1.6.3.1.1.5.3", nil); err != nil {
 		t.Fatalf("trap failed: %v", err)
@@ -168,7 +167,7 @@ func TestSendTrapStillSendsATrap(t *testing.T) {
 func TestInformCarriesItsVarbinds(t *testing.T) {
 	port := freePort(t)
 	rec := startReceiver(t, port)
-	c := NewClient(context.Background())
+	c := NewClient()
 
 	res := c.SendInform("127.0.0.1", port, "public", "v2c", "1.3.6.1.6.3.1.1.5.3", []TrapVariable{
 		{Oid: "1.3.6.1.2.1.1.5.0", Type: "octetstring", Value: "switch-01"},
@@ -201,7 +200,7 @@ func TestInformCarriesItsVarbinds(t *testing.T) {
 // error landed on a contradicting second one. Any version the sender refuses
 // must not be named as a way forward.
 func TestRefusalsDoNotContradictEachOther(t *testing.T) {
-	c := NewClient(context.Background())
+	c := NewClient()
 
 	advice := c.SendInform("127.0.0.1", 162, "public", "v1", "1.3.6.1.6.3.1.1.5.3", nil).Error
 	if advice == "" {

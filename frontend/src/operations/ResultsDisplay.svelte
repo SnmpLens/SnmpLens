@@ -14,7 +14,7 @@
     buildTableData as pivot, withDecodedIndexes, sortRows,
     buildRowVarbinds, buildDestroyVarbinds,
   } from './tableRows';
-  import { MibTable, MibDecodeIndexes, MibEncodeIndex } from '../../wailsjs/go/app/App';
+  import { MibTable, MibDecodeIndexes, MibEncodeIndex } from '../bridge/App';
   import { targetLabels } from '../stores/targetLabels';
   import { displayTarget, targetTitle } from '../utils/targets';
 

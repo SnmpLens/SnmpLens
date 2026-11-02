@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/mib"
@@ -24,14 +25,16 @@ import (
 	"SnmpLens/pkg/tray"
 	"SnmpLens/pkg/updater"
 
-	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 // App struct holds our services and application context.
 type App struct {
-	ctx              context.Context
+	ctx              context.Context // cancelled when the application stops
+	wails            *application.App
+	window           *application.WebviewWindow
+	notifier         *notifications.NotificationService
 	mibs             fs.FS
 	presets          fs.FS
 	persistentMibDir string
@@ -88,8 +91,14 @@ func NewApp(mibs, presets fs.FS) *App {
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.snmpClient = snmp.NewClient(ctx)
-	a.updater.SetContext(ctx)
+	a.snmpClient = snmp.NewClient()
+	a.snmpClient.SetEmitter(func(name string, data any) { a.emit(name, data) })
+	a.updater.SetHost(updater.Host{
+		OpenURL:  a.openBrowser,
+		Progress: func(percent int) { a.emit("update:progress", percent) },
+		Quit:     a.QuitApp,
+	})
+	a.startNotifications(ctx)
 
 	// 1. Determine/Create the persistent MIB directory
 	configDir, err := os.UserConfigDir()
@@ -435,9 +444,7 @@ func (a *App) ListMibFiles(dirPath string) ([]string, error) {
 
 // BrowseDialog opens a directory picker dialog and returns the selected path.
 func (a *App) BrowseDialog() (string, error) {
-	selection, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select MIB Directory",
-	})
+	selection, err := a.openFolder("Select MIB Directory")
 	if err != nil {
 		return "", err
 	}
@@ -453,7 +460,9 @@ func (a *App) NetworkPing(target string, count int) (network.PingResult, error) 
 
 // NetworkTraceroute executes a traceroute command, emitting progress events per hop.
 func (a *App) NetworkTraceroute(target string) ([]network.TracerouteHop, error) {
-	return network.Traceroute(a.ctx, target)
+	return network.Traceroute(a.lifetime(), target, func(hop network.TracerouteHop) {
+		a.emit("tracerouteProgress", hop)
+	})
 }
 
 // --- SNMP Debug Methods ---
@@ -516,11 +525,11 @@ func (a *App) DownloadAndApplyUpdate() error {
 
 // OpenURL opens a URL in the user's default browser.
 func (a *App) OpenURL(url string) {
-	runtime.BrowserOpenURL(a.ctx, url)
+	a.openBrowser(url)
 }
 
 // shutdown is called when the app is closing.
-func (a *App) shutdown(ctx context.Context) {
+func (a *App) shutdown() {
 	// The trap listener goes FIRST, and it was not being stopped at all.
 	//
 	// It is the one producer fed from outside: a datagram arriving during
@@ -550,7 +559,11 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.scheduler != nil {
 		a.scheduler.StopAll()
 	}
-	a.tray.Stop()
+	if a.notifier != nil {
+		if err := a.notifier.ServiceShutdown(); err != nil {
+			log.Printf("stopping native notifications: %v", err)
+		}
+	}
 	// Stop the dispatcher BEFORE closing storage: it queries the outbox on its
 	// own goroutine, and a drain racing a closed database would log spurious
 	// failures against deliveries that are actually fine.
@@ -773,9 +786,7 @@ func (a *App) recordEvent(e events.Event, payload string) error {
 		a.routeEvent(saved)
 	}
 
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "event:new", saved)
-	}
+	a.emit("event:new", saved)
 	return nil
 }
 

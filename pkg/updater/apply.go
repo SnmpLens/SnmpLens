@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/minio/selfupdate"
-	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // DownloadAndApply downloads the pending update's asset, verifies its SHA-256
@@ -63,7 +62,8 @@ func (s *Service) DownloadAndApply() error {
 		return fmt.Errorf("no update ready; run a check first")
 	}
 
-	ctx := s.context()
+	ctx := context.Background()
+	host := s.currentHost()
 
 	// Fallback: let the OS/browser handle formats we can't self-apply.
 	//
@@ -82,7 +82,9 @@ func (s *Service) DownloadAndApply() error {
 		if err := checkReleaseHost(p.assetURL); err != nil {
 			return err
 		}
-		wruntime.BrowserOpenURL(ctx, p.assetURL)
+		if host.OpenURL != nil {
+			host.OpenURL(p.assetURL)
+		}
 		return nil
 	}
 
@@ -109,9 +111,9 @@ func (s *Service) DownloadAndApply() error {
 
 	switch p.mode {
 	case applyReplace:
-		return applyBinary(ctx, tmpPath)
+		return applyBinary(host, tmpPath)
 	case applyInstaller:
-		return runInstaller(ctx, tmpPath)
+		return runInstaller(host, tmpPath)
 	default:
 		return fmt.Errorf("unsupported apply mode")
 	}
@@ -143,15 +145,17 @@ func (s *Service) download(ctx context.Context, url, asset string) (string, stri
 
 	h := sha256.New()
 	pr := &progressReader{
-		ctx:    ctx,
-		reader: resp.Body,
-		total:  resp.ContentLength,
+		progress: s.currentHost().Progress,
+		reader:   resp.Body,
+		total:    resp.ContentLength,
 	}
 	if _, err := io.Copy(io.MultiWriter(f, h), pr); err != nil {
 		return f.Name(), "", err
 	}
 
-	wruntime.EventsEmit(ctx, "update:progress", 100)
+	if progress := s.currentHost().Progress; progress != nil {
+		progress(100)
+	}
 	return f.Name(), hex.EncodeToString(h.Sum(nil)), nil
 }
 
@@ -237,7 +241,7 @@ func parseChecksum(manifest []byte, asset string) (string, error) {
 
 // applyBinary self-replaces the running executable with the downloaded binary,
 // then relaunches it and quits. Used for the portable/raw-binary distributions.
-func applyBinary(ctx context.Context, binPath string) error {
+func applyBinary(host Host, binPath string) error {
 	f, err := os.Open(binPath)
 	if err != nil {
 		return err
@@ -252,24 +256,26 @@ func applyBinary(ctx context.Context, binPath string) error {
 		return fmt.Errorf("applying update: %w", err)
 	}
 
-	relaunch(ctx)
+	relaunch(host)
 	return nil
 }
 
 // runInstaller launches the downloaded installer detached, then quits so it can
 // replace the running files. Used for the Windows NSIS distribution.
-func runInstaller(ctx context.Context, installerPath string) error {
+func runInstaller(host Host, installerPath string) error {
 	cmd := exec.Command(installerPath)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launching installer: %w", err)
 	}
 	// Do not Wait: the installer outlives us.
-	wruntime.Quit(ctx)
+	if host.Quit != nil {
+		host.Quit()
+	}
 	return nil
 }
 
 // relaunch starts a fresh copy of the (now updated) executable and quits.
-func relaunch(ctx context.Context) {
+func relaunch(host Host) {
 	exe, err := os.Executable()
 	if err == nil {
 		cmd := exec.Command(exe)
@@ -277,13 +283,15 @@ func relaunch(ctx context.Context) {
 	}
 	// Give the new process a moment to spin up before we exit.
 	time.Sleep(300 * time.Millisecond)
-	wruntime.Quit(ctx)
+	if host.Quit != nil {
+		host.Quit()
+	}
 }
 
 // progressReader wraps a reader and emits throttled "update:progress" events
 // (integer percent) as bytes flow through.
 type progressReader struct {
-	ctx      context.Context
+	progress func(percent int)
 	reader   io.Reader
 	total    int64
 	read     int64
@@ -297,7 +305,9 @@ func (p *progressReader) Read(b []byte) (int, error) {
 		pct := int(p.read * 100 / p.total)
 		if pct != p.lastEmit && pct >= 0 && pct <= 100 {
 			p.lastEmit = pct
-			wruntime.EventsEmit(p.ctx, "update:progress", pct)
+			if p.progress != nil {
+				p.progress(pct)
+			}
 		}
 	}
 	return n, err

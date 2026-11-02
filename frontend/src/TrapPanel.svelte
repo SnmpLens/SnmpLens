@@ -5,7 +5,7 @@
   import { trapStore } from './stores/trapStore';
   import { settingsStore } from './stores/settingsStore';
   import { notificationStore } from './stores/notifications';
-  import { SendTrap, SendInform, TrapListenerEngineID } from '../wailsjs/go/app/App';
+  import { SendTrap, SendInform, TrapListenerEngineID } from './bridge/App';
   import Trap from './Trap.svelte';
   import { escapeCSV, downloadFile } from './utils/csv';
   import { anonMode, anonymizeIp, maskString } from './utils/anonymize';
@@ -79,7 +79,7 @@
         notificationStore.add(t('traps.trapSent', { values: { target: sendTarget, port: sendPort } }), 'success');
       }
     } catch (err) {
-      notificationStore.add(t('traps.trapSendFailed', { values: { error: err } }), 'error');
+      notificationStore.add(t('traps.trapSendFailed', { values: { error: String(err) } }), 'error');
     } finally {
       isSending = false;
     }

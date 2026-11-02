@@ -6,7 +6,7 @@
     NotifyTemplateVariables,
     NotifyPreviewTemplate,
     NotifyDefaultBody,
-  } from '../../wailsjs/go/app/App';
+  } from '../bridge/App';
 
   /**
    * The sink being edited, bound two-way.

@@ -103,12 +103,6 @@ func TestGosnmpStillLetsTheHandlerDeclineAnAcknowledgement(t *testing.T) {
 // waitBound waits for the listener's socket, rather than sleeping. A send into
 // a port nothing is listening on would time out and look exactly like the
 // suppression working.
-//
-// Note what the listeners above are built with: newHeadlessClient, which is
-// where the reason lives. handleTrap emits the trap to the webview when it has
-// a context, and the Wails runtime answers a context it did not issue by
-// ENDING THE PROCESS — which under test looks like an unacknowledged INFORM,
-// i.e. exactly the result being asserted.
 func waitBound(t *testing.T, c *Client) {
 	t.Helper()
 	// trapBound, not TrapListenerRunning(): the latter reports trapListener !=

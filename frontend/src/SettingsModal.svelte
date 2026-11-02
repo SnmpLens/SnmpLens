@@ -1,6 +1,6 @@
 <script>
   import { createEventDispatcher, onMount, tick } from 'svelte';
-  import { GetPersistentMibDirectory } from '../wailsjs/go/app/App';
+  import { GetPersistentMibDirectory } from './bridge/App';
   import { onBackdrop } from './utils/modal';
   import { _ } from 'svelte-i18n';
   import { get } from 'svelte/store';

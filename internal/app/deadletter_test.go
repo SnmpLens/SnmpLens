@@ -2,7 +2,6 @@ package app
 
 import (
 	"SnmpLens/pkg/snmp"
-	"context"
 	"errors"
 	"net"
 	"strings"
@@ -203,7 +202,7 @@ func TestTheDeadLetterGuardStillReadsOlderEvents(t *testing.T) {
 // consumer is the only ordering in which the rest of shutdown's reasoning holds.
 func TestShutdownStopsTheTrapListener(t *testing.T) {
 	a := newTestApp(t)
-	a.snmpClient = snmp.NewClient(context.TODO())
+	a.snmpClient = snmp.NewClient()
 	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
 
 	port := freeUDPPort(t)
@@ -219,7 +218,7 @@ func TestShutdownStopsTheTrapListener(t *testing.T) {
 		t.Fatal("the listener never started")
 	}
 
-	a.shutdown(context.Background())
+	a.shutdown()
 
 	// Close is asynchronous; the field clears when the listen goroutine unwinds.
 	deadline = time.Now().Add(5 * time.Second)
@@ -236,7 +235,7 @@ func TestShutdownStopsTheTrapListener(t *testing.T) {
 // that is what a failed startup looks like on the way out.
 func TestShutdownWithNothingRunning(t *testing.T) {
 	a := newTestApp(t)
-	a.shutdown(context.Background())
+	a.shutdown()
 }
 
 func freeUDPPort(t *testing.T) int {

@@ -1,0 +1,30 @@
+# What `wails3 dev` does. Everything else about a build is in tools/build.mjs.
+version: '3'
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - frontend
+      - build
+      - docs
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+    git_ignore: true
+  executes:
+    - cmd: node tools/build.mjs --dev
+      type: blocking
+    - cmd: npm --prefix frontend run dev -- --host 127.0.0.1 --port 9245 --strictPort
+      type: background
+    - cmd: node tools/build.mjs --dev --run
+      type: primary
+      exit_policy: shutdown

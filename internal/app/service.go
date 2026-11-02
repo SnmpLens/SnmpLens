@@ -9,7 +9,8 @@ import (
 	"SnmpLens/pkg/service"
 	"SnmpLens/pkg/tray"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	wevents "github.com/wailsapp/wails/v3/pkg/events"
 )
 
 // trayIcons carries the embedded artwork from main.go.
@@ -32,7 +33,7 @@ func (t trayIcons) forOS() []byte {
 // merely hide it, so it has to be attempted before the user can close anything.
 func (a *App) initBackgroundMode() {
 	if a.serviceCfg.RunInBackground {
-		ctrl, ok := tray.Start(tray.Options{
+		ctrl, ok := tray.Start(a.wails, tray.Options{
 			Icon:    a.trayIcons.forOS(),
 			Tooltip: "SnmpLens",
 			Labels:  tray.DefaultLabels(),
@@ -52,7 +53,13 @@ func (a *App) initBackgroundMode() {
 	// leaving a process the user can neither see nor stop.
 	if a.serviceCfg.StartHidden && !a.trayLive {
 		log.Printf("started hidden but no tray is available; showing the window")
-		a.RevealWindow()
+		// Once the application runs: this is a service starting, before the main
+		// loop, and showing a window waits for that loop.
+		if a.wails != nil {
+			a.wails.Event.OnApplicationEvent(wevents.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+				a.RevealWindow()
+			})
+		}
 	}
 
 	if a.serviceCfg.AutoStartTrapListener {
@@ -88,22 +95,23 @@ func (a *App) hideInsteadOfClosing() bool {
 // RevealWindow brings the window back from the tray, from a hidden start, or
 // from a second launch.
 func (a *App) RevealWindow() {
-	if a.ctx == nil {
+	if a.window == nil {
 		return
 	}
-	runtime.WindowShow(a.ctx)
-	runtime.WindowUnminimise(a.ctx)
+	a.window.Show()
+	a.window.UnMinimise()
+	a.window.Focus()
 }
 
 // QuitApp exits for real, bypassing the hide-on-close behaviour.
 func (a *App) QuitApp() {
-	if a.ctx == nil {
+	if a.wails == nil {
 		return
 	}
 	// Closing the window is intercepted while a tray is live, so the tray's
 	// own Quit entry has to disarm that first.
 	a.serviceCfg.RunInBackground = false
-	runtime.Quit(a.ctx)
+	a.wails.Quit()
 }
 
 // refreshTrayStatus rewrites the tray read-out.
@@ -200,7 +208,7 @@ func (a *App) initBackgroundModeTrayOnly() {
 	if a.trayLive {
 		return
 	}
-	ctrl, ok := tray.Start(tray.Options{
+	ctrl, ok := tray.Start(a.wails, tray.Options{
 		Icon:    a.trayIcons.forOS(),
 		Tooltip: "SnmpLens",
 		Labels:  tray.DefaultLabels(),

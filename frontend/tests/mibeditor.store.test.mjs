@@ -69,7 +69,7 @@ await esbuild.build({
   plugins: [{
     name: 'alias',
     setup(b) {
-      b.onResolve({ filter: /wailsjs[/]go[/]app[/]App$/ }, () => ({ path: join(dir, 'stub.js') }));
+      b.onResolve({ filter: /bridge[/]App$/ }, () => ({ path: join(dir, 'stub.js') }));
     },
   }],
 });

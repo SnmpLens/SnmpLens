@@ -4,7 +4,7 @@ import {svelte} from '@sveltejs/vite-plugin-svelte'
 /**
  * Reload the page when the generated Wails bindings change.
  *
- * `wails dev` regenerates frontend/wailsjs whenever a Go method is added or its
+ * `wails3 dev` regenerates frontend/bindings whenever a Go method is added or its
  * signature changes. That is a change to the module's EXPORTS, which hot module
  * replacement cannot patch — the page keeps the version it imported and fails
  * with "does not provide an export named X", which reads like a missing method
@@ -16,7 +16,7 @@ function reloadOnBindings() {
     name: 'snmplens-reload-on-bindings',
     apply: 'serve',
     handleHotUpdate({file, server}) {
-      if (file.replace(/\\/g, '/').includes('/wailsjs/')) {
+      if (file.replace(/\\/g, '/').includes('/bindings/')) {
         server.ws.send({type: 'full-reload', path: '*'})
         return []
       }
@@ -31,7 +31,7 @@ export default defineConfig({
     watch: {
       // Generated, and outside src: name it explicitly rather than rely on it
       // being reached through the module graph.
-      ignored: ['!**/wailsjs/**'],
+      ignored: ['!**/bindings/**'],
     },
   },
   build: {

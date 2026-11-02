@@ -76,7 +76,6 @@ func TestDiscoveryFindsTheSimulatedDevices(t *testing.T) {
 	simtest.Start(t, simulator.Device{Address: sw, Port: port, Name: "scan-switch", Model: "cisco-catalyst-24"})
 
 	// Headless: the scan reports its progress to a window only when there is one.
-	//lint:ignore SA1012 a nil context is how this package tells a headless client
 	c := NewClient()
 	found := map[string]DiscoveryResult{}
 	for _, r := range c.Discover("127.0.0.0/29", "public", "v2c", port, 1, V3Params{}) {

@@ -61,7 +61,7 @@ jobs:
         # bindings, so letting it float means a future release can change the
         # output — or drift from the library it is generating against — with
         # nothing in this repository changing.
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+        run: go install -tags gtk3 github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
       # Linux dependencies
       - name: Install Linux dependencies

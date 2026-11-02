@@ -131,7 +131,7 @@ jobs:
         # so letting it float means a future release can change the output — or
         # drift from the library it generates against — with nothing in this
         # repository changing. The release workflow pins the same version.
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+        run: go install -tags gtk3 github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
       # Deliberately tools/build.mjs and not a bare `go build`: it regenerates the
       # JS bindings and builds the frontend before compiling, and it is what a

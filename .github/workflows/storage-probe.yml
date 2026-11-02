@@ -42,7 +42,7 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev xvfb
       - name: Build this branch
         run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+          go install -tags gtk3 github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
           node tools/build.mjs --version v9.9.9
       - name: Fetch the last Wails 2 release
         env:

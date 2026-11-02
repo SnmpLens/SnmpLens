@@ -2,22 +2,19 @@
 // polling and listening for traps with no window open.
 //
 // Everything here is deliberately fail-soft. A tray is not guaranteed to exist:
-// a bare Linux session may run no StatusNotifierItem host at all, and a locked
-// down desktop can refuse the registration. So Start reports whether an icon
-// actually appeared, and the caller uses that answer to decide whether closing
-// the window is allowed to merely hide it. Getting this wrong produces the
-// worst possible outcome — an application the user cannot quit — so the
-// failure path is the one designed first.
+// a bare Linux session may run no StatusNotifierItem host at all. So Start reports
+// whether an icon can appear, and the caller uses that answer to decide whether
+// closing the window is allowed to merely hide it. Getting this wrong produces the
+// worst possible outcome — an application the user cannot quit — so the failure
+// path is the one designed first.
 package tray
 
 import (
 	"fmt"
 	"log"
-	"runtime"
 	"sync"
-	"time"
 
-	"fyne.io/systray"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // Options describes the menu to build. Every callback is optional.
@@ -52,104 +49,52 @@ func DefaultLabels() Labels {
 // Controller manipulates a running tray icon.
 type Controller struct {
 	mu     sync.Mutex
-	items  menuItems
-	stop   func()
-	live   bool
+	tray   *application.SystemTray
+	menu   *application.Menu
+	show   *application.MenuItem
+	status *application.MenuItem
+	quit   *application.MenuItem
 	closed bool
 }
 
-type menuItems struct {
-	show   *systray.MenuItem
-	status *systray.MenuItem
-	quit   *systray.MenuItem
-}
-
-// readyTimeout bounds how long we wait for the desktop to accept the icon.
-// Without it, a session with no tray host would hang startup: systray's
-// registration simply never calls back rather than returning an error.
-const readyTimeout = 5 * time.Second
-
-// Start installs the tray icon.
+// Start installs the tray icon. The application need not be running yet: Wails
+// holds the icon until it is.
 //
-// It reports ok=false when no icon could be shown, which is a normal outcome
-// on some desktops and never an error worth interrupting startup for.
-func Start(opts Options) (c *Controller, ok bool) {
+// It reports ok=false when no icon can be shown, which is a normal outcome on
+// some desktops and never an error worth interrupting startup for.
+func Start(app *application.App, opts Options) (c *Controller, ok bool) {
+	if app == nil || !hostAvailable() {
+		log.Printf("tray: this desktop has no system tray; running without one")
+		return nil, false
+	}
 	if opts.Labels.Show == "" {
 		opts.Labels = DefaultLabels()
 	}
 
-	ctrl := &Controller{}
-	ready := make(chan struct{})
-
-	onReady := func() {
-		// A panic in the toolkit callback would otherwise take the whole
-		// process down for a cosmetic feature.
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("tray: registration panicked, continuing without a tray icon: %v", r)
-			}
-		}()
-
-		if len(opts.Icon) > 0 {
-			systray.SetIcon(opts.Icon)
+	ctrl := &Controller{menu: app.NewMenu()}
+	ctrl.show = ctrl.menu.Add(opts.Labels.Show).OnClick(func(*application.Context) {
+		if opts.OnShow != nil {
+			opts.OnShow()
 		}
-		if opts.Tooltip != "" {
-			systray.SetTooltip(opts.Tooltip)
+	})
+	ctrl.menu.AddSeparator()
+	ctrl.status = ctrl.menu.Add(opts.Labels.Status).SetEnabled(false) // a read-out, not a command
+	ctrl.menu.AddSeparator()
+	ctrl.quit = ctrl.menu.Add(opts.Labels.Quit).OnClick(func(*application.Context) {
+		if opts.OnQuit != nil {
+			opts.OnQuit()
 		}
+	})
 
-		show := systray.AddMenuItem(opts.Labels.Show, "")
-		systray.AddSeparator()
-		status := systray.AddMenuItem(opts.Labels.Status, "")
-		status.Disable() // a read-out, not a command
-		systray.AddSeparator()
-		quit := systray.AddMenuItem(opts.Labels.Quit, "")
-
-		ctrl.mu.Lock()
-		ctrl.items = menuItems{show: show, status: status, quit: quit}
-		ctrl.live = true
-		ctrl.mu.Unlock()
-
-		go func() {
-			for {
-				select {
-				case <-show.ClickedCh:
-					if opts.OnShow != nil {
-						opts.OnShow()
-					}
-				case <-quit.ClickedCh:
-					if opts.OnQuit != nil {
-						opts.OnQuit()
-					}
-					return
-				}
-			}
-		}()
-
-		close(ready)
+	ctrl.tray = app.SystemTray.New()
+	if len(opts.Icon) > 0 {
+		ctrl.tray.SetIcon(opts.Icon)
 	}
-
-	start, end := systray.RunWithExternalLoop(onReady, func() {})
-	ctrl.stop = end
-
-	// start() blocks on some platforms and not others; a goroutine makes that
-	// difference stop mattering.
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("tray: event loop panicked: %v", r)
-			}
-		}()
-		start()
-	}()
-
-	select {
-	case <-ready:
-		return ctrl, true
-	case <-time.After(readyTimeout):
-		log.Printf("tray: no system tray answered within %s on %s; running without one", readyTimeout, runtime.GOOS)
-		ctrl.Stop()
-		return nil, false
+	if opts.Tooltip != "" {
+		ctrl.tray.SetTooltip(opts.Tooltip)
 	}
+	ctrl.tray.SetMenu(ctrl.menu)
+	return ctrl, true
 }
 
 // SetStatus rewrites the disabled read-out line.
@@ -159,8 +104,9 @@ func (c *Controller) SetStatus(text string) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.live && c.items.status != nil {
-		c.items.status.SetTitle(text)
+	if !c.closed {
+		c.status.SetLabel(text)
+		c.menu.Update()
 	}
 }
 
@@ -172,22 +118,25 @@ func (c *Controller) SetLabels(l Labels) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.live {
+	if c.closed {
 		return
 	}
-	if l.Show != "" && c.items.show != nil {
-		c.items.show.SetTitle(l.Show)
+	if l.Show != "" {
+		c.show.SetLabel(l.Show)
 	}
-	if l.Quit != "" && c.items.quit != nil {
-		c.items.quit.SetTitle(l.Quit)
+	if l.Quit != "" {
+		c.quit.SetLabel(l.Quit)
 	}
-	if l.Status != "" && c.items.status != nil {
-		c.items.status.SetTitle(l.Status)
+	if l.Status != "" {
+		c.status.SetLabel(l.Status)
 	}
+	c.menu.Update()
 }
 
-// Stop removes the icon. It is safe to call twice, and safe on a nil receiver
-// so callers do not have to branch on whether the tray ever started.
+// Stop removes the icon, for background mode being switched off while the
+// application runs: Wails removes it itself when the application exits. It is safe
+// to call twice, and safe on a nil receiver so callers do not have to branch on
+// whether the tray ever started.
 func (c *Controller) Stop() {
 	if c == nil {
 		return
@@ -195,18 +144,10 @@ func (c *Controller) Stop() {
 	c.mu.Lock()
 	already := c.closed
 	c.closed = true
-	stop := c.stop
 	c.mu.Unlock()
-
-	if already || stop == nil {
-		return
+	if !already {
+		c.tray.Destroy()
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("tray: shutdown panicked: %v", r)
-		}
-	}()
-	stop()
 }
 
 // StatusLine renders the read-out shown in the menu.

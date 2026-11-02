@@ -559,7 +559,6 @@ func (a *App) shutdown() {
 	if a.scheduler != nil {
 		a.scheduler.StopAll()
 	}
-	a.tray.Stop()
 	if a.notifier != nil {
 		if err := a.notifier.ServiceShutdown(); err != nil {
 			log.Printf("stopping native notifications: %v", err)

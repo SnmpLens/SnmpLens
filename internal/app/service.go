@@ -9,6 +9,8 @@ import (
 	"SnmpLens/pkg/service"
 	"SnmpLens/pkg/tray"
 
+	"github.com/wailsapp/wails/v3/pkg/application"
+	wevents "github.com/wailsapp/wails/v3/pkg/events"
 )
 
 // trayIcons carries the embedded artwork from main.go.
@@ -31,7 +33,7 @@ func (t trayIcons) forOS() []byte {
 // merely hide it, so it has to be attempted before the user can close anything.
 func (a *App) initBackgroundMode() {
 	if a.serviceCfg.RunInBackground {
-		ctrl, ok := tray.Start(tray.Options{
+		ctrl, ok := tray.Start(a.wails, tray.Options{
 			Icon:    a.trayIcons.forOS(),
 			Tooltip: "SnmpLens",
 			Labels:  tray.DefaultLabels(),
@@ -51,7 +53,13 @@ func (a *App) initBackgroundMode() {
 	// leaving a process the user can neither see nor stop.
 	if a.serviceCfg.StartHidden && !a.trayLive {
 		log.Printf("started hidden but no tray is available; showing the window")
-		a.RevealWindow()
+		// Once the application runs: this is a service starting, before the main
+		// loop, and showing a window waits for that loop.
+		if a.wails != nil {
+			a.wails.Event.OnApplicationEvent(wevents.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+				a.RevealWindow()
+			})
+		}
 	}
 
 	if a.serviceCfg.AutoStartTrapListener {
@@ -200,7 +208,7 @@ func (a *App) initBackgroundModeTrayOnly() {
 	if a.trayLive {
 		return
 	}
-	ctrl, ok := tray.Start(tray.Options{
+	ctrl, ok := tray.Start(a.wails, tray.Options{
 		Icon:    a.trayIcons.forOS(),
 		Tooltip: "SnmpLens",
 		Labels:  tray.DefaultLabels(),

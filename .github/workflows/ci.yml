@@ -139,7 +139,7 @@ jobs:
       # the breakage surfaces when a tag is pushed — which is to say, once it is
       # already a failed release.
       - name: Build
-        run: node tools/build.mjs
+        run: node tools/build.mjs --universal
 
       - name: Vet & test
         shell: bash

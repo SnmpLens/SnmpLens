@@ -193,8 +193,11 @@ The frontend calls Go through auto-generated bindings in `frontend/bindings/`, w
 ## Wails 3 and what an update must keep
 
 An update replaces a binary and starts it on a machine that holds a person's settings, and three things a new
-framework version was free to change decide whether that person's data is still there. Each is kept on purpose, and
-`.github/workflows/storage-probe.yml` is how it was verified rather than assumed.
+framework version was free to change decide whether that person's data is still there. Each is kept on purpose and
+pinned by `internal/app/updatekeeps_test.go`. Measured when moving, by running the v1.7.0 release and then the Wails 3
+build on one profile on Linux and on macOS: the second added no storage and wrote to the file the first had made,
+`localstorage/wails_wails_0.localstorage` under `~/.local/share/SnmpLens` and the one origin directory under
+`~/Library/WebKit/com.wails.snmplens`, with the page calling Go from that origin.
 
 **The page's origin.** localStorage belongs to an origin, and it holds the settings, the targets, the sealed
 credentials and the history. Wails 2 loaded `wails://wails/` on macOS and Linux and Wails 3 defaults to

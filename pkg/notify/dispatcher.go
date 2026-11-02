@@ -93,7 +93,7 @@ func (d *Dispatcher) Start() {
 //
 // It used to close a channel and return, so the loop finished the pass it was
 // in on its own goroutine with nobody waiting. On shutdown that means a send
-// still running when the process exits: OnBeforeClose returns, Wails tears the
+// still running when the process exits: shutdown returns, Wails tears the
 // app down, and an SMTP conversation or an HTTP POST is cut mid-way. The
 // delivery is left `pending` with an attempt spent — neither sent nor reported
 // as failed.

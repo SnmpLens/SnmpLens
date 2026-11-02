@@ -216,8 +216,6 @@ func (s *simulatorService) view(d simulator.Device) SimulatedDevice {
 
 // emitSimulatorChanged tells the renderer to list the devices again.
 func (a *App) emitSimulatorChanged() {
-	// No context is a test's App, and the Wails runtime answers a nil context
-	// by ending the process.
 	a.emit("simulator:changed")
 }
 

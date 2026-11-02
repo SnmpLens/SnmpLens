@@ -109,7 +109,9 @@ if (dev) {
     writeFileSync(join(dist, 'index.html'), '<!-- development build: the interface comes from Vite -->\n');
   }
   const binary = join('build', 'bin', windows ? 'SnmpLens-dev.exe' : 'SnmpLens-dev');
+  const syso = windows ? windowsResources() : null;
   goBuild(binary);
+  if (syso) rmSync(syso);
   if (flag('--run')) {
     const child = spawn(join(root, binary), { cwd: root, stdio: 'inherit' });
     child.on('exit', (code) => process.exit(code ?? 0));

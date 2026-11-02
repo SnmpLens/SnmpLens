@@ -23,7 +23,7 @@ dev_mode:
   executes:
     - cmd: node tools/build.mjs --dev
       type: blocking
-    - cmd: npm --prefix frontend run dev -- --port 9245 --strictPort
+    - cmd: npm --prefix frontend run dev -- --host 127.0.0.1 --port 9245 --strictPort
       type: background
     - cmd: node tools/build.mjs --dev --run
       type: primary

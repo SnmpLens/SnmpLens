@@ -55,8 +55,7 @@ func newLiveApp(t *testing.T) *liveApp {
 	a, presetDir := newBindApp(t)
 	l := &liveApp{App: a, presets: presetDir}
 
-	// Headless: a client whose context the Wails runtime did not issue ends the
-	// process the first time it emits, which a received trap does.
+	// Headless: nothing here has a window to tell.
 	a.snmpClient = snmp.NewClient()
 	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
 	a.trapEngineID = loadTrapEngineID(t.TempDir())

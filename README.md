@@ -290,7 +290,7 @@ On macOS these use the Control key, not Command — except find and replace in t
 
 | Layer    | Technology                                                                 |
 | -------- | -------------------------------------------------------------------------- |
-| Framework | [Wails v2](https://wails.io/) — Go backend + Web frontend in one binary  |
+| Framework | [Wails 3](https://wails.io/) — Go backend + Web frontend in one binary  |
 | Backend  | Go 1.26 — [gosnmp](https://github.com/gosnmp/gosnmp), [gosmi](https://github.com/sleepinggenius2/gosmi), [SQLite](https://pkg.go.dev/modernc.org/sqlite), [pro-bing](https://github.com/prometheus-community/pro-bing) |
 | Frontend | [Svelte 5](https://svelte.dev/) + [Vite 8](https://vitejs.dev/)          |
 | Charts   | [Chart.js](https://www.chartjs.org/) with date-fns adapter                |
@@ -308,7 +308,7 @@ On macOS these use the Control key, not Command — except find and replace in t
 | ----------- | ------- |
 | [Go](https://go.dev/) | 1.26+ |
 | [Node.js](https://nodejs.org/) | 20.19+ or 22.12+ (what Vite 8 requires) |
-| [Wails CLI](https://wails.io/docs/gettingstarted/installation) | v2 |
+| Wails CLI | `go install -tags gtk3 github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0` |
 
 **Linux only** — install GTK and WebKit development libraries:
 
@@ -319,7 +319,7 @@ sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 ### Development
 
 ```bash
-wails dev
+wails3 dev
 ```
 
 Starts a hot-reload development server with live frontend updates.
@@ -327,18 +327,12 @@ Starts a hot-reload development server with live frontend updates.
 ### Production
 
 ```bash
-wails build
+node tools/build.mjs
 ```
 
 The compiled binary is output to `build/bin/`.
 
-### Platform-Specific Builds
-
-```bash
-wails build -platform windows/amd64          # Windows
-wails build -platform linux/amd64 -tags webkit2_41   # Linux
-wails build -platform darwin/universal       # macOS (Intel + Apple Silicon)
-```
+It builds for the platform it runs on. On macOS, `--universal` builds for Intel and Apple Silicon together.
 
 ---
 
@@ -354,7 +348,7 @@ SnmpLens updates itself from GitHub Releases. On startup (and via **Settings →
 | Windows / Linux (portable binary) | replaces the running executable in place, then relaunches |
 | macOS, Linux `.deb` | opens the download in the browser (manual install) |
 
-The running version is embedded at build time via ldflags; local (`wails build`) builds report `dev`, which disables the update check.
+The running version is embedded at build time via ldflags; local builds report `dev`, which disables the update check.
 
 ### Release integrity & authenticity
 

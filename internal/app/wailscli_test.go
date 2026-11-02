@@ -6,13 +6,11 @@ package app
 // The library is a requirement in go.mod. The CLI is a `go install
 // .../cmd/wails3@vX` inside a `run:` step of ci.yml and release.yml, which
 // Dependabot does not read — the blind spot staticcheck's pin sits in too. It
-// costs more here: the CLI writes frontend/wailsjs/runtime, the JavaScript half
-// of the bridge whose Go half is the library, so a release built across the gap
-// ships two versions of one protocol. And nothing says so. On a mismatch
-// `wails build` prints "go.mod is using Wails 'v2.17.0' but the CLI is
-// 'v2.16.0'" as a WARNING and builds anyway, in a log nobody reads. Dependabot
-// raised the 2.17.0 library — a security release — with every workflow still
-// installing 2.16.0.
+// costs more here: the CLI generates the bindings the library answers, so a
+// release built across the gap ships two versions of one protocol. And nothing
+// says so. Under Wails 2 a mismatch was a warning in a log nobody read, and
+// Dependabot raised the 2.17.0 library — a security release — with every workflow
+// still installing 2.16.0.
 //
 // So every install of the CLI is pinned to what go.mod requires, and a bump of
 // either fails here until the other follows. The npm package is a third half, and

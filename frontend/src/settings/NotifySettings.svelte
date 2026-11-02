@@ -19,7 +19,7 @@
     NotifyListDeliveries,
     NotifyRetryDelivery,
     SecretsBackend,
-  } from '../../wailsjs/go/app/App';
+  } from '../bridge/App';
 
   const CATEGORIES = ['trap', 'threshold', 'reachability', 'system'];
   const SEVERITIES = ['info', 'warning', 'minor', 'major', 'critical'];

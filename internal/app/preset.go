@@ -16,7 +16,6 @@ import (
 	"SnmpLens/pkg/snmp"
 	"SnmpLens/pkg/storage"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // The preset library: where dashboard presets live on this machine, and how one
@@ -344,15 +343,7 @@ func (a *App) importSinglePreset(src string) PresetImportResult {
 // the way somebody has the file in front of them — and a dialog is also the
 // only route when the window is not focused enough to receive a drop.
 func (a *App) ImportPresetDialog() ([]PresetImportResult, error) {
-	if a.ctx == nil {
-		return nil, fmt.Errorf("no window")
-	}
-	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Add dashboard presets",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "Preset files", Pattern: "*.json;*"},
-		},
-	})
+	paths, err := a.openFiles("Add dashboard presets", fileFilter("Preset files", "*.json;*"))
 	if err != nil {
 		return nil, err
 	}

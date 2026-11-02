@@ -9,7 +9,6 @@ import (
 	"SnmpLens/pkg/service"
 	"SnmpLens/pkg/tray"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // trayIcons carries the embedded artwork from main.go.
@@ -88,22 +87,23 @@ func (a *App) hideInsteadOfClosing() bool {
 // RevealWindow brings the window back from the tray, from a hidden start, or
 // from a second launch.
 func (a *App) RevealWindow() {
-	if a.ctx == nil {
+	if a.window == nil {
 		return
 	}
-	runtime.WindowShow(a.ctx)
-	runtime.WindowUnminimise(a.ctx)
+	a.window.Show()
+	a.window.UnMinimise()
+	a.window.Focus()
 }
 
 // QuitApp exits for real, bypassing the hide-on-close behaviour.
 func (a *App) QuitApp() {
-	if a.ctx == nil {
+	if a.wails == nil {
 		return
 	}
 	// Closing the window is intercepted while a tray is live, so the tray's
 	// own Quit entry has to disarm that first.
 	a.serviceCfg.RunInBackground = false
-	runtime.Quit(a.ctx)
+	a.wails.Quit()
 }
 
 // refreshTrayStatus rewrites the tray read-out.

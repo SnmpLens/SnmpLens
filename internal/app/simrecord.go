@@ -16,7 +16,6 @@ import (
 	"SnmpLens/pkg/snmp"
 
 	"github.com/gosnmp/gosnmp"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Recording a device: SnmpLens walks a real one and keeps what it answered as a
@@ -141,9 +140,7 @@ func (a *App) SimulatorCancelRecording() {
 
 // emitRecording tells the renderer how many objects the recording has kept.
 func (a *App) emitRecording(objects int) {
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "simulator:recording", objects)
-	}
+	a.emit("simulator:recording", objects)
 }
 
 // SimulatorExportModelDialog writes a custom model to a ZIP the user names, as
@@ -165,14 +162,7 @@ func (a *App) SimulatorExportModelDialog(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if a.ctx == nil {
-		return "", fmt.Errorf("no window")
-	}
-	dest, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "Export simulator model",
-		DefaultFilename: slug + ".zip",
-		Filters:         []runtime.FileFilter{{DisplayName: "Simulator model package (ZIP)", Pattern: "*.zip"}},
-	})
+	dest, err := a.saveFile("Export simulator model", slug + ".zip", fileFilter("Simulator model package (ZIP)", "*.zip"))
 	if err != nil || dest == "" {
 		return "", err
 	}

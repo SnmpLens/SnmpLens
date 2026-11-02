@@ -16,7 +16,7 @@ import (
 // varbind as gosnmp decoded it, and stops when it is told to.
 func TestARecordingWalksTheWholeDevice(t *testing.T) {
 	d := simtest.Start(t, simulator.Device{Model: "cisco-catalyst-24", Name: "sw-rec"})
-	c := NewClient(context.Background())
+	c := NewClient()
 	req := SnmpRequest{Targets: []string{d.Target()}, Community: d.Community, Version: "v2c", Timeout: 2, Retries: 1}
 
 	var pdus []gosnmp.SnmpPDU

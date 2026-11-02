@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"net"
 	"os"
@@ -316,7 +315,7 @@ func TestRankingTheLibraryForOneDevice(t *testing.T) {
 // A device that does not answer must not take the picker away with it.
 func TestIdentifyingAnUnreachableDeviceStillReturnsTheLibrary(t *testing.T) {
 	a, _ := newPresetApp(t)
-	a.snmpClient = snmp.NewClient(context.Background())
+	a.snmpClient = snmp.NewClient()
 	a.importSinglePreset(writeSrc(t, t.TempDir(), "cisco.json", goodPreset))
 
 	// A bound-then-closed UDP port: the address is real and nothing answers.

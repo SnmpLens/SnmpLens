@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"slices"
@@ -18,7 +17,7 @@ import (
 func TestADeviceIsRecordedAsAModel(t *testing.T) {
 	a := modelApp(t)
 	if a.snmpClient == nil {
-		a.snmpClient = snmp.NewClient(context.Background())
+		a.snmpClient = snmp.NewClient()
 	}
 	src := simDevice()
 	src.Name, src.Model, src.Versions, src.Users, src.Traps = "sw-source", "cisco-catalyst-24", []string{"v2c"}, nil, simulator.Traps{}

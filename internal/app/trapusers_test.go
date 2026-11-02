@@ -22,7 +22,7 @@ func headlessApp(t *testing.T) *App {
 	a := newTestApp(t)
 	// nil, deliberately: it is how this client says "no webview attached".
 	//lint:ignore SA1012 nil means "headless"; see handleTrap's emit guard
-	a.snmpClient = snmp.NewClient(nil)
+	a.snmpClient = snmp.NewClient()
 	return a
 }
 

@@ -16,7 +16,6 @@ import (
 	"SnmpLens/pkg/netaddr"
 
 	probing "github.com/prometheus-community/pro-bing"
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // PingResult holds ping statistics from pro-bing.
@@ -89,8 +88,8 @@ func Ping(target string, count int) (PingResult, error) {
 }
 
 // Traceroute uses system traceroute/tracert command with OS-specific arguments.
-// Emits "tracerouteProgress" events per hop via Wails runtime.
-func Traceroute(ctx context.Context, target string) ([]TracerouteHop, error) {
+// emit is called once per hop, as it is parsed.
+func Traceroute(ctx context.Context, target string, emit func(TracerouteHop)) ([]TracerouteHop, error) {
 	// A target that names its SNMP port ("10.0.0.5:1161") is still that host.
 	target, _ = netaddr.SplitTarget(target, 0)
 	// Checked before it becomes argv. There is no shell here, so nothing can
@@ -132,9 +131,6 @@ func Traceroute(ctx context.Context, target string) ([]TracerouteHop, error) {
 
 	// Emitting is the caller's business; the parsers stay pure so they can be
 	// run against recorded output of both families.
-	emit := func(hop TracerouteHop) {
-		wailsRuntime.EventsEmit(ctx, "tracerouteProgress", hop)
-	}
 	if runtime.GOOS == "windows" {
 		hops = parseWindowsTraceroute(scanner, emit)
 	} else {

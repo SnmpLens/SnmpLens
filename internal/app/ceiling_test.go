@@ -162,7 +162,7 @@ func TestTrapsAreNotLostAtTheStatedRate(t *testing.T) {
 	// process down — which is exactly why handleTrap now checks for nil before
 	// emitting. context.TODO() here would defeat the guard it is testing.
 	//lint:ignore SA1012 nil means "headless"; see handleTrap's emit guard
-	a.snmpClient = snmp.NewClient(nil)
+	a.snmpClient = snmp.NewClient()
 	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
 
 	port := freeUDPPort(t)
@@ -207,7 +207,7 @@ func TestMeasureWhereTrapLossBegins(t *testing.T) {
 	// process down — which is exactly why handleTrap now checks for nil before
 	// emitting. context.TODO() here would defeat the guard it is testing.
 	//lint:ignore SA1012 nil means "headless"; see handleTrap's emit guard
-	a.snmpClient = snmp.NewClient(nil)
+	a.snmpClient = snmp.NewClient()
 	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
 
 	port := freeUDPPort(t)

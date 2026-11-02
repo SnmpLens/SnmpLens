@@ -32,8 +32,8 @@ function stubWailsBridge() {
     enforce: 'pre',
     resolveId(source) {
       const id = source.replace(/\\/g, '/');
-      if (/(^|\/)wailsjs\/go\/app\/App(\.js)?$/.test(id)) return bridge;
-      if (/(^|\/)wailsjs\/runtime\/runtime(\.js)?$/.test(id)) return runtime;
+      if (/(^|\/)bridge\/App(\.js)?$/.test(id)) return bridge;
+      if (/(^|\/)bridge\/runtime(\.js)?$/.test(id)) return runtime;
       return null;
     },
   };

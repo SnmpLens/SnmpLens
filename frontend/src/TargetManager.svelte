@@ -6,7 +6,7 @@
   import { settingsStore } from './stores/settingsStore';
   import { notificationStore } from './stores/notifications';
   import { onMount } from 'svelte';
-  import { TestConnection, ListPresets, IdentifyDevice } from '../wailsjs/go/app/App';
+  import { TestConnection, ListPresets, IdentifyDevice } from './bridge/App';
   import { pollingStore } from './stores/pollingStore';
   import { requestTab } from './stores/tabRequest';
   import { buildTestRequest } from './utils/snmpParams';
@@ -351,7 +351,7 @@
     } catch (err) {
       targets = targets.map(t => t.id === id ? { ...t, testing: false, status: 'error' } : t);
       const t = get(_);
-      notificationStore.add(t('targets.connectionFailed', { values: { address: target.address, error: err } }), 'error');
+      notificationStore.add(t('targets.connectionFailed', { values: { address: target.address, error: String(err) } }), 'error');
     }
   }
 

@@ -12,8 +12,8 @@ import {
   MonitorAcceptSlow,
   MonitorUpdateConnection,
   PresetBind,
-} from '../../wailsjs/go/app/App';
-import { EventsOn } from '../../wailsjs/runtime/runtime';
+} from '../bridge/App';
+import { EventsOn } from '../bridge/runtime';
 import { settingsStore } from './settingsStore';
 import { notificationStore } from './notifications';
 import { buildMonitorConnection } from '../utils/snmpParams';

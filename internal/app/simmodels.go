@@ -18,7 +18,6 @@ import (
 	"SnmpLens/pkg/imagegate"
 	"SnmpLens/pkg/simulator"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Custom simulator models: model files somebody else wrote (pkg/simulator,
@@ -205,9 +204,7 @@ func keptPackageFiles(name string) ([]simulator.PackageFile, error) {
 
 // emitSimulatorModelsChanged tells the renderer to list the models again.
 func (a *App) emitSimulatorModelsChanged() {
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "simulator:models")
-	}
+	a.emit("simulator:models")
 }
 
 // ListSimulatorModelIcons returns the icon of each custom model that has one.
@@ -271,15 +268,7 @@ func checkIcon(data []byte) (imagegate.Info, error) {
 // ImportSimulatorModelsDialog asks for model files — JSON, or ZIP archives with
 // icons and packages — and imports them.
 func (a *App) ImportSimulatorModelsDialog() ([]SimulatorModelImportResult, error) {
-	if a.ctx == nil {
-		return nil, fmt.Errorf("no window")
-	}
-	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Import simulator models",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "Simulator models (JSON, ZIP)", Pattern: "*.json;*.zip"},
-		},
-	})
+	paths, err := a.openFiles("Import simulator models", fileFilter("Simulator models (JSON, ZIP)", "*.json;*.zip"))
 	if err != nil {
 		return nil, err
 	}

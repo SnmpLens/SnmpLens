@@ -6,13 +6,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 
 	"SnmpLens/pkg/service"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 // Options is what package main hands over: the files embedded in the binary.
@@ -53,45 +52,85 @@ func Run(opts Options) error {
 	a.serviceCfg = svcCfg
 	a.trayIcons = trayIcons{png: opts.TrayPNG, ico: opts.TrayICO}
 
-	return wails.Run(&options.App{
-		Title:  "SnmpLens",
-		Width:  1024,
-		Height: 768,
-		AssetServer: &assetserver.Options{
-			Assets: opts.Assets,
+	a.wails = application.New(application.Options{
+		Name: "SnmpLens",
+		// Every exported method of App is bound to the renderer. The lifecycle
+		// is the second service, and has no method the renderer can call.
+		Services: []application.Service{
+			application.NewService(a),
+			application.NewService(&lifecycle{a}),
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        a.startup,
-		OnShutdown:       a.shutdown,
-		// Launching straight to the tray, for a login item. If no tray
-		// materialises, startup shows the window anyway rather than leaving a
-		// process the user cannot reach.
-		StartHidden: svcCfg.StartHidden,
-		// HideWindowOnClose is deliberately NOT set. It is fixed here, before
-		// we know whether a tray icon actually appeared, and an app that
-		// refuses to close with no tray to quit from is unusable. OnBeforeClose
-		// makes the same decision later, when the answer is known.
-		OnBeforeClose: func(ctx context.Context) bool {
-			if a.hideInsteadOfClosing() {
-				runtime.WindowHide(ctx)
-				return true // swallow the close
-			}
-			return false
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(opts.Assets),
 		},
-		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId: "com.wasabules.snmplens",
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "com.wasabules.snmplens",
 			// Relaunching is how you get back to a hidden instance when the
 			// desktop has no usable tray.
-			OnSecondInstanceLaunch: func(options.SecondInstanceData) {
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 				a.RevealWindow()
 			},
 		},
-		DragAndDrop: &options.DragAndDrop{
-			EnableFileDrop:     true,
-			DisableWebViewDrop: false,
-		},
-		Bind: []interface{}{
-			a,
-		},
 	})
+
+	a.window = a.wails.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            "SnmpLens",
+		Width:            1024,
+		Height:           768,
+		URL:              startURL(),
+		BackgroundColour: application.NewRGB(27, 38, 54),
+		// Launching straight to the tray, for a login item. If no tray
+		// materialises, startup shows the window anyway rather than leaving a
+		// process the user cannot reach.
+		Hidden:         svcCfg.StartHidden,
+		EnableFileDrop: true,
+	})
+	// Closing is decided here, late, and not by an option fixed before we know
+	// whether a tray icon actually appeared: an app that refuses to close with no
+	// tray to quit from is unusable.
+	a.window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if a.hideInsteadOfClosing() {
+			a.window.Hide()
+			e.Cancel()
+		}
+	})
+	a.window.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
+		a.emit("files:dropped", e.Context().DroppedFiles())
+	})
+
+	return a.wails.Run()
+}
+
+// startURL keeps the page at the origin it has always had. localStorage belongs
+// to an origin, and localStorage is where the settings, the targets, the sealed
+// credentials and the history live. Wails 2 loaded wails://wails/ on macOS and
+// Linux; Wails 3's default is wails://localhost/, a different origin, so an
+// update would have opened on an empty application with everything still on disk
+// out of its reach. Windows is http://wails.localhost/ in both. A development
+// server has an origin of its own and nothing to keep.
+func startURL() string {
+	if goruntime.GOOS == "windows" || os.Getenv("FRONTEND_DEVSERVER_URL") != "" {
+		return ""
+	}
+	return "wails://wails/"
+}
+
+// lifecycle is App's startup and shutdown, apart from App: a service's hooks are
+// exported methods, and nothing the renderer can reach should be able to call
+// them or be confused with them.
+type lifecycle struct{ app *App }
+
+// ServiceStartup runs before any window exists.
+func (l *lifecycle) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
+	l.app.startup(ctx)
+	return nil
+}
+
+// ServiceShutdown runs once the windows are gone.
+func (l *lifecycle) ServiceShutdown() error {
+	l.app.shutdown()
+	return nil
 }

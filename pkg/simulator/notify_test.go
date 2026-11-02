@@ -406,7 +406,7 @@ func TestSnmpLensHearsTheSimulator(t *testing.T) {
 	// No context is a headless client: it journals what it hears and emits
 	// nothing to a window, where the Wails runtime would end the process.
 	//lint:ignore SA1012 a nil context is how pkg/snmp tells a headless client
-	client := snmp.NewClient(nil)
+	client := snmp.NewClient()
 	client.SetRecorder(events.RecorderFunc(func(e events.Event, _ string) error {
 		ch := traps
 		if e.Kind == events.KindTrapInform {

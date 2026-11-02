@@ -1,4 +1,4 @@
-import { InitializeNotifications, SendNotification, IsNotificationAvailable } from '../../wailsjs/runtime/runtime';
+import { NotificationsAvailable, SendNotification } from '../bridge/App';
 import { notificationText } from './notifyText';
 
 let initialized = false;
@@ -10,9 +10,8 @@ let counter = 0;
  */
 export async function initNotifications() {
   try {
-    available = await IsNotificationAvailable();
+    available = await NotificationsAvailable();
     if (available) {
-      await InitializeNotifications();
       initialized = true;
       console.log('Native notifications initialized');
     } else {
@@ -34,12 +33,12 @@ export async function sendNativeNotification(title, body, subtitle) {
 
   try {
     // Part of this text comes from the network; see utils/notifyText.js.
-    await SendNotification({
-      id: `snmplens-${++counter}`,
-      title: notificationText(title),
-      body: notificationText(body),
-      subtitle: notificationText(subtitle),
-    });
+    await SendNotification(
+      `snmplens-${++counter}`,
+      notificationText(title),
+      notificationText(subtitle),
+      notificationText(body),
+    );
   } catch (e) {
     console.warn('Failed to send native notification:', e);
   }

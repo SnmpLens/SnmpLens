@@ -1,8 +1,8 @@
 <script>
   import { _ } from 'svelte-i18n';
   import { get } from 'svelte/store';
-  import { SnmpDiscover, NetworkPing, NetworkTraceroute } from '../wailsjs/go/app/App';
-  import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
+  import { SnmpDiscover, NetworkPing, NetworkTraceroute } from './bridge/App';
+  import { EventsOn, EventsOff } from './bridge/runtime';
   import { settingsStore } from './stores/settingsStore';
   import { notificationStore } from './stores/notifications';
   import { escapeCSV, downloadFile } from './utils/csv';
@@ -67,7 +67,7 @@
       results = await SnmpDiscover(buildDiscoverRequest(withProfile($settingsStore, scanProfile), cidr.trim(), scanTimeout));
       notificationStore.add(t('discovery.scanComplete', { values: { count: reachableCount, total: results.length } }), 'success');
     } catch (err) {
-      notificationStore.add(t('discovery.scanFailed', { values: { error: err } }), 'error');
+      notificationStore.add(t('discovery.scanFailed', { values: { error: String(err) } }), 'error');
     } finally {
       isScanning = false;
       EventsOff('discoveryProgress');

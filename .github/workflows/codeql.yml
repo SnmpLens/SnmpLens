@@ -77,7 +77,7 @@ jobs:
           queries: security-and-quality
 
       # main.go carries `//go:embed all:frontend/dist`, and frontend/dist is
-      # produced by `wails build` and gitignored — so a plain `go build` fails
+      # produced by tools/build.mjs and gitignored — so a plain `go build` fails
       # with "pattern all:frontend/dist: no matching files found" before a single
       # query runs. That is why this job failed on every push and every pull
       # request, and why thirteen Dependabot PRs all showed two red checks that
@@ -95,10 +95,10 @@ jobs:
           echo '<!-- CodeQL placeholder -->' > frontend/dist/index.html
 
       # The Go analysis needs a real build. Autobuild would not know about the
-      # webkit2_41 tag, and would analyse a subset of the tree without saying so.
+      # gtk3 tag, and would analyse a subset of the tree without saying so.
       - name: Build Go
         if: matrix.language == 'go'
-        run: go build -tags webkit2_41 ./...
+        run: go build -tags gtk3 ./...
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1

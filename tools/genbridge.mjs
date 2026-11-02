@@ -60,8 +60,8 @@ for (const file of walk(join(repo, 'frontend', 'src'))) {
   // a refusal message written for that could never fire. Import the bridge
   // statically; there is nothing to defer, since a dozen components pull the
   // same module in anyway.
-  collect(/import\s*\{([^}]*)\}\s*from\s*['"][^'"]*wailsjs\/go\/app\/App['"]/g, appNames);
-  collect(/import\s*\{([^}]*)\}\s*from\s*['"][^'"]*wailsjs\/runtime[^'"]*['"]/g, runtimeNames);
+  collect(/import\s*\{([^}]*)\}\s*from\s*['"][^'"]*bridge\/App['"]/g, appNames);
+  collect(/import\s*\{([^}]*)\}\s*from\s*['"][^'"]*bridge\/runtime[^'"]*['"]/g, runtimeNames);
 }
 
 /* --- the specification --------------------------------------------------- */
@@ -244,11 +244,7 @@ rt.push('}');
 rt.push('');
 for (const name of [...runtimeNames].sort()) {
   if (name === 'EventsOn' || name === 'EventsOff') continue;
-  if (name === 'IsNotificationAvailable') {
-    rt.push(`export function ${name}() { return Promise.resolve(true); }`);
-  } else {
-    rt.push(`export function ${name}() {}`);
-  }
+  rt.push(`export function ${name}() {}`);
 }
 writeFileSync(join(outDir, 'runtime.js'), rt.join('\n') + '\n');
 

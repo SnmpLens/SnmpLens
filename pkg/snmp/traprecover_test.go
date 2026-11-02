@@ -1,7 +1,6 @@
 package snmp
 
 import (
-	"context"
 	"net"
 	"strings"
 	"testing"
@@ -9,23 +8,9 @@ import (
 	"SnmpLens/pkg/events"
 )
 
-// newHeadlessClient builds a Client with NO Wails context.
-//
-// handleTrap emits every received trap to the webview when it has one, and the
-// Wails runtime answers a context it did not issue by ENDING THE PROCESS —
-// which under test looks like a trap that was never handled, or an INFORM that
-// was never acknowledged, i.e. exactly the results these tests assert. The
-// guarded branch in handleTrap is `if c.ctx != nil`, so the field has to be
-// nil, not a background context.
-//
-// Assigned rather than passed, because staticcheck refuses a literal nil
-// Context (SA1012) and it is right to: the reason this one is nil is a
-// property of the code under test, and it belongs in a comment rather than in
-// eight call sites.
+// newHeadlessClient builds a Client with no window to tell anything to.
 func newHeadlessClient() *Client {
-	c := NewClient(context.TODO())
-	c.ctx = nil
-	return c
+	return NewClient()
 }
 
 // A panic while handling one datagram must cost that datagram and nothing

@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import { MibFileStatuses } from '../../wailsjs/go/app/App';
+import { MibFileStatuses } from '../bridge/App';
 import { mibDiagnostics } from './mibStore';
 import { mutedRules } from './mutedRules';
 

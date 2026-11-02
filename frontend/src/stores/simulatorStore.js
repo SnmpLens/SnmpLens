@@ -22,8 +22,8 @@ import {
   SimulatorSetFaults,
   SimulatorPreview,
   TrapListenerEngineID,
-} from '../../wailsjs/go/app/App';
-import { EventsOn } from '../../wailsjs/runtime/runtime';
+} from '../bridge/App';
+import { EventsOn } from '../bridge/runtime';
 
 /**
  * The simulated devices and the models they are made from, as Go holds them.

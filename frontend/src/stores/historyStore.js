@@ -6,7 +6,7 @@ import {
   DeleteHistoryEntries,
   ClearHistory as ClearHistoryBackend,
   ImportHistoryEntries,
-} from '../../wailsjs/go/app/App';
+} from '../bridge/App';
 
 // History is persisted in SQLite (via the Go backend) — not localStorage.
 // The store keeps an in-memory mirror (newest first) so every reactive

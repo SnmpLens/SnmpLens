@@ -12,7 +12,7 @@
     ListMapAssets,
     ImportMapAssetDialog,
     DeleteMapAsset,
-  } from '../../wailsjs/go/app/App';
+  } from '../bridge/App';
 
   // The preset library.
   //

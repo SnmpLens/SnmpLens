@@ -5,7 +5,7 @@ import {
   MibEditorSaveDraft,
   MibEditorReadDraft,
   MibEditorDiscardDraft,
-} from '../../wailsjs/go/app/App';
+} from '../bridge/App';
 import { mutedRules } from './mutedRules';
 
 // The editor's state lives here, not in the panel component.

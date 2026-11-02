@@ -61,12 +61,11 @@ check('only utils/nativeNotify.js reaches SendNotification',
   callers.length === 1 && callers[0] === 'utils/nativeNotify.js', callers.join(', '));
 
 const door = readFileSync(join(src, 'utils', 'nativeNotify.js'), 'utf8');
-// Anchored on a word boundary: `subtitle: notificationText(` contains
-// `title: notificationText(`, and the unanchored pattern passed with the title
-// left raw.
+// By the argument each call is given: the three travel as positional arguments,
+// so what is checked is that every one goes through the cleaner under its name.
 for (const field of ['title', 'body', 'subtitle']) {
   check(`nativeNotify.js cleans the ${field}`,
-    new RegExp(`\\b${field}:\\s*notificationText\\(\\s*${field}\\s*\\)`).test(door));
+    new RegExp(`\\bnotificationText\\(\\s*${field}\\s*\\)`).test(door));
 }
 
 process.exit(failures ? 1 : 0);

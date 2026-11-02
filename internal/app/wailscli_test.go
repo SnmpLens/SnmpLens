@@ -4,7 +4,7 @@ package app
 // one of them is where Dependabot looks.
 //
 // The library is a requirement in go.mod. The CLI is a `go install
-// .../cmd/wails@vX` inside a `run:` step of ci.yml and release.yml, which
+// .../cmd/wails3@vX` inside a `run:` step of ci.yml and release.yml, which
 // Dependabot does not read — the blind spot staticcheck's pin sits in too. It
 // costs more here: the CLI writes frontend/wailsjs/runtime, the JavaScript half
 // of the bridge whose Go half is the library, so a release built across the gap
@@ -15,7 +15,9 @@ package app
 // installing 2.16.0.
 //
 // So every install of the CLI is pinned to what go.mod requires, and a bump of
-// either fails here until the other follows.
+// either fails here until the other follows. The npm package is a third half, and
+// the one Dependabot moves on its own day: frontend/package.json pins it to the
+// same version, an exact one, since the JavaScript it holds speaks to the library.
 
 import (
 	"os"
@@ -34,7 +36,7 @@ func TestEveryWorkflowInstallsTheWailsCLIGoModRequires(t *testing.T) {
 		t.Fatalf("reading %s: %v", dir, err)
 	}
 
-	install := regexp.MustCompile(`github\.com/wailsapp/wails/v2/cmd/wails@(\S+)`)
+	install := regexp.MustCompile(`github\.com/wailsapp/wails/v3/cmd/wails3@(\S+)`)
 	found := 0
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".yml") && !strings.HasSuffix(e.Name(), ".yaml") {
@@ -62,6 +64,23 @@ func TestEveryWorkflowInstallsTheWailsCLIGoModRequires(t *testing.T) {
 	}
 }
 
+func TestTheWailsRuntimePackageIsTheVersionGoModRequires(t *testing.T) {
+	want := strings.TrimPrefix(wailsVersionFromGoMod(t), "v")
+
+	body, err := os.ReadFile(filepath.Join(repoRoot, "frontend", "package.json"))
+	if err != nil {
+		t.Fatalf("reading package.json: %v", err)
+	}
+	m := regexp.MustCompile(`"@wailsio/runtime":\s*"([^"]+)"`).FindSubmatch(body)
+	if m == nil {
+		t.Fatal("frontend/package.json does not depend on @wailsio/runtime")
+	}
+	if string(m[1]) != want {
+		t.Errorf("frontend/package.json pins @wailsio/runtime at %q, but go.mod builds against %s: move both in one commit",
+			m[1], want)
+	}
+}
+
 func wailsVersionFromGoMod(t *testing.T) string {
 	t.Helper()
 
@@ -69,9 +88,9 @@ func wailsVersionFromGoMod(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("reading go.mod: %v", err)
 	}
-	m := regexp.MustCompile(`github\.com/wailsapp/wails/v2 (v[0-9]+\.[0-9]+\.[0-9]+)`).FindSubmatch(body)
+	m := regexp.MustCompile(`github\.com/wailsapp/wails/v3 (v[0-9]+\.[0-9]+\.[0-9]+)`).FindSubmatch(body)
 	if m == nil {
-		t.Fatal("go.mod does not require github.com/wailsapp/wails/v2")
+		t.Fatal("go.mod does not require github.com/wailsapp/wails/v3")
 	}
 	return string(m[1])
 }

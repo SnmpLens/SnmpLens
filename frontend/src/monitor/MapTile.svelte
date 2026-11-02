@@ -2,7 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { oidName } from '../utils/oidDisplay';
   import { latestFor, stateText, stateKind } from '../utils/stateColour';
-  import { ReadMapAsset } from '../../wailsjs/go/app/App';
+  import { ReadMapAsset } from '../bridge/App';
 
   /**
    * A drawing whose parts are readings.

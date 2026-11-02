@@ -5,7 +5,7 @@ import {
   SettingsAdoptKey,
   SettingsKeyStatus,
   SettingsForgetKey,
-} from '../../wailsjs/go/app/App';
+} from '../bridge/App';
 
 /**
  * Sealing the credentials kept in localStorage.

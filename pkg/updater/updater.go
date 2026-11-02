@@ -74,7 +74,7 @@ type Service struct {
 	client *http.Client
 
 	mu      sync.Mutex
-	ctx     context.Context
+	host    Host
 	pending *pending
 }
 
@@ -87,20 +87,27 @@ func NewService(owner, repo string) *Service {
 	}
 }
 
-// SetContext stores the Wails context used for browser-open and progress events.
-func (s *Service) SetContext(ctx context.Context) {
+// Host is what applying an update asks of the application around it.
+type Host struct {
+	// OpenURL sends the operator to a page in their browser.
+	OpenURL func(url string)
+	// Progress reports a download's progress in whole percent.
+	Progress func(percent int)
+	// Quit ends the application so that what replaces it can start.
+	Quit func()
+}
+
+// SetHost says how to reach the application. Set it before any update is applied.
+func (s *Service) SetHost(h Host) {
 	s.mu.Lock()
-	s.ctx = ctx
+	s.host = h
 	s.mu.Unlock()
 }
 
-func (s *Service) context() context.Context {
+func (s *Service) currentHost() Host {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.ctx != nil {
-		return s.ctx
-	}
-	return context.Background()
+	return s.host
 }
 
 // CheckForUpdate queries the latest release and reports whether it is newer than
@@ -112,7 +119,7 @@ func (s *Service) CheckForUpdate() (UpdateInfo, error) {
 		return info, nil
 	}
 
-	ctx, cancel := context.WithTimeout(s.context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	rel, err := s.latestRelease(ctx)

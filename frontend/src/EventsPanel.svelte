@@ -13,7 +13,7 @@
   import { formatTimestamp } from './utils/formatting';
   import { anonMode, anonymizeIp, anonymizeText } from './utils/anonymize';
   import { escapeCSV, downloadFile } from './utils/csv';
-  import { EventsPayload } from '../wailsjs/go/app/App';
+  import { EventsPayload } from './bridge/App';
   import { displayTarget as labelled } from './utils/targets';
 
   const CATEGORIES = ['trap', 'threshold', 'reachability', 'system'];

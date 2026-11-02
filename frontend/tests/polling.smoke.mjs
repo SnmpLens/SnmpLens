@@ -74,8 +74,8 @@ writeFileSync(join(dir, 'stub.js'), stub);
 const alias = {
   name: 'alias',
   setup(b) {
-    b.onResolve({ filter: /wailsjs[/]go[/]app[/]App$/ }, () => ({ path: join(dir, 'stub.js') }));
-    b.onResolve({ filter: /wailsjs[/]runtime[/]runtime$/ }, () => ({ path: join(dir, 'stub.js') }));
+    b.onResolve({ filter: /bridge[/]App$/ }, () => ({ path: join(dir, 'stub.js') }));
+    b.onResolve({ filter: /bridge[/]runtime$/ }, () => ({ path: join(dir, 'stub.js') }));
   },
 };
 

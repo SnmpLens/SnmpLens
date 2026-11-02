@@ -58,7 +58,7 @@ func newLiveApp(t *testing.T) *liveApp {
 	// Headless: a client whose context the Wails runtime did not issue ends the
 	// process the first time it emits, which a received trap does.
 	//lint:ignore SA1012 a nil context is how pkg/snmp tells a headless client
-	a.snmpClient = snmp.NewClient(nil)
+	a.snmpClient = snmp.NewClient()
 	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
 	a.trapEngineID = loadTrapEngineID(t.TempDir())
 	a.snmpClient.SetTrapEngineID(a.trapEngineID)

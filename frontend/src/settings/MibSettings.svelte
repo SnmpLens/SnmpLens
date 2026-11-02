@@ -9,7 +9,7 @@
   import { notificationStore } from '../stores/notifications';
   import Icon from '../Icon.svelte';
   import MibDiagnosis from '../mib/MibDiagnosis.svelte';
-  import { MibDiagnose, BrowseDialog, ListMibFiles, MibDependencyGraph, OpenFolder } from '../../wailsjs/go/app/App';
+  import { MibDiagnose, BrowseDialog, ListMibFiles, MibDependencyGraph, OpenFolder } from '../bridge/App';
   import { dependencyRoll, symbolsWanted, ABSENT, FAILED } from '../utils/mibDependencies';
   import { byVerdict, countVerdicts, LEVELS, ICONS as VERDICT_ICONS } from '../utils/mibVerdict';
   import { mibStatusStore } from '../stores/mibStatusStore';

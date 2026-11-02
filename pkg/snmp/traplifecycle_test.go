@@ -1,7 +1,6 @@
 package snmp
 
 import (
-	"context"
 	"sync"
 	"testing"
 	"time"
@@ -23,7 +22,7 @@ import (
 // being torn down.
 
 func TestStartAndStopDoNotRace(t *testing.T) {
-	c := NewClient(context.TODO())
+	c := NewClient()
 	c.SetRecorder(events.Nop{})
 
 	port := freePort(t)
@@ -56,7 +55,7 @@ func TestStartAndStopDoNotRace(t *testing.T) {
 // Stopping a listener that was never started is a normal thing for shutdown to
 // do, and must not panic or block.
 func TestStoppingAListenerThatIsNotRunning(t *testing.T) {
-	c := NewClient(context.TODO())
+	c := NewClient()
 	c.StopTrapListener()
 	c.StopTrapListener()
 }
@@ -64,7 +63,7 @@ func TestStoppingAListenerThatIsNotRunning(t *testing.T) {
 // Starting twice must be refused rather than losing the first listener, which
 // would leave a socket bound with nothing able to close it.
 func TestStartingTwiceIsRefused(t *testing.T) {
-	c := NewClient(context.TODO())
+	c := NewClient()
 	c.SetRecorder(events.Nop{})
 	port := freePort(t)
 
@@ -98,7 +97,7 @@ func TestStartingTwiceIsRefused(t *testing.T) {
 // Measured rather than asserted in the abstract: this fails at ~2s against the
 // old implementation and passes in milliseconds against the current one.
 func TestStoppingABoundListenerIsImmediate(t *testing.T) {
-	c := NewClient(context.TODO())
+	c := NewClient()
 	c.SetRecorder(events.Nop{})
 	port := freePort(t)
 
@@ -123,7 +122,7 @@ func TestStoppingABoundListenerIsImmediate(t *testing.T) {
 // And after a clean stop, starting again must work — otherwise changing the
 // trap port would need a restart.
 func TestStartStopStart(t *testing.T) {
-	c := NewClient(context.TODO())
+	c := NewClient()
 	c.SetRecorder(events.Nop{})
 	port := freePort(t)
 

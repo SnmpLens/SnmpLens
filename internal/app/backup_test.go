@@ -76,7 +76,9 @@ func fillForBackup(t *testing.T, a *App) (sinkID, sessionID, deviceID string) {
 	assetDir, _ := a.assetDir()
 	writePNG(t, filepath.Join(assetDir, "rack.png"), 64, 32)
 
-	a.serviceCfg = service.Config{RunInBackground: true, TrapPort: 1162}
+	// Not RunInBackground: restoring that starts a real tray icon, which macOS
+	// refuses to create anywhere but on the main thread of a real application.
+	a.serviceCfg = service.Config{AutoResumeMonitors: true, TrapPort: 1162}
 	a.trapEngineID = []byte{0x80, 0, 0, 0, 5, 1, 2, 3, 4, 5, 6, 7, 8}
 	return sink.ID, sessionID, dev.ID
 }
@@ -156,7 +158,7 @@ func TestABackupRestoresEverythingItHoldsOnAnotherMachine(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(assetDir, "rack.png")); err != nil {
 		t.Errorf("background: %v", err)
 	}
-	if !dst.serviceCfg.RunInBackground || dst.serviceCfg.TrapPort != 1162 {
+	if !dst.serviceCfg.AutoResumeMonitors || dst.serviceCfg.TrapPort != 1162 {
 		t.Errorf("service = %+v", dst.serviceCfg)
 	}
 	if got := dst.TrapListenerEngineID(); got != src.TrapListenerEngineID() {

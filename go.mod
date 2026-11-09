@@ -10,7 +10,7 @@ require (
 	github.com/minio/selfupdate v0.6.0
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/sleepinggenius2/gosmi v0.4.4
-	github.com/wailsapp/wails/v2 v2.17.0
+	github.com/wailsapp/wails/v2 v2.17.1
 	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0

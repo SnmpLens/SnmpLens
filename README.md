@@ -252,6 +252,13 @@ at, is on [the comparison page](https://snmplens.com/comparison.html).
 
 See the [security policy](SECURITY.md) for how to report a vulnerability.
 
+### Backup & Restore
+
+- **One file for the whole configuration** — targets, groups, credential profiles and settings; alert destinations and routes; monitoring sessions; presets and map backgrounds; simulated devices and models; background mode; optionally the MIBs you added. Never the history
+- **Secrets under your passphrase** — communities, SNMPv3 passphrases and tokens are encrypted with a passphrase you choose (Argon2id and AES-256-GCM); without it, everything else still restores
+- **Nothing is deleted** — a restore adds, or replaces what is the same item; a monitoring session that already exists keeps its history
+- **Undo** — the configuration as it was is backed up automatically before every restore, and the last five are one click away
+
 ### UI / UX
 
 - **Dark / Light Theme** with system detection or manual toggle

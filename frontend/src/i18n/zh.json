@@ -654,7 +654,8 @@
       "snmp": "SNMP",
       "notify": "通知",
       "service": "服务",
-      "presets": "预设"
+      "presets": "预设",
+      "backup": "备份"
     },
     "general": {
       "updatesTitle": "更新",
@@ -1816,5 +1817,52 @@
         "packageIgnored": "{name}：“{detail}”不是型号包会读取的文件，已被略过"
       }
     }
+  },
+  "backup": {
+    "exportTitle": "备份配置",
+    "exportHint": "目标、分组、凭据配置文件和设置；告警目的地和路由；监控会话（不含其历史）；预设和地图背景；模拟设备和模型；后台模式以及 Trap 监听器的引擎 ID。",
+    "includeSecrets": "包含团体名、口令和令牌",
+    "secretsHint": "它们用您选择的口令加密，至少 {min} 个字符。没有口令就无法恢复它们；其他内容都可以恢复。",
+    "passphrase": "口令",
+    "passphraseConfirm": "再次输入口令",
+    "passphraseShort": "至少 {min} 个字符。",
+    "passphraseMismatch": "两次输入的口令不一致。",
+    "includeMibs": "包含您添加的 MIB",
+    "export": "备份…",
+    "exported": "配置已保存到 {path}",
+    "restoreTitle": "恢复备份",
+    "restoreHint": "设置会被替换。其他内容会被添加，若为同一项则被替换：不会删除任何内容，已存在的监控会话保留其历史。",
+    "choose": "选择备份…",
+    "from": "由 SnmpLens {version} 于 {date} 创建",
+    "c": {
+      "settings": "设置、目标和凭据配置文件",
+      "sinks": "告警目的地：{count}",
+      "routes": "告警路由：{count}",
+      "sessions": "监控会话：{count}",
+      "devices": "模拟设备：{count}",
+      "models": "模拟器模型：{count}",
+      "presets": "预设：{count}",
+      "assets": "地图背景：{count}",
+      "mibs": "MIB：{count}",
+      "service": "后台模式",
+      "trapEngine": "Trap 监听器的引擎 ID"
+    },
+    "noSecrets": "其中不含团体名、口令或令牌。",
+    "hasSecrets": "其中包含加密的团体名、口令和令牌。",
+    "automaticSecrets": "由本机上的 SnmpLens 创建：其机密无需口令即可打开。",
+    "passphraseOptional": "口令 — 留空则恢复其他所有内容",
+    "restoreWarning": "会先备份当前配置，然后应用程序重新加载以应用恢复。",
+    "restore": "恢复",
+    "restoring": "正在恢复…",
+    "restored": "配置已恢复。",
+    "restoredWith": "配置已恢复，有 {count} 个问题。",
+    "problem": {
+      "notSealed": "无法在本机上加密凭据，因此未恢复凭据。",
+      "rendererUnreadable": "无法读取此备份中的设置，因此未恢复设置。"
+    },
+    "automaticTitle": "每次恢复之前",
+    "automaticHint": "SnmpLens 在每次恢复前备份配置，并保留最近 {count} 份。恢复其中一份即可撤销其后的那次恢复。",
+    "automaticEmpty": "暂无。",
+    "undo": "恢复此备份"
   }
 }

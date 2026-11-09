@@ -86,6 +86,10 @@ func SettingsKeyRef() string { return "settings/local/key" }
 // none of these, because a configuration file is what gets copied and shared.
 func SimulatorDeviceRef(deviceID string) string { return "simulator/" + deviceID + "/secrets" }
 
+// BackupRef is where the passphrase of a backup SnmpLens made on its own is kept,
+// so that this machine can open it and nothing else needs to know it.
+func BackupRef(name string) string { return "backup/" + name + "/passphrase" }
+
 // keyProtector guards the data-encryption key. Each OS gets the strongest
 // mechanism available without a new dependency.
 type keyProtector interface {

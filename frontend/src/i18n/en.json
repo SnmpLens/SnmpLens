@@ -654,7 +654,8 @@
       "snmp": "SNMP",
       "notify": "Notifications",
       "service": "Service",
-      "presets": "Presets"
+      "presets": "Presets",
+      "backup": "Backup"
     },
     "general": {
       "updatesTitle": "Updates",
@@ -1816,5 +1817,52 @@
         "packageIgnored": "{name}: “{detail}” is not a file a package reads, and was left out"
       }
     }
+  },
+  "backup": {
+    "exportTitle": "Back up the configuration",
+    "exportHint": "Targets, groups, credential profiles and settings; alert destinations and routes; monitoring sessions, without their history; presets and map backgrounds; simulated devices and models; background mode and the trap listener's engine ID.",
+    "includeSecrets": "Include communities, passphrases and tokens",
+    "secretsHint": "They are encrypted with a passphrase you choose, of at least {min} characters. Without it they cannot be recovered; everything else can.",
+    "passphrase": "Passphrase",
+    "passphraseConfirm": "Passphrase again",
+    "passphraseShort": "At least {min} characters.",
+    "passphraseMismatch": "The two passphrases differ.",
+    "includeMibs": "Include the MIBs you added",
+    "export": "Back up…",
+    "exported": "Configuration saved to {path}",
+    "restoreTitle": "Restore a backup",
+    "restoreHint": "The settings are replaced. Everything else is added, or replaced when it is the same item: nothing is deleted, and a monitoring session that already exists keeps its history.",
+    "choose": "Choose a backup…",
+    "from": "Made on {date} by SnmpLens {version}",
+    "c": {
+      "settings": "Settings, targets and credential profiles",
+      "sinks": "Alert destinations: {count}",
+      "routes": "Alert routes: {count}",
+      "sessions": "Monitoring sessions: {count}",
+      "devices": "Simulated devices: {count}",
+      "models": "Simulator models: {count}",
+      "presets": "Presets: {count}",
+      "assets": "Map backgrounds: {count}",
+      "mibs": "MIBs: {count}",
+      "service": "Background mode",
+      "trapEngine": "The trap listener's engine ID"
+    },
+    "noSecrets": "It holds no communities, passphrases or tokens.",
+    "hasSecrets": "It holds communities, passphrases and tokens, encrypted.",
+    "automaticSecrets": "Made by SnmpLens on this machine: its secrets open without a passphrase.",
+    "passphraseOptional": "Passphrase — leave it empty to restore everything else",
+    "restoreWarning": "What is here now is backed up first, and the application reloads to apply the restore.",
+    "restore": "Restore",
+    "restoring": "Restoring…",
+    "restored": "Configuration restored.",
+    "restoredWith": "Configuration restored, with {count} problem(s).",
+    "problem": {
+      "notSealed": "The credentials could not be sealed on this machine, so they were not restored.",
+      "rendererUnreadable": "The settings in this backup could not be read, so they were not restored."
+    },
+    "automaticTitle": "Before each restore",
+    "automaticHint": "SnmpLens backs up the configuration before every restore and keeps the last {count}. Restoring one undoes the restore that followed it.",
+    "automaticEmpty": "None yet.",
+    "undo": "Restore this one"
   }
 }

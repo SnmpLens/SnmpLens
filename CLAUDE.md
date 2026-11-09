@@ -254,6 +254,38 @@ Persistent data location (`os.UserConfigDir()` + `SnmpLens/`):
 Contains `mibs/` (extracted + user MIBs), `presets/` (dashboard presets — a SIBLING of `mibs/`, never inside
 it) and `monitoring.db`.
 
+## Backup and restore
+
+*Settings → Backup* writes the configuration to one file and reads it back (`pkg/backup` for the format,
+`internal/app/backup.go` for what goes in it, `utils/backupState.js` for the renderer's half). Configuration, never
+history: the renderer's settings and the stores a person builds up, the alert destinations and routes, the
+monitoring sessions without their samples, the simulated devices and models, the presets and map backgrounds, the
+background-mode preferences, the trap listener's engine ID (devices sending acknowledged v3 notifications localised
+their keys to it) and, if asked, the MIBs added to the directory.
+
+**The secrets are never in the file in the clear.** On the machine they are sealed with a key the OS holds, and that
+key does not leave it, so a backup carries them sealed under a passphrase instead: Argon2id at RFC 9106's second
+parameter set, AES-256-GCM, the manifest as associated data so one backup's secrets cannot be spliced into another.
+The parameters are read from the file and bounded, or a file could ask for sixteen gigabytes per guess. Without the
+passphrase everything else restores. The renderer's credentials leave through `takeSecrets` and come back through
+`giveSecrets`, both walking `fields()` — the list sealing walks — and are sealed under this machine's key before the
+settings are written; if this machine's store cannot seal, the settings are written without them and the report says
+so. Never the plaintext.
+
+**A restore adds and replaces, and never deletes.** The settings are one document and are replaced; the rest is
+matched by ID or file name. A monitoring session that exists is left alone, because replacing it would drop its
+history. A simulated device keeps its engine ID and the higher of the two boot counts. Every file goes through the
+importer it would face if dropped on the window — the preset gate, imagegate, the model reader, the MIB import —
+so a backup is not a way around any of them. The secrets are opened BEFORE anything is written: a wrong passphrase
+is said while there is nothing to undo, and the backup stays open for another try.
+
+**Every restore is undoable.** Before writing, the configuration as it stands is backed up into `backups/` beside
+`monitoring.db`, secrets included, sealed under a random passphrase kept in `pkg/secrets` (`BackupRef`): this machine
+opens it without asking, and the last five are listed in the same section. The renderer then writes what came back
+and RELOADS, so that no open dialog holding the old settings can save them over the restored ones; the report
+crosses the reload in sessionStorage. A backup is read like any file somebody else wrote: entries counted, each read
+through a limit, names a known folder and a plain file name, and anything else in the archive refused.
+
 ## Frontend layout (`frontend/src/`)
 
 - `App.svelte` — top-level tabbed shell (Operations / Traps / History / Monitor / Dashboard / Discovery), global keyboard shortcuts, resizable MIB panel, file-drop wiring.

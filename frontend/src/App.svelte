@@ -4,6 +4,7 @@
   import { get } from 'svelte/store';
   import { _ } from 'svelte-i18n';
   import { notificationStore } from './stores/notifications';
+  import { takeRestoreReport } from './utils/backupState';
   import { initNotifications } from './utils/nativeNotify';
   import MibPanel from './MibPanel.svelte';
   import OperationsPanel from './OperationsPanel.svelte';
@@ -360,9 +361,27 @@
     settingsRequest.set(null);
   }
 
+  function reportRestore(report) {
+    if (!report) return;
+    const t = get(_);
+    const problems = [
+      ...(report.renderer || []).map((key) => t(`backup.problem.${key}`)),
+      ...(report.problems || []),
+    ];
+    if (problems.length === 0) {
+      notificationStore.add(t('backup.restored'), 'success');
+      return;
+    }
+    notificationStore.add(t('backup.restoredWith', { values: { count: problems.length } }), 'warning', 10000);
+    for (const p of problems.slice(0, 6)) notificationStore.add(p, 'error', 15000);
+  }
+
   onMount(async () => {
     // Load saved panel width
     loadPanelWidth();
+
+    // A restore reloads the window to apply itself; what it found is said here.
+    reportRestore(takeRestoreReport(sessionStorage));
 
     // The tray menu is built by Go before any locale is known, so push the
     // translated wording now. Go keeps no catalogue of its own: a second one

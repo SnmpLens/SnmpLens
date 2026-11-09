@@ -654,7 +654,8 @@
       "snmp": "SNMP",
       "notify": "Notifications",
       "service": "Service",
-      "presets": "Presets"
+      "presets": "Presets",
+      "backup": "Sauvegarde"
     },
     "general": {
       "updatesTitle": "Mises à jour",
@@ -1816,5 +1817,52 @@
         "packageIgnored": "{name} : « {detail} » n’est pas un fichier que lit un paquet, et a été écarté"
       }
     }
+  },
+  "backup": {
+    "exportTitle": "Sauvegarder la configuration",
+    "exportHint": "Cibles, groupes, profils d'identification et réglages ; destinations et routes d'alerte ; sessions de monitoring, sans leur historique ; presets et fonds de carte ; appareils et modèles simulés ; mode arrière-plan et identifiant moteur de l'écouteur de traps.",
+    "includeSecrets": "Inclure les communautés, phrases de passe et jetons",
+    "secretsHint": "Ils sont chiffrés avec une phrase de passe que vous choisissez, d'au moins {min} caractères. Sans elle, ils sont irrécupérables ; tout le reste se restaure.",
+    "passphrase": "Phrase de passe",
+    "passphraseConfirm": "Phrase de passe, à nouveau",
+    "passphraseShort": "Au moins {min} caractères.",
+    "passphraseMismatch": "Les deux phrases de passe diffèrent.",
+    "includeMibs": "Inclure les MIB que vous avez ajoutées",
+    "export": "Sauvegarder…",
+    "exported": "Configuration enregistrée dans {path}",
+    "restoreTitle": "Restaurer une sauvegarde",
+    "restoreHint": "Les réglages sont remplacés. Tout le reste est ajouté, ou remplacé s'il s'agit du même élément : rien n'est supprimé, et une session de monitoring qui existe déjà garde son historique.",
+    "choose": "Choisir une sauvegarde…",
+    "from": "Faite le {date} par SnmpLens {version}",
+    "c": {
+      "settings": "Réglages, cibles et profils d'identification",
+      "sinks": "Destinations d'alerte : {count}",
+      "routes": "Routes d'alerte : {count}",
+      "sessions": "Sessions de monitoring : {count}",
+      "devices": "Appareils simulés : {count}",
+      "models": "Modèles du simulateur : {count}",
+      "presets": "Presets : {count}",
+      "assets": "Fonds de carte : {count}",
+      "mibs": "MIB : {count}",
+      "service": "Mode arrière-plan",
+      "trapEngine": "L'identifiant moteur de l'écouteur de traps"
+    },
+    "noSecrets": "Elle ne contient ni communauté, ni phrase de passe, ni jeton.",
+    "hasSecrets": "Elle contient des communautés, phrases de passe et jetons, chiffrés.",
+    "automaticSecrets": "Faite par SnmpLens sur cette machine : ses secrets s'ouvrent sans phrase de passe.",
+    "passphraseOptional": "Phrase de passe — laissez vide pour restaurer tout le reste",
+    "restoreWarning": "La configuration actuelle est d'abord sauvegardée, puis l'application se recharge pour appliquer la restauration.",
+    "restore": "Restaurer",
+    "restoring": "Restauration…",
+    "restored": "Configuration restaurée.",
+    "restoredWith": "Configuration restaurée, avec {count} problème(s).",
+    "problem": {
+      "notSealed": "Les identifiants n'ont pas pu être scellés sur cette machine, ils n'ont donc pas été restaurés.",
+      "rendererUnreadable": "Les réglages de cette sauvegarde sont illisibles, ils n'ont donc pas été restaurés."
+    },
+    "automaticTitle": "Avant chaque restauration",
+    "automaticHint": "SnmpLens sauvegarde la configuration avant chaque restauration et garde les {count} dernières. En restaurer une annule la restauration qui l'a suivie.",
+    "automaticEmpty": "Aucune pour l'instant.",
+    "undo": "Restaurer celle-ci"
   }
 }

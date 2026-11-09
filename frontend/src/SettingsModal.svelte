@@ -12,6 +12,7 @@
   import SnmpSettings from './settings/SnmpSettings.svelte';
   import NotifySettings from './settings/NotifySettings.svelte';
   import ServiceSettings from './settings/ServiceSettings.svelte';
+  import BackupSettings from './settings/BackupSettings.svelte';
   import Icon from './Icon.svelte';
 
   const dispatch = createEventDispatcher();
@@ -38,6 +39,7 @@
     { id: 'snmp', icon: 'globe' },
     { id: 'notify', icon: 'bell' },
     { id: 'service', icon: 'server-cog' },
+    { id: 'backup', icon: 'archive' },
   ];
 
   let activeTab = SECTIONS.some((s) => s.id === initial?.section) ? initial.section : 'general';
@@ -132,6 +134,10 @@
 
         {#if activeTab === 'service'}
           <ServiceSettings />
+        {/if}
+
+        {#if activeTab === 'backup'}
+          <BackupSettings />
         {/if}
       </div>
     </div>

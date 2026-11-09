@@ -654,7 +654,8 @@
       "snmp": "SNMP",
       "notify": "Notificaciones",
       "service": "Servicio",
-      "presets": "Presets"
+      "presets": "Presets",
+      "backup": "Copia de seguridad"
     },
     "general": {
       "updatesTitle": "Actualizaciones",
@@ -1816,5 +1817,52 @@
         "packageIgnored": "{name}: «{detail}» no es un archivo que lea un paquete, y se omitió"
       }
     }
+  },
+  "backup": {
+    "exportTitle": "Guardar la configuración",
+    "exportHint": "Destinos, grupos, perfiles de credenciales y ajustes; destinos y rutas de alerta; sesiones de monitorización, sin su historial; presets y fondos de mapa; dispositivos y modelos simulados; modo en segundo plano y el ID de motor del receptor de traps.",
+    "includeSecrets": "Incluir comunidades, frases de paso y tokens",
+    "secretsHint": "Se cifran con una frase de paso que usted elige, de al menos {min} caracteres. Sin ella no se pueden recuperar; todo lo demás sí.",
+    "passphrase": "Frase de paso",
+    "passphraseConfirm": "Frase de paso, de nuevo",
+    "passphraseShort": "Al menos {min} caracteres.",
+    "passphraseMismatch": "Las dos frases de paso no coinciden.",
+    "includeMibs": "Incluir las MIB que ha añadido",
+    "export": "Guardar…",
+    "exported": "Configuración guardada en {path}",
+    "restoreTitle": "Restaurar una copia",
+    "restoreHint": "Los ajustes se sustituyen. Todo lo demás se añade, o se sustituye si es el mismo elemento: no se borra nada, y una sesión de monitorización que ya existe conserva su historial.",
+    "choose": "Elegir una copia…",
+    "from": "Creada el {date} por SnmpLens {version}",
+    "c": {
+      "settings": "Ajustes, destinos y perfiles de credenciales",
+      "sinks": "Destinos de alerta: {count}",
+      "routes": "Rutas de alerta: {count}",
+      "sessions": "Sesiones de monitorización: {count}",
+      "devices": "Dispositivos simulados: {count}",
+      "models": "Modelos del simulador: {count}",
+      "presets": "Presets: {count}",
+      "assets": "Fondos de mapa: {count}",
+      "mibs": "MIB: {count}",
+      "service": "Modo en segundo plano",
+      "trapEngine": "El ID de motor del receptor de traps"
+    },
+    "noSecrets": "No contiene comunidades, frases de paso ni tokens.",
+    "hasSecrets": "Contiene comunidades, frases de paso y tokens, cifrados.",
+    "automaticSecrets": "Creada por SnmpLens en este equipo: sus secretos se abren sin frase de paso.",
+    "passphraseOptional": "Frase de paso — déjela vacía para restaurar todo lo demás",
+    "restoreWarning": "Primero se guarda la configuración actual y luego la aplicación se recarga para aplicar la restauración.",
+    "restore": "Restaurar",
+    "restoring": "Restaurando…",
+    "restored": "Configuración restaurada.",
+    "restoredWith": "Configuración restaurada, con {count} problema(s).",
+    "problem": {
+      "notSealed": "Las credenciales no se pudieron sellar en este equipo, así que no se restauraron.",
+      "rendererUnreadable": "Los ajustes de esta copia no se pueden leer, así que no se restauraron."
+    },
+    "automaticTitle": "Antes de cada restauración",
+    "automaticHint": "SnmpLens guarda la configuración antes de cada restauración y conserva las {count} últimas. Restaurar una deshace la restauración que la siguió.",
+    "automaticEmpty": "Ninguna por ahora.",
+    "undo": "Restaurar esta"
   }
 }

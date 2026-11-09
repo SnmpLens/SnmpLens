@@ -805,7 +805,8 @@
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
     "hopRtt3": "RTT 3",
-    "ports": "Mapa de puertos"
+    "ports": "Mapa de puertos",
+    "topology": "Topología"
   },
   "debug": {
     "title": "Debug SNMP",
@@ -1899,6 +1900,32 @@
       "mac": "Dirección MAC",
       "ip": "Dirección IP",
       "name": "Nombre"
+    }
+  },
+  "topology": {
+    "noTargets": "Añada primero los equipos como destinos.",
+    "devices": "Equipos de partida: {count}",
+    "depth": "Seguir a los vecinos",
+    "depthNone": "No — solo estos equipos",
+    "depthHops": "{count} salto(s) más allá",
+    "depthHint": "Un vecino se sigue en la dirección de gestión que da LLDP o CDP, y se consulta con sus propias credenciales si es un destino, si no con las predeterminadas. Como máximo 64 equipos.",
+    "draw": "Dibujar el mapa",
+    "cancel": "Detener",
+    "walking": "Recorriendo los equipos…",
+    "progress": "{walked} equipo(s) recorrido(s), {pending} pendiente(s)…",
+    "summary": "{nodes} equipos, {links} enlaces",
+    "relayout": "Reorganizar",
+    "nothing": "Ningún equipo respondió.",
+    "help": "Arrastre para mover el mapa o un equipo, desplace para hacer zoom, haga clic en un equipo para ver sus enlaces. Una línea discontinua solo la informó un extremo; un círculo discontinuo es un equipo que solo nombran sus vecinos.",
+    "managed": "recorrido",
+    "heard": "nombrado por un vecino",
+    "kind": {
+      "switch": "Switch",
+      "router": "Router",
+      "ap": "Punto de acceso",
+      "phone": "Teléfono",
+      "host": "Host",
+      "unknown": "Equipo"
     }
   }
 }

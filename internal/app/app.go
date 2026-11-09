@@ -64,6 +64,8 @@ type App struct {
 	restores backupState
 	// portMaps is the port map being made (portmap.go).
 	portMaps portMapState
+	// topologies is the network map being drawn (topology.go).
+	topologies topologyState
 
 	// Background-mode state. configDir is the SnmpLens directory, kept here
 	// because several subsystems need it after startup.

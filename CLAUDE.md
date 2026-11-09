@@ -285,6 +285,34 @@ A switch knows MACs, not IPs, so the ARP caches of devices the person picks — 
 route for its stations — are read too, each with its own identifiers (`buildPortMapRequest` goes through
 `getEffectiveSettings`). Reverse DNS runs sixteen at a time, 1.5 s each, at most 1024 addresses.
 
+## The network map
+
+*Network → Topology* draws the network from what its devices say of their neighbours: every device walked is a
+node, every LLDP or CDP neighbour it names is one too, and every neighbour is a link from the port it was heard on.
+`pkg/topology` draws, reading neighbours through `portmap.Neighbours` (any interface, bridged or not: a router's
+neighbours are on routed ports); `internal/app/topology.go` walks.
+
+**The same device is one node.** A neighbour is matched to a device walked by its chassis ID (`lldpLocChassisId`),
+then by its name with the domain left off ("core-sw-01" and "core-sw-01.corp.example"), then by an address the
+device answers on (`ipAdEntAddr`), the order in which they are reliable. A neighbour nobody walked is a node too,
+merged across the devices that name it, drawn dashed.
+
+**The same link is one line.** A device says its own port as ifName gives it and its neighbour often says the long
+form, so two links between the same nodes whose ports read the same once shortened — the first two letters and
+the numbers, `Gi1/0/1` and `GigabitEthernet1/0/1` — are one, marked as seen from both ends; a link one end alone
+reported is drawn dashed. A device's kind is LLDP's capabilities, else `sysServices` read as devices fill it in
+rather than as RFC 3418 words it: a switch 2, a layer-3 switch 6, a router 78, a server 72.
+
+**Following neighbours reaches devices nobody listed.** At the management address LLDP (`lldpRemManAddrTable`) or
+CDP gives, hop by hop to the depth asked (at most 3), each address once, four walks at a time, 64 devices at most,
+cancellable. A neighbour that is a target is asked with its own identifiers, any other with the defaults — the
+renderer sends both (`buildTopologyRequest`). `crawlTopology` takes the walk as a function, so the bounds and the
+choice of identifiers are tested without a network; the simulated devices name neighbours with no management
+address, so over the wire the test maps two of them as they are.
+
+The layout is the renderer's (`utils/topology.js`), a force-directed one that starts every node on a circle in Go's
+order: the same map is drawn the same way every time. Drag, zoom, a node's links on click, SVG export.
+
 ## Backup and restore
 
 *Settings → Backup* writes the configuration to one file and reads it back (`pkg/backup` for the format,

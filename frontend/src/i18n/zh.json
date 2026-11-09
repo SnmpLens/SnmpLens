@@ -805,7 +805,8 @@
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
     "hopRtt3": "RTT 3",
-    "ports": "端口映射"
+    "ports": "端口映射",
+    "topology": "拓扑"
   },
   "debug": {
     "title": "SNMP 调试",
@@ -1899,6 +1900,32 @@
       "mac": "MAC 地址",
       "ip": "IP 地址",
       "name": "名称"
+    }
+  },
+  "topology": {
+    "noTargets": "请先将设备添加为目标。",
+    "devices": "起始设备：{count}",
+    "depth": "跟随邻居",
+    "depthNone": "否 — 仅这些设备",
+    "depthHops": "再向外 {count} 跳",
+    "depthHint": "按 LLDP 或 CDP 提供的管理地址跟随邻居；若邻居是目标则使用其自身凭据，否则使用默认凭据。最多 64 台设备。",
+    "draw": "绘制拓扑图",
+    "cancel": "停止",
+    "walking": "正在遍历设备…",
+    "progress": "已遍历 {walked} 台设备，剩余 {pending} 台…",
+    "summary": "{nodes} 台设备，{links} 条链路",
+    "relayout": "重新布局",
+    "nothing": "没有设备响应。",
+    "help": "拖动可移动地图或设备，滚动可缩放，点击设备查看其链路。虚线表示仅一端报告的链路；虚线圆表示仅由其邻居提及的设备。",
+    "managed": "已遍历",
+    "heard": "由邻居提及",
+    "kind": {
+      "switch": "交换机",
+      "router": "路由器",
+      "ap": "接入点",
+      "phone": "电话",
+      "host": "主机",
+      "unknown": "设备"
     }
   }
 }

@@ -12,8 +12,9 @@
   import { displayTarget, targetTitle } from './utils/targets';
   import { assignProfile, findProfile, withProfile } from './utils/credentialProfiles.js';
   import PortMapper from './network/PortMapper.svelte';
+  import TopologyMap from './network/TopologyMap.svelte';
 
-  let activeSubTab = 'discovery'; // 'discovery' | 'ports' | 'ping' | 'traceroute'
+  let activeSubTab = 'discovery'; // 'discovery' | 'ports' | 'topology' | 'ping' | 'traceroute'
 
   let cidr = '192.168.1.0/24';
   let scanTimeout = 2;
@@ -170,6 +171,9 @@
     <button class="sub-tab" class:active={activeSubTab === 'ports'} on:click={() => activeSubTab = 'ports'}>
       {$_('network.ports')}
     </button>
+    <button class="sub-tab" class:active={activeSubTab === 'topology'} on:click={() => activeSubTab = 'topology'}>
+      {$_('network.topology')}
+    </button>
     <button class="sub-tab" class:active={activeSubTab === 'ping'} on:click={() => activeSubTab = 'ping'}>
       {$_('network.ping')}
     </button>
@@ -274,6 +278,10 @@
 
   {#if activeSubTab === 'ports'}
     <PortMapper />
+  {/if}
+
+  {#if activeSubTab === 'topology'}
+    <TopologyMap />
   {/if}
 
   {#if activeSubTab === 'ping'}

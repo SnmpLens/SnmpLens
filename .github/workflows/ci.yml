@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Twice a week on main, with nothing pushed. govulncheck and npm audit float,
+  # so a commit that passed is checked again against advisories published since:
+  # one in code SnmpLens calls fails here rather than waiting for the next push.
+  # And GitHub evicts a cache nobody has read for seven days, so after a quiet
+  # week every job started cold, two to five minutes slower; a restore is a
+  # read, and twice a week keeps every entry inside the window.
+  schedule:
+    - cron: '23 5 * * 1,4'
+  workflow_dispatch:
 
 # The default GITHUB_TOKEN permissions are broader than a build needs. Declared
 # explicitly so the workflow does not inherit whatever the repository settings
@@ -179,7 +188,7 @@ jobs:
           exit $status
 
       - name: Save the Go caches
-        if: always() && github.event_name == 'push'
+        if: always() && github.event_name != 'pull_request'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -357,7 +366,7 @@ jobs:
           git diff --exit-code go.mod go.sum
 
       - name: Save the Go caches
-        if: always() && github.event_name == 'push'
+        if: always() && github.event_name != 'pull_request'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -477,7 +486,7 @@ jobs:
         working-directory: frontend
 
       - name: Save the Go caches
-        if: always() && github.event_name == 'push'
+        if: always() && github.event_name != 'pull_request'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |

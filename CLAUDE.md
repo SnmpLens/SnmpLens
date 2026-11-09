@@ -31,7 +31,9 @@ recent majors, so a project sitting on an older one stops receiving security fix
 Security workflows: `codeql.yml` (SAST for Go and the frontend, weekly as well as per-push, because a query added
 after a commit lands would otherwise never see it), `dependency-review` on pull requests (govulncheck reports on
 what is already merged; this blocks it before), `govulncheck`, and `npm audit --audit-level=high` — which used to
-end in `|| true` and therefore never failed. Actions are pinned by commit SHA, with Dependabot configured for
+end in `|| true` and therefore never failed. `ci.yml` also runs twice a week on main with nothing pushed, so the
+two that float check a merged commit against advisories published since, and the caches below are read often
+enough that GitHub does not evict them after seven quiet days. Actions are pinned by commit SHA, with Dependabot configured for
 gomod, npm and github-actions, because pinning without something to move the pins just freezes them.
 
 CI verification gate (`.github/workflows/ci.yml`, all run from repo root):
@@ -77,7 +79,7 @@ it: a cache entry can be written by any code running in a CI job on `main`, and 
 verified, so the job that builds the signed binaries installs from the mirror every time.
 
 Each Go job of `ci.yml` keeps its OWN Go caches (`go-<os>-<job>-<go.sum>-<sha>`, restored from the newest of the
-same job, saved by pushes to main only), with setup-go's off. setup-go keys by OS and go.sum alone, so the three
+same job, saved by runs on main only, never by a pull request), with setup-go's off. setup-go keys by OS and go.sum alone, so the three
 Linux jobs shared one entry, written by whichever finished first and never refreshed until go.sum moved: the race
 test build restored the security job's plain one. Measured on Linux: the Wails CLI install went from 23 s to 2 s
 and `wails build` from 34 s to 6-11 s; macOS and Windows, with one Go job each, were unchanged. On Windows

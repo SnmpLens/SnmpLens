@@ -215,6 +215,7 @@ at, is on [the comparison page](https://snmplens.com/comparison.html).
 ### Network Tools
 
 - **CIDR Discovery** — scan IP ranges for SNMP-responsive devices
+- **Port map** — what is plugged into which port of a switch: MAC addresses from BRIDGE-MIB or Q-BRIDGE-MIB (Cisco read VLAN by VLAN), IP addresses from ARP caches, names by reverse DNS, LLDP and CDP neighbours, uplinks marked. Filter by port, MAC (in any notation), IP or name, and export to CSV
 - **Ping** — cross-platform, no elevated privileges required (pure Go)
 - **Traceroute** — hop-by-hop route tracing, over IPv4 or IPv6
 

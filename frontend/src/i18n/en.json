@@ -804,7 +804,8 @@
     "hopIp": "IP Address",
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
-    "hopRtt3": "RTT 3"
+    "hopRtt3": "RTT 3",
+    "ports": "Port map"
   },
   "debug": {
     "title": "SNMP Debug",
@@ -1864,5 +1865,40 @@
     "automaticHint": "SnmpLens backs up the configuration before every restore and keeps the last {count}. Restoring one undoes the restore that followed it.",
     "automaticEmpty": "None yet.",
     "undo": "Restore this one"
+  },
+  "portmap": {
+    "switch": "Switch",
+    "resolveNames": "Look up names (reverse DNS)",
+    "scan": "Map the ports",
+    "cancel": "Stop",
+    "noTargets": "Add the switch as a target first.",
+    "gateways": "IP addresses from other devices' ARP caches ({count} chosen)",
+    "gatewaysHint": "A switch knows MAC addresses; the routers and layer-3 switches that route for its stations know their IP addresses. The switch's own ARP cache is always read.",
+    "progress": {
+      "switch": "Reading the switch…",
+      "vlans": "Reading VLAN {done} of {total}…",
+      "gateways": "Reading ARP cache {done} of {total}…",
+      "names": "Looking up names, {done} of {total}…"
+    },
+    "summary": "{ports} ports, {stations} addresses",
+    "source": {
+      "q-bridge": "from Q-BRIDGE-MIB",
+      "bridge": "from BRIDGE-MIB",
+      "bridge-per-vlan": "from BRIDGE-MIB, VLAN by VLAN"
+    },
+    "noStations": "The switch reported no learnt address. It may answer neither BRIDGE-MIB nor Q-BRIDGE-MIB, or its forwarding table may be empty.",
+    "unplaced": "Addresses learnt on a bridge port no interface answers for: {count}",
+    "filter": "Filter: port, MAC, IP, name…",
+    "usedOnly": "Only ports in use",
+    "nothing": "Nothing matches.",
+    "uplink": "uplink",
+    "col": {
+      "port": "Port",
+      "vlan": "VLAN",
+      "neighbour": "Neighbour",
+      "mac": "MAC address",
+      "ip": "IP address",
+      "name": "Name"
+    }
   }
 }

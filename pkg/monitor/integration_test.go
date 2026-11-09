@@ -35,7 +35,7 @@ const (
 // fetcher polls as the application does (app_monitor.go, buildFetch): GetMany,
 // one connection per target and every OID in one PDU.
 func fetcher(port int) monitor.FetchFunc {
-	client := snmp.NewClient(context.Background())
+	client := snmp.NewClient()
 	return func(ctx context.Context, oids []string, targets []string) []monitor.Reading {
 		out := []monitor.Reading{}
 		for _, m := range client.GetMany(ctx, targets, oids, "public", "v2c", port, 1, 0, snmp.V3Params{}) {

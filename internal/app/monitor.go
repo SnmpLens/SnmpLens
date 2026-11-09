@@ -14,7 +14,6 @@ import (
 	"SnmpLens/pkg/snmp"
 	"SnmpLens/pkg/storage"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // MonitorConnection is the connection half of a session, as the renderer sends
@@ -149,10 +148,7 @@ func (a *App) initScheduler() {
 	// With no window open this does nothing, and nothing else changes: by the
 	// time it runs the samples are already stored and already evaluated.
 	s.Emit = func(sessionID string, points []monitor.Point) {
-		if a.ctx == nil {
-			return
-		}
-		runtime.EventsEmit(a.ctx, "monitor:samples", map[string]interface{}{
+		a.emit("monitor:samples", map[string]interface{}{
 			"sessionId": sessionID,
 			"points":    points,
 		})
@@ -204,9 +200,7 @@ func (a *App) initScheduler() {
 			Params:   map[string]any{"detail": detail},
 			Summary:  detail,
 		}, "")
-		if a.ctx != nil {
-			runtime.EventsEmit(a.ctx, "monitor:overrun", o)
-		}
+		a.emit("monitor:overrun", o)
 	}
 
 	a.scheduler = s

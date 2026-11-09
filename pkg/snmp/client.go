@@ -1,7 +1,6 @@
 package snmp
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"regexp"
@@ -66,7 +65,7 @@ type DebugEntry struct {
 
 // Client handles SNMP operations.
 type Client struct {
-	ctx context.Context
+	emit func(name string, data any)
 
 	// trapMu guards trapListener, which is written by StartTrapListener on the
 	// caller's goroutine, set to nil by the listener goroutine when Listen
@@ -107,8 +106,16 @@ type Client struct {
 }
 
 // NewClient creates a new SNMP client.
-func NewClient(ctx context.Context) *Client {
-	return &Client{ctx: ctx, recorder: events.Nop{}}
+func NewClient() *Client {
+	return &Client{recorder: events.Nop{}}
+}
+
+// SetEmitter says how the client tells a window what is happening: a trap
+// arriving, a listener failing, how far a scan has got. Without one — a test, a
+// headless run — it does its work and says nothing. Set it before the client is
+// used.
+func (c *Client) SetEmitter(emit func(name string, data any)) {
+	c.emit = emit
 }
 
 // SetRecorder wires the event journal. Without it, received traps exist only as

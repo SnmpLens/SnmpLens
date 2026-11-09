@@ -1,7 +1,6 @@
 package snmp
 
 import (
-	"context"
 	"os"
 	"strconv"
 	"strings"
@@ -79,7 +78,7 @@ func TestScrubDoesNotShredTheLogForAShortCommunity(t *testing.T) {
 // four tests above call scrubSecrets directly and never touch the production
 // path. This one drives the writer itself, so it runs everywhere.
 func TestTheWriterScrubsWhatItBuffers(t *testing.T) {
-	c := NewClient(context.Background())
+	c := NewClient()
 	c.SetDebugMode(true)
 
 	w := &ringLogWriter{client: c, secrets: []string{"s3cr3t-community", "authpass123", ""}}
@@ -149,7 +148,7 @@ func TestDebugLogNeverHoldsTheCommunity(t *testing.T) {
 	const community = "s3cr3t-community"
 	d := simtest.Start(t, simulator.Device{Community: community})
 
-	c := NewClient(context.Background())
+	c := NewClient()
 	c.SetDebugMode(true)
 	defer c.SetDebugMode(false)
 
@@ -207,7 +206,7 @@ func TestTrapListenerLoggingIsScrubbedAndGated(t *testing.T) {
 	}
 
 	// And the writer it now uses removes a community it was never told about.
-	c := NewClient(context.Background())
+	c := NewClient()
 	c.SetDebugMode(true)
 	w := &ringLogWriter{client: c}
 	if _, err := w.Write([]byte("Parsed community someone-elses-trap-community")); err != nil {

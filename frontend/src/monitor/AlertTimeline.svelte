@@ -7,8 +7,8 @@
   import { targetLabels } from '../stores/targetLabels';
   import { mibStore } from '../stores/mibStore';
   import { oidName, oidTooltip } from '../utils/oidDisplay';
-  import { EventsQuery } from '../../wailsjs/go/app/App';
-  import { EventsOn } from '../../wailsjs/runtime/runtime';
+  import { EventsQuery } from '../bridge/App';
+  import { EventsOn } from '../bridge/runtime';
   import { capNewestFirst } from '../utils/burst';
 
   // Far more incidents than anyone reads on a timeline, and a ceiling all

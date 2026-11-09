@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { MibEditorSetMutedRules } from '../../wailsjs/go/app/App';
+import { MibEditorSetMutedRules } from '../bridge/App';
 
 // The MIB rules this viewer has muted (pkg/mib/mute.go): their findings leave
 // the editor's problem table, its underlines and every verdict, until unmuted.

@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { _ } from 'svelte-i18n';
-import { StartTrapListener, StopTrapListener, UpdateTrapUsers, GetOidDetails } from '../../wailsjs/go/app/App';
-import { EventsOn } from '../../wailsjs/runtime/runtime';
+import { StartTrapListener, StopTrapListener, UpdateTrapUsers, GetOidDetails } from '../bridge/App';
+import { EventsOn } from '../bridge/runtime';
 import { notificationStore } from './notifications';
 import { settingsStore, settingsReady } from './settingsStore';
 import { buildTrapListenerRequest } from '../utils/snmpParams';
@@ -117,7 +117,7 @@ function createTrapStore() {
       reportRefused(info);
     } catch (err) {
       const t = get(_);
-      notificationStore.add(t('traps.listenerStartFailed', { values: { error: err } }), 'error');
+      notificationStore.add(t('traps.listenerStartFailed', { values: { error: String(err) } }), 'error');
     }
   }
 
@@ -129,7 +129,7 @@ function createTrapStore() {
       notificationStore.add(t('traps.listenerStopped2'), 'info');
     } catch (err) {
       const t = get(_);
-      notificationStore.add(t('traps.listenerStopFailed', { values: { error: err } }), 'error');
+      notificationStore.add(t('traps.listenerStopFailed', { values: { error: String(err) } }), 'error');
     }
   }
 

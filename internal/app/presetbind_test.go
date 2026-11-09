@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +40,7 @@ func newBindApp(t *testing.T) (*App, string) {
 	// binary — on macOS only, because the other platforms finished before the
 	// first tick landed. The targets below are addresses nothing answers on, so
 	// no packet ever reaches anything.
-	a.snmpClient = snmp.NewClient(context.Background())
+	a.snmpClient = snmp.NewClient()
 	a.scheduler = monitor.NewScheduler()
 	// The clock must not actually reach a network in a unit test, and Persist
 	// is required by the scheduler.

@@ -7,7 +7,7 @@
  * screenshots are taken from, so it cannot show an interface the product does
  * not actually produce. See frontend/vite.demo.config.js for what differs.
  *
- * This is a separate command rather than part of `wails build` on purpose: the
+ * This is a separate command rather than part of tools/build.mjs on purpose: the
  * demo is part of the SITE, not of the product, and a release should not be able
  * to fail because a page under docs/ did not compile.
  */

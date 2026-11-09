@@ -12,7 +12,7 @@
   import HistoryExportModal from './history/HistoryExportModal.svelte';
   import HistoryEntry from './history/HistoryEntry.svelte';
   import Icon from './Icon.svelte';
-  import { ResolveOids } from '../wailsjs/go/app/App';
+  import { ResolveOids } from './bridge/App';
   import { findNodeByOid, findMibNameByOid, formatValueWithEnum } from './utils/mibTree';
   import { anonMode, anonymizeIp } from './utils/anonymize';
   import { escapeCSV } from './utils/csv';

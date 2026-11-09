@@ -1,7 +1,7 @@
 <script>
   import { _ } from 'svelte-i18n';
   import { get } from 'svelte/store';
-  import { MonitorGetStats, MonitorLoadHistoricalData, MonitorLoadBuckets } from '../wailsjs/go/app/App';
+  import { MonitorGetStats, MonitorLoadHistoricalData, MonitorLoadBuckets } from './bridge/App';
   import { pollingStore } from './stores/pollingStore';
   import { settingsStore } from './stores/settingsStore';
   import { notificationStore } from './stores/notifications';

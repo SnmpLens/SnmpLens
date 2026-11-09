@@ -1,7 +1,7 @@
 <script>
   import { createEventDispatcher, onMount, tick } from 'svelte';
   import { treeRequest } from './stores/treeRequest';
-  import { GetPersistentMibDirectory } from '../wailsjs/go/app/App';
+  import { GetPersistentMibDirectory } from './bridge/App';
   import { mibStore } from './stores/mibStore';
   import TreeNode from './TreeNode.svelte';
   import Icon from './Icon.svelte';

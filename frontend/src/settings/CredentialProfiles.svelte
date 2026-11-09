@@ -5,7 +5,7 @@
   import TrapAcceptToggle from './TrapAcceptToggle.svelte';
   import { onBackdrop } from '../utils/modal';
   import { anonMode, anonymizeIp, maskString, maskSysDescr } from '../utils/anonymize';
-  import { TestConnection } from '../../wailsjs/go/app/App';
+  import { TestConnection } from '../bridge/App';
   import { buildTestRequest } from '../utils/snmpParams';
   import { getEffectiveSettings, parseTargetLines } from '../utils/targets';
   import {

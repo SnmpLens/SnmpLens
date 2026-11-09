@@ -2,7 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { get } from 'svelte/store';
   import { notificationStore } from '../stores/notifications';
-  import { TestConnection } from '../../wailsjs/go/app/App';
+  import { TestConnection } from '../bridge/App';
   import { buildTestRequest } from '../utils/snmpParams';
   import { anonMode, maskSysDescr } from '../utils/anonymize';
   import Icon from '../Icon.svelte';

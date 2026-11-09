@@ -30,7 +30,7 @@
     MibEditorEncodings,
     MibEditorReadAs,
     MibEditorReopenExternalAs,
-  } from '../wailsjs/go/app/App';
+  } from './bridge/App';
 
   let files = [];
   let filter = '';

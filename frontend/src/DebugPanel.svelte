@@ -1,7 +1,7 @@
 <script>
   import { _ } from 'svelte-i18n';
   import { onDestroy } from 'svelte';
-  import { SnmpSetDebug, SnmpGetDebugLog, SnmpClearDebugLog } from '../wailsjs/go/app/App';
+  import { SnmpSetDebug, SnmpGetDebugLog, SnmpClearDebugLog } from './bridge/App';
   import { anonMode, anonymizeText } from './utils/anonymize';
 
   let entries = [];

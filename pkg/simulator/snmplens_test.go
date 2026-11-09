@@ -1,7 +1,6 @@
 package simulator
 
 import (
-	"context"
 	"maps"
 	"slices"
 	"testing"
@@ -27,7 +26,7 @@ func TestSnmpLensReadsTheSimulator(t *testing.T) {
 	}
 	a := startAgent(t, Config{Versions: []string{"v1", "v2c", "v3"}, Community: "public", Users: users})
 	host, port := a.Addr().Addr().String(), int(a.Addr().Port())
-	client := snmp.NewClient(context.Background())
+	client := snmp.NewClient()
 	params := func(u User) snmp.V3Params {
 		return snmp.V3Params{User: u.Name, SecLevel: u.SecLevel,
 			AuthProto: u.AuthProto, AuthPass: u.AuthPass, PrivProto: u.PrivProto, PrivPass: u.PrivPass}

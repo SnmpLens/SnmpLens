@@ -30,7 +30,7 @@ await esbuild.build({
   plugins: [{
     name: 'alias',
     setup(b) {
-      b.onResolve({ filter: /wailsjs[/](go[/]app[/]App|runtime[/]runtime)$/ }, () => ({ path: join(dir, 'stub.js') }));
+      b.onResolve({ filter: /bridge[/](App|runtime)$/ }, () => ({ path: join(dir, 'stub.js') }));
     },
   }],
 });
@@ -697,7 +697,7 @@ const simulatorCalls = new Set();
 const srcDir = new URL('../src/', import.meta.url);
 for (const file of readdirSync(srcDir, { recursive: true }).filter((f) => /\.(js|svelte)$/.test(f))) {
   const src = readFileSync(new URL(file.replace(/\\/g, '/'), srcDir), 'utf8');
-  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"][^'"]*wailsjs\/go\/app\/App['"]/g)) {
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"][^'"]*bridge\/App['"]/g)) {
     for (const name of m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0])) {
       if (/Simulat/.test(name)) simulatorCalls.add(name);
     }

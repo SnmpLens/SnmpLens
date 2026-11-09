@@ -11,7 +11,6 @@ import (
 
 	"SnmpLens/pkg/imagegate"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Map backgrounds: the pictures a map widget draws over.
@@ -242,15 +241,7 @@ func readBounded(path string) ([]byte, error) {
 // offers, and the decision is the DECODE in ImportMapAssets. Somebody who types
 // a name past the filter gets the same answer as somebody who picks one.
 func (a *App) ImportMapAssetDialog() ([]AssetImportResult, error) {
-	if a.ctx == nil {
-		return nil, fmt.Errorf("no window")
-	}
-	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Add map backgrounds",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "Images", Pattern: "*.png;*.jpg;*.jpeg;*.gif"},
-		},
-	})
+	paths, err := a.openFiles("Add map backgrounds", fileFilter("Images", "*.png;*.jpg;*.jpeg;*.gif"))
 	if err != nil {
 		return nil, err
 	}

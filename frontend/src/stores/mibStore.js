@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { LoadMibsWithDiagnostics, GetPersistentMibDirectory, ListMibFiles, SetMibDirectories } from '../../wailsjs/go/app/App';
+import { LoadMibsWithDiagnostics, GetPersistentMibDirectory, ListMibFiles, SetMibDirectories } from '../bridge/App';
 import { notificationStore } from './notifications';
 import { mibPathsStore } from './mibPathsStore';
 
@@ -106,7 +106,7 @@ function createMibStore() {
         }
       }
     } catch (err) {
-      set({ tree: [], isLoading: false, error: err });
+      set({ tree: [], isLoading: false, error: String(err) });
       mibDiagnostics.set([]);
       if (!silent) {
         notificationStore.add(`Error loading MIBs: ${err}`, 'error');

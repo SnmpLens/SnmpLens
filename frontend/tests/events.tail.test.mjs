@@ -47,9 +47,8 @@ export const SettingsSeal = (...a) => s.SettingsSeal(...a);
 export const SettingsOpen = (...a) => s.SettingsOpen(...a);
 export const SettingsAdoptKey = (...a) => s.SettingsAdoptKey(...a);
 export const SettingsForgetKey = (...a) => s.SettingsForgetKey(...a);
-export const InitializeNotifications = async () => {};
 export const SendNotification = async () => {};
-export const IsNotificationAvailable = async () => false;`;
+export const NotificationsAvailable = async () => false;`;
 
 const dir = mkdtempSync(join(tmpdir(), 'snmplens-events-'));
 writeFileSync(join(dir, 'stub.js'), stub);
@@ -63,8 +62,8 @@ await esbuild.build({
   plugins: [{
     name: 'alias',
     setup(b) {
-      b.onResolve({ filter: /wailsjs[/]go[/]app[/]App$/ }, () => ({ path: join(dir, 'stub.js') }));
-      b.onResolve({ filter: /wailsjs[/]runtime[/]runtime$/ }, () => ({ path: join(dir, 'stub.js') }));
+      b.onResolve({ filter: /bridge[/]App$/ }, () => ({ path: join(dir, 'stub.js') }));
+      b.onResolve({ filter: /bridge[/]runtime$/ }, () => ({ path: join(dir, 'stub.js') }));
     },
   }],
 });

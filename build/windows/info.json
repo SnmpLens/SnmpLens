@@ -1,15 +1,15 @@
 {
 	"fixed": {
-		"file_version": "{{.Info.ProductVersion}}"
+		"file_version": "1.0.0"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "{{.Info.ProductVersion}}",
-			"CompanyName": "{{.Info.CompanyName}}",
-			"FileDescription": "{{.Info.ProductName}}",
-			"LegalCopyright": "{{.Info.Copyright}}",
-			"ProductName": "{{.Info.ProductName}}",
-			"Comments": "{{.Info.Comments}}"
+			"ProductVersion": "1.0.0",
+			"CompanyName": "Geoffrey Lecoq",
+			"FileDescription": "SnmpLens",
+			"LegalCopyright": "(c) 2026 Geoffrey Lecoq",
+			"ProductName": "SnmpLens",
+			"Comments": "SNMP MIB browser and network management"
 		}
 	}
 }

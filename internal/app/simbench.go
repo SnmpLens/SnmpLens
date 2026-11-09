@@ -15,7 +15,6 @@ import (
 	"SnmpLens/pkg/secrets"
 	"SnmpLens/pkg/simulator"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // A bench of simulated devices as a file (pkg/simulator, DeviceFile): exported
@@ -43,14 +42,7 @@ func (a *App) SimulatorExportDevicesDialog(ids []string, withSecrets bool) (stri
 	if err != nil {
 		return "", err
 	}
-	if a.ctx == nil {
-		return "", fmt.Errorf("no window")
-	}
-	dest, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "Export simulated devices",
-		DefaultFilename: name,
-		Filters:         []runtime.FileFilter{{DisplayName: "Simulated devices (JSON)", Pattern: "*.json"}},
-	})
+	dest, err := a.saveFile("Export simulated devices", name, fileFilter("Simulated devices (JSON)", "*.json"))
 	if err != nil || dest == "" {
 		return "", err
 	}
@@ -109,13 +101,7 @@ func (a *App) exportDevices(ids []string, withSecrets bool) ([]byte, string, err
 // ImportSimulatedDevicesDialog asks for files of simulated devices and imports
 // them.
 func (a *App) ImportSimulatedDevicesDialog() ([]SimulatorDeviceImportResult, error) {
-	if a.ctx == nil {
-		return nil, fmt.Errorf("no window")
-	}
-	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:   "Import simulated devices",
-		Filters: []runtime.FileFilter{{DisplayName: "Simulated devices (JSON)", Pattern: "*.json"}},
-	})
+	paths, err := a.openFiles("Import simulated devices", fileFilter("Simulated devices (JSON)", "*.json"))
 	if err != nil {
 		return nil, err
 	}

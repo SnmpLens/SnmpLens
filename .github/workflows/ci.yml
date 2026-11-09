@@ -345,7 +345,7 @@ jobs:
         # not built on Linux and therefore not analysed — the check would pass
         # by not looking.
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
           staticcheck -tags webkit2_41 ./...
 
       - name: go.mod is tidy

@@ -39,7 +39,7 @@ CI verification gate (`.github/workflows/ci.yml`, all run from repo root):
 ```bash
 go vet -tags webkit2_41 ./...
 go test -race -count=1 -tags webkit2_41 ./...       # on ALL THREE platforms, not just Linux
-staticcheck -tags webkit2_41 ./...                  # PINNED: honnef.co/go/tools/cmd/staticcheck@v0.8.1
+staticcheck -tags webkit2_41 ./...                  # PINNED: honnef.co/go/tools/cmd/staticcheck@v0.8.2
 go mod tidy && git diff --exit-code go.mod go.sum   # go.mod must stay tidy
 go build -tags webkit2_41 ./...                     # the tripwire, see below
 govulncheck -tags webkit2_41 ./...

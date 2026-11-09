@@ -12,6 +12,7 @@ package tray
 import (
 	"fmt"
 	"log"
+	"runtime"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -106,7 +107,7 @@ func (c *Controller) SetStatus(text string) {
 	defer c.mu.Unlock()
 	if !c.closed {
 		c.status.SetLabel(text)
-		c.menu.Update()
+		c.refresh()
 	}
 }
 
@@ -130,7 +131,19 @@ func (c *Controller) SetLabels(l Labels) {
 	if l.Status != "" {
 		c.status.SetLabel(l.Status)
 	}
+	c.refresh()
+}
+
+// refresh shows the new labels. Menu.Update reaches a tray's menu on Windows and
+// macOS, and on Linux only from the Wails release after 3.1.0 (wailsapp/wails#6314):
+// there the menu is published over D-Bus as a layout built when it is set, so it is
+// set again, which rebuilds the layout and announces it. Without this the menu
+// stayed in English, and its status line said "Idle" whatever was running.
+func (c *Controller) refresh() {
 	c.menu.Update()
+	if runtime.GOOS == "linux" {
+		c.tray.SetMenu(c.menu)
+	}
 }
 
 // Stop removes the icon, for background mode being switched off while the

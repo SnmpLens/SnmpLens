@@ -1068,21 +1068,21 @@
     "loginRemoved": "SnmpLens 将不再在登录时启动。",
     "system": {
       "title": "系统服务",
-      "hint": "从电脑启动起即开始监控，即使无人登录：监控会话、阈值、Trap 接收和通知作为 Windows 服务运行，服务运行期间由本窗口控制。",
+      "hint": "从计算机启动起即开始监控，即使无人登录：监控会话、阈值、Trap 接收和通知作为系统服务运行（Windows 服务，或 Linux 上的 systemd 单元），服务运行期间由本窗口控制。",
       "notInstalled": "未安装：本窗口在打开期间进行监控。",
       "driving": "运行中 — 本窗口正在控制该服务（SnmpLens {version}）。",
       "runningElsewhere": "运行中，但本窗口未控制它。",
       "stopped": "已安装，已停止：本窗口在打开期间进行监控。",
       "reason": {
         "stopped": "服务已停止。",
-        "denied": "此账户无权控制该服务。请授权 — Windows 会请求管理员权限。",
+        "denied": "此账户无权控制该服务。请授权 — 系统会请求管理员权限。",
         "version": "服务与本窗口版本不同：请为两者安装相同版本的 SnmpLens。",
         "notService": "另一个程序占用了服务的通道，因此本窗口不与其通信。",
         "unreachable": "无法连接到服务。"
       },
       "location": "此副本无法安装服务：必须为所有用户安装在 Program Files 中 — 请运行安装程序并选择该选项。",
       "install": "安装服务",
-      "installHint": "本窗口的会话、通知目标、Trap 用户和历史记录会移交给服务。Windows 会请求一次管理员权限。",
+      "installHint": "本窗口的会话、通知目标、Trap 用户和历史记录会移交给服务。系统会请求一次管理员权限。",
       "update": "更新到此版本",
       "start": "启动",
       "stop": "停止",
@@ -1099,7 +1099,8 @@
       "uninstalled": "服务已移除。",
       "handOverHint": "服务以空配置启动（安装程序的默认方式）。本窗口此前自行监控：其会话、通知目标和历史记录可以移交给服务。",
       "handOver": "移交本窗口的监控",
-      "handedOver": "服务现在监控本窗口此前监控的内容。"
+      "handedOver": "服务现在监控本窗口此前监控的内容。",
+      "locationLinux": "此副本无法安装服务：服务只运行仅 root 可修改的副本（如已安装的软件包）— 请安装 SnmpLens 的软件包。"
     }
   },
   "mibVerdict": {

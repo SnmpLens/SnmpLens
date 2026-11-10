@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !windows && !linux
 
 package sysvc
 
@@ -9,6 +9,12 @@ import (
 
 // Supported reports whether a system service can be installed here.
 func Supported() bool { return false }
+
+// runFromCommandLine: there is no service manager to start one here.
+const runFromCommandLine = false
+
+// ownLikeDir has nothing to do where nothing runs elevated.
+func ownLikeDir(string) {}
 
 // IsService reports whether this process was started by the service manager.
 func IsService() bool { return false }

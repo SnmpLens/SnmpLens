@@ -84,7 +84,10 @@
       </div>
     {/if}
     {#if link.location && (!link.installed || link.driving)}
-      <p class="note warn"><Icon name="triangle-alert" size={14} /> {$_('service.system.location')}</p>
+      <p class="note warn">
+        <Icon name="triangle-alert" size={14} />
+        {$_(link.platform === 'linux' ? 'service.system.locationLinux' : 'service.system.location')}
+      </p>
     {/if}
 
     <div class="actions">

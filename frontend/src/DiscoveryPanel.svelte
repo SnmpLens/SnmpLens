@@ -539,7 +539,13 @@
     flex: 0 0 auto;
   }
 
-  .form-group.compact select { width: 80px; }
+  /* The timeout is a number and stays narrow; the identifiers are a profile's name,
+     which 80 px cut to "Defaul". */
+  #discovery-timeout { width: 80px; }
+  #discovery-profile { min-width: 180px; }
+
+  /* As tall as the fields beside it. */
+  .form-row .btn { align-self: stretch; }
 
   .progress-section {
     margin-bottom: 15px;

@@ -22,6 +22,14 @@ const FirewallRule = "SnmpLens (service)"
 // Supported reports whether a system service can be installed here.
 func Supported() bool { return true }
 
+// runFromCommandLine is false: the service manager starts the service, which
+// IsService recognises, and `service run` typed by hand is not that.
+const runFromCommandLine = false
+
+// ownLikeDir has nothing to do on Windows: a file an elevated administrator
+// writes in someone's directory stays readable by them.
+func ownLikeDir(string) {}
+
 // DataDir is where the service keeps its database and credentials:
 // %ProgramData%\SnmpLens, readable by administrators and the service only.
 func DataDir() (string, error) {

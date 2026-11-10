@@ -32,7 +32,7 @@ const (
 )
 
 // ErrUnsupported is returned where there is no service to install.
-var ErrUnsupported = errors.New("the system service is available on Windows; elsewhere, run SnmpLens --headless under the platform's service manager")
+var ErrUnsupported = errors.New("the system service is available on Windows and on Linux with systemd; elsewhere, run SnmpLens --headless under the platform's service manager")
 
 // ErrCancelled means the user declined the administrator prompt.
 var ErrCancelled = errors.New("the administrator prompt was declined")
@@ -150,8 +150,15 @@ func WriteResult(path string, r Result, err error) {
 		r.Error = err.Error()
 	}
 	data, _ := json.Marshal(r)
-	_ = os.WriteFile(path, data, 0o600)
+	if os.WriteFile(path, data, 0o600) == nil {
+		ownLikeDir(path)
+	}
 }
+
+// RunsFromCommandLine reports whether the service manager starts the service as
+// `SnmpLens service run` — systemd does — rather than recognisably as a
+// service, as Windows' does.
+func RunsFromCommandLine() bool { return runFromCommandLine }
 
 // ReadResult reads what an elevated command recorded.
 func ReadResult(path string) (Result, error) {

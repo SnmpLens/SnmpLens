@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"sync"
 	"time"
 
@@ -78,7 +79,10 @@ type serviceLink struct {
 // SystemServiceLink is what the settings show of the system service.
 type SystemServiceLink struct {
 	// Supported is false where no service can be installed.
-	Supported bool   `json:"supported"`
+	Supported bool `json:"supported"`
+	// Platform is the operating system's name: a Windows service, a systemd
+	// unit.
+	Platform  string `json:"platform"`
 	Installed bool   `json:"installed"`
 	State     string `json:"state,omitempty"`
 	// Driving is true while this window drives the service.
@@ -370,7 +374,7 @@ func (a *App) setBusy(busy bool) {
 // SystemServiceStatus says whether the system service is installed and runs,
 // whether this window drives it, and when not, why.
 func (a *App) SystemServiceStatus() SystemServiceLink {
-	link := SystemServiceLink{Supported: sysvc.Supported()}
+	link := SystemServiceLink{Supported: sysvc.Supported(), Platform: goruntime.GOOS}
 	if !link.Supported {
 		return link
 	}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"SnmpLens/internal/sysvc"
+	"SnmpLens/pkg/updater"
 )
 
 // serviceCommand manages the system service. The commands that change it run
@@ -39,7 +40,13 @@ func serviceCommand(args []string, stdout, stderr io.Writer) int {
 	case "status":
 		return status(stdout, stderr)
 	case "run":
-		// Typed by hand: the service manager's own start is caught before this.
+		if sysvc.RunsFromCommandLine() {
+			// systemd's ExecStart.
+			err = sysvc.Run(updater.Version)
+			break
+		}
+		// Typed by hand: Windows' service manager starts the service in a way
+		// caught before this.
 		err = errors.New("service run is how the service manager starts SnmpLens; use service start")
 	case "install":
 		exe, xerr := os.Executable()

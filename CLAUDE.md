@@ -246,6 +246,17 @@ whoever replaces it. It adds recovery actions (restart after a failure, then eve
 an inbound UDP firewall rule for the program on domain and private profiles — a service has no desktop to show
 Windows' prompt on, so the trap listener would otherwise hear nothing.
 
+**On Linux it is a systemd unit** (`*_linux.go`): `snmplens.service`, ExecStart `snmplens service run`, a static system
+user `snmplens` with `CAP_NET_BIND_SERVICE` and nothing else (port 162 without root), `ProtectSystem=strict` and the
+rest; data in `/var/lib/snmplens` (StateDirectory, 0700), status and `control.sock` in `/run/snmplens`. The socket is
+0666 and admits per connection, by the peer's uid (`SO_PEERCRED`): root, the service's account and the operators —
+read again at each connection, so allowing an account needs no restart — and tells anyone else
+`{"denied":true}` before closing; the window checks the peer's PID is the service's. Elevation is `pkexec`.
+`CheckLocation` wants every path component root-owned and not group- or other-writable, which is why the `.deb` is
+built `--root-owner-group`: without it the installed binary belonged to the build runner's uid. Root writes files
+into the window's directory (the result, the history handed back), so they are given to that directory's owner
+(`ownLikeDir`).
+
 **The service's credentials are sealed for the computer** (`secrets.OpenMachine`, DPAPI `CRYPTPROTECT_LOCAL_MACHINE`),
 not an account: the elevated installer, running as the administrator who approved it, writes them, and the service's
 own account reads them. Who may read them is the directory's DACL; a copy carried elsewhere is useless.

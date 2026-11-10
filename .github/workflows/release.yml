@@ -175,7 +175,9 @@ jobs:
           EOF
           sed -i 's/^          //' deb-pkg/usr/share/applications/snmplens.desktop
 
-          dpkg-deb --build deb-pkg "SnmpLens-linux-amd64.deb"
+          # Owned by root once installed, not by the runner's account: the
+          # system service runs only a copy no one but root can replace.
+          dpkg-deb --build --root-owner-group deb-pkg "SnmpLens-linux-amd64.deb"
 
       - name: Upload artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

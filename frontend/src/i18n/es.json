@@ -1068,21 +1068,21 @@
     "loginRemoved": "SnmpLens ya no se iniciará al iniciar sesión.",
     "system": {
       "title": "Servicio del sistema",
-      "hint": "Supervisar desde que arranca el PC, incluso sin nadie conectado: las sesiones de monitorización, sus umbrales, la escucha de traps y las notificaciones funcionan como servicio de Windows, y esta ventana lo controla mientras funciona.",
+      "hint": "Supervisar desde que arranca el equipo, incluso sin nadie conectado: las sesiones de monitorización, sus umbrales, la escucha de traps y las notificaciones funcionan como servicio del sistema — un servicio de Windows, o una unidad systemd en Linux — y esta ventana lo controla mientras funciona.",
       "notInstalled": "No instalado: esta ventana supervisa mientras está abierta.",
       "driving": "En marcha — esta ventana controla el servicio (SnmpLens {version}).",
       "runningElsewhere": "En marcha, pero esta ventana no lo controla.",
       "stopped": "Instalado, detenido: esta ventana supervisa mientras está abierta.",
       "reason": {
         "stopped": "El servicio está detenido.",
-        "denied": "Esta cuenta no puede controlar el servicio. Autorícela — Windows pide derechos de administrador.",
+        "denied": "Esta cuenta no puede controlar el servicio. Autorícela — el sistema pide derechos de administrador.",
         "version": "El servicio y esta ventana son de versiones distintas: instale la misma versión de SnmpLens para ambos.",
         "notService": "Otro programa responde en el canal del servicio, así que esta ventana no le habla.",
         "unreachable": "No se puede contactar con el servicio."
       },
       "location": "Esta copia no puede instalar el servicio: debe estar instalada para todos los usuarios, en Program Files — ejecute el instalador y elija esa opción.",
       "install": "Instalar el servicio",
-      "installHint": "Las sesiones, destinos de notificación, usuarios de traps e historial de esta ventana se le transfieren. Windows pide una vez derechos de administrador.",
+      "installHint": "Las sesiones, destinos de notificación, usuarios de traps e historial de esta ventana se le transfieren. El sistema pide una vez derechos de administrador.",
       "update": "Actualizar a esta versión",
       "start": "Iniciar",
       "stop": "Detener",
@@ -1099,7 +1099,8 @@
       "uninstalled": "El servicio se ha quitado.",
       "handOverHint": "El servicio arrancó vacío, tal como lo deja el instalador. Esta ventana supervisaba antes por su cuenta: sus sesiones, destinos e historial pueden transferirse al servicio.",
       "handOver": "Transferir la supervisión de esta ventana",
-      "handedOver": "El servicio supervisa ahora lo que hacía esta ventana."
+      "handedOver": "El servicio supervisa ahora lo que hacía esta ventana.",
+      "locationLinux": "Esta copia no puede instalar el servicio: solo ejecuta una copia que únicamente root puede modificar, como la de un paquete instalado — instale el paquete de SnmpLens."
     }
   },
   "mibVerdict": {

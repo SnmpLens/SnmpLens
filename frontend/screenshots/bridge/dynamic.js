@@ -422,6 +422,10 @@ const DEMO_ONLY = {
   SimulatorExportDevicesDialog: 'Exporting simulated devices opens the operating system’s file dialog and writes a file.',
   SimulatorDuplicateDevice: 'Duplicating a simulated device writes the copy to your configuration directory, and its passwords to the system keychain.',
   SimulatorRestartDevice: 'Restarting a simulated device opens a UDP socket on this machine.',
+  BackupExport: 'Backing up the configuration opens the operating system’s save dialog and writes a file.',
+  BackupInspect: 'Restoring a backup opens the operating system’s file dialog and reads a file.',
+  BackupInspectAutomatic: 'Restoring a backup reads a file from your configuration directory.',
+  BackupRestore: 'Restoring a backup writes to your configuration directory and the system keychain.',
   SimulatorSetFaults: 'Faults are applied to a simulated device running on this machine, and kept in your configuration directory.',
   // Not a write: worked out in Go, from the model and the device's settings.
   // There is no Go here, and a canned table would show one device's objects

@@ -121,6 +121,33 @@ function fields(settings) {
   return out;
 }
 
+/**
+ * The credentials of a settings object, taken out for a backup: a copy with
+ * every sensitive field blanked, and the values by the key sealing uses. The
+ * backup seals them under a passphrase of its own; the key that seals them here
+ * never leaves this machine.
+ */
+export function takeSecrets(settings) {
+  const copy = JSON.parse(JSON.stringify(settings || {}));
+  const secrets = {};
+  for (const slot of fields(copy)) {
+    const v = slot.get();
+    if (typeof v === 'string' && v !== '' && !isEncrypted(v)) secrets[slot.key] = v;
+    if (typeof v === 'string') slot.set('');
+  }
+  return { settings: copy, secrets };
+}
+
+/** The other way: a copy of settings with the credentials of a backup put back, by key. */
+export function giveSecrets(settings, secrets) {
+  const copy = JSON.parse(JSON.stringify(settings || {}));
+  for (const slot of fields(copy)) {
+    const v = secrets?.[slot.key];
+    if (typeof v === 'string') slot.set(v);
+  }
+  return copy;
+}
+
 async function refreshStatus() {
   try {
     const st = await SettingsKeyStatus();

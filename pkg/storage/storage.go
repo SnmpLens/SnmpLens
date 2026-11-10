@@ -464,6 +464,38 @@ func (s *Storage) CreateSession(name, oid string, targets []string, intervalMs i
 	return id, nil
 }
 
+// InsertSession writes a session as it was, under its own ID and stopped: what a
+// restored backup brings back. Its samples stay on the machine they were taken
+// on, so it starts again with none.
+func (s *Storage) InsertSession(sess Session) error {
+	targetsJSON, _ := json.Marshal(sess.Targets)
+	var thresholdsJSON, connJSON []byte
+	if len(sess.Thresholds) > 0 {
+		thresholdsJSON, _ = json.Marshal(sess.Thresholds)
+	}
+	if sess.Conn != nil {
+		connJSON, _ = json.Marshal(sess.Conn)
+	}
+	cols := `(id, name, oid, targets, interval_ms, snmp_version, started_at, stopped_at, thresholds, active, conn)`
+	vals := `VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
+	args := []any{sess.ID, nullableString([]byte(sess.Name)), sess.OID, string(targetsJSON), sess.IntervalMs,
+		sess.SnmpVersion, sess.StartedAt, nullableString([]byte(sess.StoppedAt)), nullableString(thresholdsJSON),
+		nullableString(connJSON)}
+	if s.sessionsHavePreset {
+		var presetJSON []byte
+		if sess.Preset != nil {
+			presetJSON, _ = json.Marshal(sess.Preset)
+		}
+		cols = `(id, name, oid, targets, interval_ms, snmp_version, started_at, stopped_at, thresholds, active, conn, preset)`
+		vals = `VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+		args = append(args, nullableString(presetJSON))
+	}
+	if _, err := s.db.Exec(`INSERT INTO sessions `+cols+` `+vals, args...); err != nil {
+		return fmt.Errorf("insert session: %w", err)
+	}
+	return nil
+}
+
 // UpdateSession updates a session's active status and stopped_at timestamp.
 func (s *Storage) UpdateSession(id string, active bool, stoppedAt string) error {
 	activeInt := 0

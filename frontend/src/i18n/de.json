@@ -654,7 +654,8 @@
       "snmp": "SNMP",
       "notify": "Benachrichtigungen",
       "service": "Dienst",
-      "presets": "Vorlagen"
+      "presets": "Vorlagen",
+      "backup": "Sicherung"
     },
     "general": {
       "updatesTitle": "Updates",
@@ -1816,5 +1817,52 @@
         "packageIgnored": "{name}: „{detail}“ ist keine Datei, die ein Paket liest, und wurde ausgelassen"
       }
     }
+  },
+  "backup": {
+    "exportTitle": "Konfiguration sichern",
+    "exportHint": "Ziele, Gruppen, Anmeldeprofile und Einstellungen; Alarmziele und -routen; Überwachungssitzungen ohne ihren Verlauf; Presets und Kartenhintergründe; simulierte Geräte und Modelle; Hintergrundmodus und die Engine-ID des Trap-Empfängers.",
+    "includeSecrets": "Communities, Passphrasen und Tokens einschließen",
+    "secretsHint": "Sie werden mit einer selbst gewählten Passphrase von mindestens {min} Zeichen verschlüsselt. Ohne sie sind sie verloren; alles andere lässt sich wiederherstellen.",
+    "passphrase": "Passphrase",
+    "passphraseConfirm": "Passphrase wiederholen",
+    "passphraseShort": "Mindestens {min} Zeichen.",
+    "passphraseMismatch": "Die beiden Passphrasen unterscheiden sich.",
+    "includeMibs": "Hinzugefügte MIBs einschließen",
+    "export": "Sichern…",
+    "exported": "Konfiguration gespeichert unter {path}",
+    "restoreTitle": "Sicherung wiederherstellen",
+    "restoreHint": "Die Einstellungen werden ersetzt. Alles andere wird hinzugefügt oder, wenn es dasselbe Element ist, ersetzt: Nichts wird gelöscht, und eine bestehende Überwachungssitzung behält ihren Verlauf.",
+    "choose": "Sicherung auswählen…",
+    "from": "Erstellt am {date} mit SnmpLens {version}",
+    "c": {
+      "settings": "Einstellungen, Ziele und Anmeldeprofile",
+      "sinks": "Alarmziele: {count}",
+      "routes": "Alarmrouten: {count}",
+      "sessions": "Überwachungssitzungen: {count}",
+      "devices": "Simulierte Geräte: {count}",
+      "models": "Simulatormodelle: {count}",
+      "presets": "Presets: {count}",
+      "assets": "Kartenhintergründe: {count}",
+      "mibs": "MIBs: {count}",
+      "service": "Hintergrundmodus",
+      "trapEngine": "Die Engine-ID des Trap-Empfängers"
+    },
+    "noSecrets": "Sie enthält keine Communities, Passphrasen oder Tokens.",
+    "hasSecrets": "Sie enthält verschlüsselte Communities, Passphrasen und Tokens.",
+    "automaticSecrets": "Von SnmpLens auf diesem Rechner erstellt: Ihre Geheimnisse öffnen sich ohne Passphrase.",
+    "passphraseOptional": "Passphrase — leer lassen, um alles andere wiederherzustellen",
+    "restoreWarning": "Der aktuelle Stand wird zuerst gesichert, dann lädt die Anwendung neu, um die Wiederherstellung anzuwenden.",
+    "restore": "Wiederherstellen",
+    "restoring": "Wird wiederhergestellt…",
+    "restored": "Konfiguration wiederhergestellt.",
+    "restoredWith": "Konfiguration wiederhergestellt, mit {count} Problem(en).",
+    "problem": {
+      "notSealed": "Die Anmeldedaten konnten auf diesem Rechner nicht versiegelt werden und wurden daher nicht wiederhergestellt.",
+      "rendererUnreadable": "Die Einstellungen dieser Sicherung sind unlesbar und wurden daher nicht wiederhergestellt."
+    },
+    "automaticTitle": "Vor jeder Wiederherstellung",
+    "automaticHint": "SnmpLens sichert die Konfiguration vor jeder Wiederherstellung und behält die letzten {count}. Eine davon wiederherzustellen macht die darauf folgende Wiederherstellung rückgängig.",
+    "automaticEmpty": "Noch keine.",
+    "undo": "Diese wiederherstellen"
   }
 }

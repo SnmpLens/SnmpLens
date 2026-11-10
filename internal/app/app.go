@@ -60,6 +60,9 @@ type App struct {
 	settingsKeyMu sync.Mutex
 	updater       *updater.Service
 
+	// restores holds the backup read and not yet restored (backup.go).
+	restores backupState
+
 	// Background-mode state. configDir is the SnmpLens directory, kept here
 	// because several subsystems need it after startup.
 	configDir  string

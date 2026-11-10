@@ -359,8 +359,11 @@ func TestARunningDeviceIsRecabledWithoutRestarting(t *testing.T) {
 	core.Wiring = nil
 	core.EngineBoots = 4
 	core = startOnFreePort(t, f, core)
+	// Retries, unlike the tests that count what the agent receives: a loaded
+	// runner lost the first walk after the start, and this test is about what
+	// the answers say, not how many requests it took.
 	g := connect(t, &gosnmp.GoSNMP{Target: core.Address, Port: uint16(core.Port), Version: gosnmp.Version2c,
-		Community: "public", Timeout: 2 * time.Second})
+		Community: "public", Timeout: 2 * time.Second, Retries: 3})
 	// What lldpRemSysName says is on Te1/1/1, whatever its place in the table.
 	heardOn := func() string {
 		prefix := fmt.Sprintf(".1.0.8802.1.1.2.1.4.1.1.9.0.%d.", c9300Uplink(1))

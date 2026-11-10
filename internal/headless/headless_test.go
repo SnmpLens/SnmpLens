@@ -3,6 +3,7 @@ package headless
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 	"time"
 
@@ -33,7 +34,15 @@ func TestOneSupervisionPerDirectory(t *testing.T) {
 // service.json decides what starts: here the trap listener, on its port.
 func TestTheTrapListenerStartsWhenTheDirectorySaysSo(t *testing.T) {
 	dir := t.TempDir()
-	if err := service.Save(dir, service.Config{AutoStartTrapListener: true, TrapPort: 0}); err != nil {
+	// A free port of its own: 0 reads as 162, which only root may bind on
+	// Linux, and the listener rightly says it is not listening there.
+	probe, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip(err)
+	}
+	port := probe.LocalAddr().(*net.UDPAddr).Port
+	probe.Close()
+	if err := service.Save(dir, service.Config{AutoStartTrapListener: true, TrapPort: port}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

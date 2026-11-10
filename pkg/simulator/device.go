@@ -58,6 +58,9 @@ type Device struct {
 	// a secret.
 	Params    map[string]int `json:"params,omitempty"`
 	Overrides []Override     `json:"overrides,omitempty"`
+	// Wiring is where the device sits on the bench (PlanBench). It is worked
+	// out from the cables whenever the device is built, and kept nowhere.
+	Wiring *Wiring `json:"-"`
 }
 
 // Listen is the address the device answers on, in the form CheckListen reads.
@@ -268,25 +271,76 @@ func deviceSeed(deviceID string) uint64 {
 // identity is what makes d differ from another device of its model.
 func (d Device) identity() Identity {
 	return Identity{Name: strings.TrimSpace(d.Name), Seed: deviceSeed(d.ID),
-		Location: strings.TrimSpace(d.Location), Contact: strings.TrimSpace(d.Contact), Params: d.Params}
+		Location: strings.TrimSpace(d.Location), Contact: strings.TrimSpace(d.Contact), Params: d.Params,
+		Wiring: d.Wiring}
 }
 
 // objects is what d answers from: its model built for it, with its parameters,
-// and its own values in place of the model's.
+// and its own values in place of the model's. For a switch answering BRIDGE-MIB
+// per VLAN, it is the default view; views has the others.
 func (d Device) objects() ([]Object, error) {
+	objs, _, err := d.views()
+	return objs, err
+}
+
+// views is d's default view and, for a model answering BRIDGE-MIB per VLAN, the
+// view of each of its other VLANs by context name ("vlan-20").
+func (d Device) views() ([]Object, map[string][]Object, error) {
 	m, ok := findModel(d.Model)
 	if !ok {
-		return nil, fmt.Errorf("%q is not a device model", d.Model)
+		return nil, nil, fmt.Errorf("%q is not a device model", d.Model)
 	}
 	if err := m.checkParams(d.Params); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	own, err := compileOverrides(d.Overrides)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return withOverrides(m.build(d.identity()), own), nil
+	all := withOverrides(m.build(d.identity()), own)
+	if !m.vlanContexts {
+		return all, nil, nil
+	}
+	return splitVLANs(all)
 }
+
+// splitVLANs cuts a switch's objects into the view of VLAN 1, which is the
+// default context's, and one view for each other VLAN it has — every VLAN its
+// tables name, whether or not anything was learnt in it, since a VLAN with no
+// station is still a context the switch answers.
+func splitVLANs(all []Object) ([]Object, map[string][]Object, error) {
+	vlans := map[int]bool{}
+	for _, o := range all {
+		if o.VLAN > 1 {
+			vlans[o.VLAN] = true
+		}
+		for _, table := range vlanTables {
+			if rest, ok := strings.CutPrefix(o.OID, table); ok {
+				if v, err := strconv.Atoi(rest); err == nil && v > 1 && v <= 4094 && (v < 1002 || v > 1005) {
+					vlans[v] = true
+				}
+			}
+		}
+	}
+	in := func(vlan int) []Object {
+		out := make([]Object, 0, len(all))
+		for _, o := range all {
+			if o.VLAN == 0 || o.VLAN == vlan {
+				out = append(out, o)
+			}
+		}
+		return out
+	}
+	views := make(map[string][]Object, len(vlans))
+	for v := range vlans {
+		views["vlan-"+strconv.Itoa(v)] = in(v)
+	}
+	return in(1), views, nil
+}
+
+// vlanTables are the columns whose last arc is a VLAN a switch has: Q-BRIDGE-MIB's
+// dot1qVlanStaticName and CISCO-VTP-MIB's vtpVlanState in management domain 1.
+var vlanTables = []string{"1.3.6.1.2.1.17.7.1.4.3.1.1.", "1.3.6.1.4.1.9.9.46.1.3.1.1.2.1."}
 
 // config is the agent d runs as.
 func (d Device) config() (Config, error) {
@@ -298,7 +352,7 @@ func (d Device) config() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("engine ID: %w", err)
 	}
-	objs, err := d.objects()
+	objs, contexts, err := d.views()
 	if err != nil {
 		return Config{}, err
 	}
@@ -311,6 +365,7 @@ func (d Device) config() (Config, error) {
 		EngineID:       engineID,
 		EngineBoots:    d.EngineBoots,
 		Objects:        objs,
+		Contexts:       contexts,
 		Notifications:  m.catalogue(),
 		Traps:          d.Traps.clone(),
 		Faults:         d.Faults,

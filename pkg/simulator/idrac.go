@@ -64,7 +64,7 @@ func buildDellIDRAC9(id Identity) []Object {
 	addSystem(&o, id, "Dell Out-of-band SNMP Agent for Remote Access Controller", ".1.3.6.1.4.1.674.10892.5",
 		"it@example.com", "Server room, rack B3", 72)
 	lan := lanPrefix(id.Seed)
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs: []iface{
 			{index: 1, descr: "eth0", alias: "iDRAC dedicated port", ifType: ifTypeEthernet, mtu: 1500,

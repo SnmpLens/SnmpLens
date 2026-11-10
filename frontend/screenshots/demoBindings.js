@@ -28,6 +28,8 @@ export function demoBindings(scenes) {
     ListSimulatorModels: bench.ListSimulatorModels,
     ListSimulatorModelIcons: editor.ListSimulatorModelIcons,
     ListSimulatedDevices: [...bench.ListSimulatedDevices, ...lab.ListSimulatedDevices],
+    // The bench is shown as the scene photographs it, cables included.
+    ListSimulatorLinks: bench.ListSimulatorLinks || [],
     SimulatorSuggestAddress: editor.SimulatorSuggestAddress,
     // One answer for every device, so the editor opens on identifiers rather
     // than on blank fields that read as passwords lost. The bench's server

@@ -20,7 +20,7 @@ func TestADeviceFileRoundTrips(t *testing.T) {
 		Params:    map[string]int{"cpus": 8},
 		Overrides: []Override{{OID: ".1.3.6.1.2.1.1.1.0", Type: "OctetString", Value: "core router"}}}
 	for _, with := range []bool{true, false} {
-		raw, err := ExportDevices([]Device{d}, with)
+		raw, err := ExportDevices([]Device{d}, nil, with)
 		if err != nil {
 			t.Fatal(err)
 		}

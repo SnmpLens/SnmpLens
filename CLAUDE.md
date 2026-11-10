@@ -312,14 +312,18 @@ gosnmp's types) and resolves names, one scan at a time and cancellable. Every ta
 its position in a walk, and four facts about real switches decide the shape.
 
 **A bridge port is not an interface.** BRIDGE-MIB numbers what it bridges from one and `dot1dBasePortIfIndex` says
-which interface each is; a forwarding entry names the bridge port. The simulated Catalyst numbers ports and
+which interface each is; a forwarding entry names the bridge port. The simulated Catalyst 2960 numbers ports and
 interfaces alike, so the unit tests use a switch whose interfaces are 10101 and up, where reading one as the
-other puts nothing anywhere.
+other puts nothing anywhere — and the simulated Catalyst 9300 starts its front ports at ifIndex 9 for the same
+reason, over the wire.
 
 **Q-BRIDGE first, BRIDGE-MIB otherwise, and Cisco VLAN by VLAN.** Q-BRIDGE says which VLAN a station is on. A Cisco
-switch answers BRIDGE-MIB only in one VLAN's context — the community indexed by it (`public@20`) or, in SNMPv3,
-the context `vlan-20` — for the VLANs `vtpVlanState` lists, at most 64, the reserved 1002-1005 left out. That is
-asked only when the default context has no forwarding entry at all.
+switch answers BRIDGE-MIB one VLAN's context at a time — the community indexed by it (`public@20`) or, in SNMPv3,
+the context `vlan-20` — for the VLANs `vtpVlanState` lists, at most 64, the reserved 1002-1005 left out; without a
+VLAN it answers VLAN 1's. So every other VLAN is read in its own context even when the default one has entries,
+and those entries are VLAN 1's (`Build` reads them so once `ByVLAN` is given). It used to be read only when the
+default context had nothing at all, which a real IOS switch never offers: a port map showed VLAN 1's stations and
+missed every user. The simulated Catalysts answer as IOS does, so the integration test exercises it.
 
 **The number LLDP gives a local port is the agent's choice**: an ifIndex on most switches, a bridge port on others.
 It is resolved through `lldpLocPortTable` by the interface name when the agent names it so, then as a switch port
@@ -327,8 +331,11 @@ under either reading, and only then as any interface — a switch whose VLAN int
 bridge port 1's neighbour on the VLAN.
 
 **An uplink is a port towards more of the network**: its neighbour says it is a switch or a router (LLDP's and
-CDP's capability bits), or there are six stations or more behind it. An access point bridges, and is still an
-access point; a phone is a neighbour and not an uplink.
+CDP's capability bits), or — when its neighbour says nothing — there are six stations or more behind it. A
+neighbour that says it is an access point, a phone or a host is the end of the line however many stations it
+bridges for. And the capabilities are read telephone and access point FIRST: a desk phone says bridge as well, for
+its PC port, and read bridge-first it was a switch, which made its port an uplink. `pkg/topology`'s `kindOf` reads
+them in the same order.
 
 A switch knows MACs, not IPs, so the ARP caches of devices the person picks — the routers and layer-3 switches that
 route for its stations — are read too, each with its own identifiers (`buildPortMapRequest` goes through
@@ -356,8 +363,9 @@ rather than as RFC 3418 words it: a switch 2, a layer-3 switch 6, a router 78, a
 CDP gives, hop by hop to the depth asked (at most 3), each address once, four walks at a time, 64 devices at most,
 cancellable. A neighbour that is a target is asked with its own identifiers, any other with the defaults — the
 renderer sends both (`buildTopologyRequest`). `crawlTopology` takes the walk as a function, so the bounds and the
-choice of identifiers are tested without a network; the simulated devices name neighbours with no management
-address, so over the wire the test maps two of them as they are.
+choice of identifiers are tested without a network; over the wire, `TestABenchIsMappedAsOneNetwork` follows a
+cabled bench of simulated devices from the core to the phone behind an access switch, every link reported by both
+of its ends (see **The simulator**, the bench).
 
 The layout is the renderer's (`utils/topology.js`), a force-directed one that starts every node on a circle in Go's
 order: the same map is drawn the same way every time. Drag, zoom, a node's links on click, SVG export.
@@ -936,7 +944,9 @@ a `rocommunity` or a `rouser`, or `noSuchName` in v1, and a community used so is
 `Agent` built from its model again: nothing is saved, as a running configuration is not until someone saves it.
 Every varbind is checked before any is applied (RFC 3416 4.2.5), and the tree is REPLACED rather than edited — a
 copy with the changes, swapped in through an `atomic.Pointer` — because notifications read it from their own
-goroutines, and neither they nor a GETBULK may see a SET half-applied. The agent's own subtrees (the snmp group, the
+goroutines, and neither they nor a GETBULK may see a SET half-applied. A rewire (see the bench, below) stores new
+trees from another goroutine than the SET's, so both hold `Agent.swap` — the SET from its Load to its Store —
+or a SET in flight put back the tree as it was cabled before (`TestASetInFlightDoesNotUndoARewire`). The agent's own subtrees (the snmp group, the
 engine, the USM, the VACM) and an object only a notification carries are `notWritable`. A varbind naming an instance
 nothing answers CREATES it, if it would sit in the tree as an instance does: a leaf, under no instance and with none
 under it. Errors are v2c's, mapped for v1 by `v1Status` (RFC 3584 4.4).
@@ -1006,10 +1016,10 @@ knows it, so it carries its own name, description and vendor. Values are pure fu
 counters that only go up and wrap at 32 bits as a real interface's do, gauges that swing, nothing ticking in the
 background.
 
-**The catalogue is what the presets poll.** Fourteen models: a Linux server, a Windows server, the iDRAC9 of a
-PowerEdge R750, a Catalyst 2960 with 24 and with 48 ports, an ISR 4331 with two eBGP sessions, a MikroTik RB4011, a
-FortiGate 60F, a UniFi U6 Pro, a Synology NAS, a three-phase APC Smart-UPS, an APC switched rack PDU, an HP LaserJet
-and an ENTITY-SENSOR-MIB probe. Each says which bundled presets it feeds (`modelPresets`), and
+**The catalogue is what the presets poll.** Seventeen models: a Linux server, a Windows server, the iDRAC9 of a
+PowerEdge R750, a Catalyst 2960 with 24 and with 48 ports, a Catalyst 9300-24T as a layer-3 core, an Aruba 2930F,
+an ISR 4331 with two eBGP sessions, a MikroTik RB4011, a FortiGate 60F, a UniFi U6 Pro, a SIP desk phone, a Synology
+NAS, a three-phase APC Smart-UPS, an APC switched rack PDU, an HP LaserJet and an ENTITY-SENSOR-MIB probe. Each says which bundled presets it feeds (`modelPresets`), and
 `TestEveryModelFeedsItsPresets` expands those presets' widgets against it, discovery walks included — a model
 cannot be added without saying what it answers, nor a preset grow a widget its models leave empty. Three choices
 look odd without that. The Catalyst numbers its ports from 1, because "Switch drawing (24 ports)" polls
@@ -1019,7 +1029,50 @@ builders (`ifaces.go`, `hostres.go`, `addSystem`), so what a preset reads means 
 `TestTheCiscoPresetClaimsTheSimulatedCiscos` holds the identification: the "Cisco (IF-MIB)" preset claims the
 Catalysts and the ISR by their CISCO-PRODUCTS-MIB OIDs, and nothing else. The NAS, the probe and the UniFi report
 net-snmp's Linux sysObjectID because their agent is net-snmp, as most embedded devices' is; their own tables tell
-them apart. The vendor OIDs were read from the MIBs (LibreNMS keeps them), not remembered.
+them apart. The vendor OIDs were read from the MIBs (LibreNMS keeps them), not remembered — the 9300-24T is
+`ciscoCat930024T` in CISCO-PRODUCTS-MIB and the 2930F `arubaSwitchJL253A` in HP-ICF-OID. The phone is a generic
+SIP phone on a net-snmp agent rather than any vendor's: no phone's SNMP identity could be read from a MIB, and
+CISCO-PRODUCTS-MIB lists no IP phone.
+
+**The world the models invent is one world.** Cabled to nothing, an access switch hangs from the core every
+simulated access switch hangs from — `core-sw-01`, one chassis (`fictionalCoreChassis`) — and a router's LAN is
+plugged into it, so that two devices naming it draw one node; the Catalyst's access point is on the port it says,
+and a phone sits on its port 3 and on the Aruba's first voice port, learnt there with the computer behind it. Every
+invented neighbour is also learnt on its port (`bridgeInfo.fixed`), and the hosts in a switch's own ARP cache are
+learnt on its uplink: a switch used to name neighbours it had never heard a frame from, and know addresses of MACs
+it had never learnt. `TestTheInventedCoreIsOneDevice`.
+
+**Devices are cabled to each other on the bench** (`bench.go`, `internal/app/simcabling.go`). A `Link` joins a port
+of one device to a port of another, by ifName; `simulator.json` keeps them beside the devices, `CheckLinks` holds
+them to ports that exist and one cable a port, and `PlanBench` works out, for every cabled device, a `Wiring`: the
+device at the far end of each cable (`Peer`: its name, chassis, port, capabilities, and the address it ANSWERS on),
+and every station learnt through the cable — that device's MACs and, when it forwards, everything behind it. Each
+device is described from its model built on its own (`describe`, reading the very objects a walk would), so a
+custom model is a peer like any other. `addStack` applies the wiring generically: a cabled port is up and named
+after its peer; a device with one address is given the bench's; LLDP — added to a model that has none, since every
+device on the bench is heard — names the peer with `lldpRemManAddrTable`, CDP too between two Ciscos (`cdpOf`); the
+FDB learns what is behind each cable in its VLAN; and a device that routes the bench's subnets holds every station's
+address in its ARP cache, in both IP-MIB tables, IPv6 included. The bench's addressing is its own — VLAN v is
+10.(20+v/256).(v%256).0/24 and fd20:0:0:v::/64, devices .2 to .99, stations .100 to .249 — because the models' own
+LANs are drawn from their seeds and nothing routing would agree with them; the Catalyst 9300 is the gateway of
+every VLAN at .1. Its management network is the loopback: what LLDP and CDP give as a device's address is the one
+it answers on, which is where the crawl must go (on macOS, devices told apart by port alone cannot be reached that
+way). A running device is recabled with `Fleet.Rewire`, which rebuilds its trees under it without a restart — a
+switch does not reboot when a cable is plugged in, and its uptime and counters are what the bench is tested
+against — and only when its wiring changed (`rewireLocked` compares), since a rebuild forgets what a SET wrote.
+Saving a device whose port a cable is in, with fewer ports or another model, is refused; deleting it unplugs its
+cables. What cannot be refused — a device restored from a backup, a custom model imported or recorded again — and
+leaves a cable with no port unplugs it and says so (`settleBenchLocked`): left in, it failed every cable checked
+after it, and a backup's cables were all refused naming a port nobody had asked for. `LinkChecker` checks cables one
+at a time with each device described once. A bench file carries the cables between the devices it holds, each end by its place in the file; a backup
+carries them all.
+
+**A Cisco answers BRIDGE-MIB per VLAN** (`Object.VLAN`, `model.vlanContexts`, `Config.Contexts`). The FDB of a
+Catalyst is tagged by VLAN, and `Device.views` cuts it into the default view — VLAN 1's, as IOS answers the bare
+community — and one view per VLAN its tables name, whether or not anything was learnt in it. The agent answers a
+view to `community@VLAN` (the community before the last `@` checked like any other, in constant time) and to the
+SNMPv3 context `vlan-N`; a VLAN it has not is a bad community or an unknownContexts Report, and a view is read-only.
+The Aruba answers Q-BRIDGE-MIB's dot1qTpFdbTable instead, its filtering database numbered as the VLAN is.
 
 **A model answers a whole agent's walk** (`stack.go`, `bridge.go`, `ucd.go`, `hostres.go`), from about 300 objects
 for the probe to 5 600 for the 48-port Catalyst. A device is described ONCE — its interfaces, addresses, gateway and

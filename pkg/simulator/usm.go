@@ -262,9 +262,13 @@ func (a *Agent) answerV3(msg []byte, c clock) []byte {
 	if req.ContextEngineID != "" && req.ContextEngineID != string(a.engineID) {
 		return a.report(h, u, level, req.RequestID, oidUnknownPDUHandlers, &a.stats.unknownPDUHandlers, c)
 	}
+	var view *tree
 	if req.ContextName != "" {
-		// The default context is the only one a simulated device has.
-		return a.report(h, u, level, req.RequestID, oidUnknownContexts, &a.stats.unknownContexts, c)
+		// A context the device has: a VLAN's view of a switch answering
+		// BRIDGE-MIB per VLAN. Any other is unknown, which is said in a Report.
+		if view = a.context(req.ContextName); view == nil {
+			return a.report(h, u, level, req.RequestID, oidUnknownContexts, &a.stats.unknownContexts, c)
+		}
 	}
 
 	var ans answer
@@ -274,7 +278,7 @@ func (a *Agent) answerV3(msg []byte, c clock) []byte {
 		// authorizationError, and nothing read.
 		ans = answer{vars: req.Variables, status: gosnmp.AuthorizationError}
 	} else {
-		ans = a.process(gosnmp.Version3, req, c, u.write)
+		ans = a.process(gosnmp.Version3, req, c, u.write, view)
 	}
 	out, err := fit(ans, bulkFloor(req), tooBig(gosnmp.Version3, req), min(a.maxSize, int(req.MsgMaxSize)),
 		func(ans answer) ([]byte, error) {

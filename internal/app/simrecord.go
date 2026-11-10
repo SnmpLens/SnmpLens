@@ -127,7 +127,11 @@ func (a *App) SimulatorRecordDevice(req SimulatorRecordRequest) (SimulatorModelI
 	res = s.keepModel(res, m, noIcon, keptPackage, packed)
 	s.loadModels()
 	a.restartModelDevicesLocked(s, &res)
+	settled := []SimulatorModelImportResult{res}
+	s.settleModelsLocked(settled)
+	res = settled[0]
 	a.emitSimulatorModelsChanged()
+	a.emitSimulatorChanged()
 	return res, nil
 }
 

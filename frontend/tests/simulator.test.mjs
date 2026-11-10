@@ -638,6 +638,32 @@ check('read as if the device had run since the tab was opened',
   previewQuery(' ifDescr ', 1, 1000, 61000).sinceSeconds === 60 && previewQuery(' ifDescr ', 1, 1000, 61000).filter === 'ifDescr' &&
   previewQuery('', false, 0).sinceSeconds === 0);
 
+/* --- the bench's cables -------------------------------------------------- */
+
+const cables = await import(pathToFileURL(bundle).href);
+const benchDevices = [{ id: 'core', name: 'core-01' }, { id: 'sw', name: 'sw-floor-2' }, { id: 'ph', name: 'phone' }];
+const benchLinks = [
+  { id: 'l2', a: { device: 'ph', port: 'eth0' }, b: { device: 'sw', port: 'Fa0/10' } },
+  { id: 'l1', a: { device: 'sw', port: 'Gi0/1' }, b: { device: 'core', port: 'Te1/1/1' } },
+  { id: 'l3', a: { device: 'gone', port: 'eth0' }, b: { device: 'core', port: 'Gi1/0/1' } },
+];
+const rows = cables.cableRows(benchLinks, benchDevices);
+check('a cable is listed from the end whose device comes first, a cable to a device gone is not',
+  rows.length === 2 && rows[0].a.name === 'core-01' && rows[0].a.port === 'Te1/1/1' && rows[0].b.name === 'sw-floor-2' &&
+  rows[1].a.name === 'sw-floor-2' && rows[1].a.port === 'Fa0/10' && rows[1].b.name === 'phone',
+  JSON.stringify(rows));
+const swPorts = [{ name: 'Fa0/2' }, { name: 'Fa0/10' }, { name: 'Gi0/1' }];
+check('a port a cable is in is offered to no other cable',
+  cables.freePorts(swPorts, benchLinks, 'sw').map((p) => p.name).join() === 'Fa0/2',
+  cables.freePorts(swPorts, benchLinks, 'sw').map((p) => p.name).join());
+check('ports are ordered as a person reads them',
+  ['Fa0/10', 'Fa0/2', 'Gi0/1'].sort(cables.portOrder).join() === 'Fa0/2,Fa0/10,Gi0/1');
+check('a cable is ready once it names two ports of two devices',
+  cables.cableReady({ a: { device: 'sw', port: 'Fa0/2' }, b: { device: 'core', port: 'Gi1/0/2' } }) &&
+  !cables.cableReady({ a: { device: 'sw', port: 'Fa0/2' }, b: { device: 'sw', port: 'Fa0/3' } }) &&
+  !cables.cableReady({ a: { device: 'sw', port: '' }, b: { device: 'core', port: 'Gi1/0/2' } }));
+check('a phone has an icon of its own', cables.categoryIcon('telephony') === 'phone');
+
 /* --- the demo's simulator ------------------------------------------------ */
 
 // The browser demo has no backend. Its simulator answers from the scenes that

@@ -4,7 +4,7 @@ package updater
 
 import (
 	"os"
-	"strings"
+	"path/filepath"
 
 	"golang.org/x/sys/windows/registry"
 )
@@ -16,6 +16,10 @@ const (
 
 // target picks the asset and apply strategy for Windows: the NSIS installer for
 // installed copies, an in-place self-replace for the portable executable.
+//
+// The installer is what updates an all-users copy safely: it stops the Windows
+// service that runs the same executable, replaces it, and starts the service
+// again.
 func target() (string, applyMode) {
 	if isInstalled() {
 		return windowsSetupAsset, applyInstaller
@@ -23,22 +27,58 @@ func target() (string, applyMode) {
 	return windowsBinaryAsset, applyReplace
 }
 
-// isInstalled reports whether this copy was installed by the NSIS installer,
-// which writes an uninstall registry key (per-user or per-machine).
+// isInstalled reports whether the RUNNING executable is the NSIS-installed copy,
+// not merely that an install exists somewhere: a portable executable on a
+// machine that also has an installed copy must replace itself, not launch the
+// installer against the other copy — and an all-users installer, against the
+// copy the service runs.
 func isInstalled() bool {
-	const uninstallKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\SnmpLens`
-	for _, root := range []registry.Key{registry.LOCAL_MACHINE, registry.CURRENT_USER} {
-		if k, err := registry.OpenKey(root, uninstallKey, registry.QUERY_VALUE); err == nil {
-			k.Close()
-			return true
-		}
+	exe, err := os.Executable()
+	if err != nil {
+		return false
 	}
-	// Fallback heuristic: running from under %ProgramFiles%.
-	if exe, err := os.Executable(); err == nil {
-		if pf := os.Getenv("ProgramFiles"); pf != "" &&
-			strings.HasPrefix(strings.ToLower(exe), strings.ToLower(pf)) {
+	if real, rerr := filepath.EvalSymlinks(exe); rerr == nil {
+		exe = real
+	}
+	return installedAt(filepath.Dir(exe), installLocations(), os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"))
+}
+
+// installedAt is isInstalled's decision for the directory of the running
+// executable. A per-user and an all-users copy can both be registered, so the
+// executable is installed when it lives under any registered location; with
+// none registered, a copy under Program Files is taken for installed.
+func installedAt(dir string, registered []string, programFiles ...string) bool {
+	if len(registered) > 0 {
+		for _, loc := range registered {
+			if pathUnder(dir, loc) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, pf := range programFiles {
+		if pf != "" && pathUnder(dir, pf) {
 			return true
 		}
 	}
 	return false
+}
+
+// installLocations returns the install directories the NSIS installer recorded:
+// the per-user one (HKCU) and the all-users one (HKLM), whichever exist. Both
+// can.
+func installLocations() []string {
+	const uninstallKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\SnmpLens`
+	var locs []string
+	for _, root := range []registry.Key{registry.CURRENT_USER, registry.LOCAL_MACHINE} {
+		k, err := registry.OpenKey(root, uninstallKey, registry.QUERY_VALUE)
+		if err != nil {
+			continue
+		}
+		if loc, _, err := k.GetStringValue("InstallLocation"); err == nil && loc != "" {
+			locs = append(locs, loc)
+		}
+		k.Close()
+	}
+	return locs
 }

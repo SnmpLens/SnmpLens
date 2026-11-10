@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/secrets"
 	"SnmpLens/pkg/service"
 	"SnmpLens/pkg/storage"
@@ -114,10 +115,12 @@ func exportBundle(st *storage.Storage, store secrets.Store, cfg service.Config, 
 
 // ImportBundle prepares dataDir for a supervision about to open there: b's
 // credentials into store, the trap listener's engine ID, and service.json with
-// cfg. dbCopy, when given and dataDir has no monitoring.db yet, becomes it —
-// the history the other supervision had — and is removed either way. A
-// directory that has a database keeps it: an installed service updated, or
-// installed again, keeps its own history. kept reports that.
+// cfg. dbCopy, when given, becomes dataDir's monitoring.db — the history the
+// other supervision had — unless dataDir's holds something already: an
+// installed service updated, or installed again, keeps its own history, and
+// kept reports that. One that holds nothing — the service the installer put
+// there, which started on the defaults — takes the copy. dbCopy is removed
+// either way.
 func ImportBundle(dataDir string, store secrets.Store, b Bundle, cfg service.Config, dbCopy string) (kept bool, err error) {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return false, err
@@ -125,10 +128,21 @@ func ImportBundle(dataDir string, store secrets.Store, b Bundle, cfg service.Con
 	if dbCopy != "" {
 		defer os.Remove(dbCopy)
 		target := filepath.Join(dataDir, "monitoring.db")
-		if _, err := os.Stat(target); err == nil {
-			kept = true
-		} else if err := copyFile(dbCopy, target); err != nil {
+		has, err := holdsSomething(target)
+		if err != nil {
 			return false, fmt.Errorf("the monitoring history: %w", err)
+		}
+		if has {
+			kept = true
+		} else {
+			for _, suffix := range []string{"", "-wal", "-shm"} {
+				if err := os.Remove(target + suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+					return false, fmt.Errorf("the monitoring history: %w", err)
+				}
+			}
+			if err := copyFile(dbCopy, target); err != nil {
+				return false, fmt.Errorf("the monitoring history: %w", err)
+			}
 		}
 	}
 	if store != nil {
@@ -154,6 +168,56 @@ func ImportBundle(dataDir string, store secrets.Store, b Bundle, cfg service.Con
 		return kept, err
 	}
 	return kept, nil
+}
+
+// holdsSomething reports whether the database at path holds anything a
+// supervision would lose: a session, a destination, a route, a journalled event.
+// No database holds nothing.
+func holdsSomething(path string) (bool, error) {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	st, err := storage.Init(path)
+	if err != nil {
+		return false, err
+	}
+	defer st.Close()
+	sessions, err := st.ListSessions()
+	if err != nil || len(sessions) > 0 {
+		return len(sessions) > 0, err
+	}
+	sinks, err := st.ListSinks()
+	if err != nil || len(sinks) > 0 {
+		return len(sinks) > 0, err
+	}
+	routes, err := st.ListRoutes()
+	if err != nil || len(routes) > 0 {
+		return len(routes) > 0, err
+	}
+	page, err := st.QueryEvents(events.Filter{Limit: 1})
+	if err != nil {
+		return false, err
+	}
+	return len(page.Items) > 0, nil
+}
+
+// HoldsSomething reports whether the supervision kept in dataDir holds anything
+// it would lose: what decides whether a window has something to hand over, and
+// whether a service has a history of its own.
+func HoldsSomething(dataDir string) (bool, error) {
+	return holdsSomething(filepath.Join(dataDir, "monitoring.db"))
+}
+
+// SnapshotAt writes a copy of the database kept in dataDir to dst, with no
+// engine running there: what a window driving the service hands over of the
+// supervision it ran before.
+func SnapshotAt(dataDir, dst string) error {
+	st, err := storage.Init(filepath.Join(dataDir, "monitoring.db"))
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	return st.SnapshotTo(dst)
 }
 
 // copyFile copies src to dst through a temporary file, so that a stop half-way

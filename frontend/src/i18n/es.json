@@ -1096,7 +1096,10 @@
       "started": "El servicio está en marcha.",
       "stoppedDone": "El servicio está detenido.",
       "allowed": "Esta cuenta puede controlar el servicio.",
-      "uninstalled": "El servicio se ha quitado."
+      "uninstalled": "El servicio se ha quitado.",
+      "handOverHint": "El servicio arrancó vacío, tal como lo deja el instalador. Esta ventana supervisaba antes por su cuenta: sus sesiones, destinos e historial pueden transferirse al servicio.",
+      "handOver": "Transferir la supervisión de esta ventana",
+      "handedOver": "El servicio supervisa ahora lo que hacía esta ventana."
     }
   },
   "mibVerdict": {

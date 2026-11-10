@@ -84,6 +84,24 @@ func TestASupervisionMovesWhole(t *testing.T) {
 		t.Errorf("service.json = %s", saved)
 	}
 
+	// An empty service — the installer's — takes a window's history.
+	empty := t.TempDir()
+	emptyEngine := New(Options{DataDir: empty})
+	if err := emptyEngine.Open(); err != nil {
+		t.Fatal(err)
+	}
+	emptyEngine.Close()
+	given := filepath.Join(t.TempDir(), "monitoring.db")
+	if err := from.Storage().SnapshotTo(given); err != nil {
+		t.Fatal(err)
+	}
+	if kept, err := ImportBundle(empty, nil, Bundle{}, cfg, given); err != nil || kept {
+		t.Errorf("an empty service: kept %v, %v", kept, err)
+	}
+	if has, err := HoldsSomething(empty); err != nil || !has {
+		t.Errorf("the empty service did not take the history: %v, %v", has, err)
+	}
+
 	// Installed again over a service that has its history: it keeps it.
 	again := filepath.Join(t.TempDir(), "monitoring.db")
 	if err := from.Storage().SnapshotTo(again); err != nil {

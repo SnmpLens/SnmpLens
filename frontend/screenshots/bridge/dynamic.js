@@ -394,6 +394,7 @@ const DEMO_ONLY = {
   SystemServiceStart: 'Starting the system service asks Windows for administrator rights.',
   SystemServiceStop: 'Stopping the system service asks Windows for administrator rights.',
   SystemServiceAllow: 'Allowing an account to drive the system service asks Windows for administrator rights.',
+  SystemServiceHandOver: 'Handing this window’s supervision to the system service asks Windows for administrator rights.',
   CheckForUpdate: 'The updater asks GitHub for a newer release and verifies its Ed25519 signature.',
   DownloadAndApplyUpdate: 'Applying an update replaces the executable on disk.',
   BrowseDialog: 'Choosing a file opens the operating system’s file dialog.',

@@ -37,7 +37,7 @@ Usage:
                                      whose service.json says whether the trap
                                      listener starts and the sessions resume.
   SnmpLens service status            show the system service's state
-  SnmpLens service install [--bundle FILE --db FILE] [--operator SID]
+  SnmpLens service install [--bundle FILE --db FILE] [--operator SID | --operator-self]
                                      install it, or update it, and start it;
                                      without a bundle it starts empty, on the
                                      defaults, until a window hands it a

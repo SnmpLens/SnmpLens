@@ -94,9 +94,12 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $env:PATH += ";${env:ProgramFiles(x86)}\NSIS"
-          $version = "${{ github.ref_name }}".TrimStart("v")
-          (Get-Content build\windows\installer\project.nsi) -replace '1\.0\.0', $version | Set-Content build\windows\installer\project.nsi
-          makensis build\windows\installer\project.nsi
+          # The version is DEFINED for makensis, not written into the script:
+          # rewritten with Set-Content, the script lost its byte order mark, and
+          # makensis then reads it in the ANSI code page, garbling every
+          # accented string of the localised installer.
+          $version = "$env:GITHUB_REF_NAME".TrimStart("v")
+          makensis "/DINFO_PRODUCTVERSION=$version" build\windows\installer\project.nsi
         shell: pwsh
 
       - name: Package (Windows)

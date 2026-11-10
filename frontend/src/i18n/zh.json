@@ -1096,7 +1096,10 @@
       "started": "服务正在运行。",
       "stoppedDone": "服务已停止。",
       "allowed": "此账户可以控制该服务。",
-      "uninstalled": "服务已移除。"
+      "uninstalled": "服务已移除。",
+      "handOverHint": "服务以空配置启动（安装程序的默认方式）。本窗口此前自行监控：其会话、通知目标和历史记录可以移交给服务。",
+      "handOver": "移交本窗口的监控",
+      "handedOver": "服务现在监控本窗口此前监控的内容。"
     }
   },
   "mibVerdict": {

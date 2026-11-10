@@ -15,6 +15,7 @@
     SystemServiceStart,
     SystemServiceStop,
     SystemServiceAllow,
+    SystemServiceHandOver,
   } from '../../wailsjs/go/app/App';
 
   let link = null;
@@ -73,6 +74,14 @@
         <Icon name="triangle-alert" size={14} />
         {$_(`service.system.reason.${link.reason}`)}{link.detail ? ` — ${link.detail}` : ''}
       </p>
+    {/if}
+    {#if link.driving && link.canHandOver}
+      <p class="note">{$_('service.system.handOverHint')}</p>
+      <div class="actions">
+        <button class="btn" disabled={busy} on:click={() => run(SystemServiceHandOver, 'service.system.handedOver')}>
+          {$_('service.system.handOver')}
+        </button>
+      </div>
     {/if}
     {#if link.location && (!link.installed || link.driving)}
       <p class="note warn"><Icon name="triangle-alert" size={14} /> {$_('service.system.location')}</p>

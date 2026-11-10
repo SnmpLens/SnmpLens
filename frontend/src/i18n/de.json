@@ -1827,6 +1827,7 @@
         "iconMissing": "{name}: Das Archiv enthält kein „{detail}“, das Modell hat also kein Symbol",
         "iconRefused": "{name}: Das Symbol wurde abgelehnt ({detail})",
         "restartFailed": "{name}: Ein Gerät wurde nicht neu gestartet — {detail}",
+        "cableUnplugged": "{name}: Ein Kabel wurde abgezogen — {detail}",
         "walkSkipped": "{name}: Aufgezeichnete Werte, die nicht gelesen werden konnten, wurden ausgelassen ({detail})",
         "walkAgentOwned": "{name}: {detail} aufgezeichnete Objekte gehören dem Agenten selbst — seine SNMP-Zähler, seine Engine, seine Benutzer, Gruppen und Communities — und wurden ausgelassen",
         "packageIgnored": "{name}: „{detail}“ ist keine Datei, die ein Paket liest, und wurde ausgelassen"

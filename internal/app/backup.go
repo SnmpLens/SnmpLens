@@ -814,6 +814,15 @@ func (a *App) restoreSimulatedDevices(devices []simulator.Device, raw map[string
 		return append(problems, fmt.Sprintf("saving the simulated devices: %v", err))
 	}
 	s.devices = next
+	// A device replaced may no longer have the port a cable is in, and its
+	// running neighbours describe it as it was.
+	dropped, err := s.settleBenchLocked()
+	for _, u := range dropped {
+		problems = append(problems, fmt.Sprintf("a cable is unplugged: %v", u.err))
+	}
+	if err != nil {
+		problems = append(problems, err.Error())
+	}
 	a.emitSimulatorChanged()
 	return problems
 }

@@ -236,13 +236,13 @@ func (a *App) importDevices(file string, raw []byte) []SimulatorDeviceImportResu
 	// refused takes its cables with it.
 	links := slices.Clone(s.links)
 	for _, c := range f.Cables {
-		a, okA := made[c.A.Device]
-		b, okB := made[c.B.Device]
+		from, okA := made[c.A.Device]
+		to, okB := made[c.B.Device]
 		if !okA || !okB {
 			continue
 		}
-		l := simulator.Link{ID: simulator.NewLinkID(), A: simulator.LinkEnd{Device: a, Port: c.A.Port},
-			B: simulator.LinkEnd{Device: b, Port: c.B.Port}}
+		l := simulator.Link{ID: simulator.NewLinkID(), A: simulator.LinkEnd{Device: from, Port: c.A.Port},
+			B: simulator.LinkEnd{Device: to, Port: c.B.Port}}
 		if simulator.CheckLinks(next, append(slices.Clone(links), l)) == nil {
 			links = append(links, l)
 		}

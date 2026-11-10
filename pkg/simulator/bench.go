@@ -396,43 +396,68 @@ func Ports(d Device) ([]Port, error) {
 // naming a device or a port that does not exist, joining a device to itself,
 // or plugged into a port another cable is in.
 func CheckLinks(devices []Device, links []Link) error {
-	described := map[string]*benchDevice{}
-	byID := map[string]Device{}
-	for _, d := range devices {
-		byID[d.ID] = d
-	}
-	ids := map[string]bool{}
-	used := map[string]string{}
+	c := NewLinkChecker(devices)
 	for _, l := range links {
-		if l.ID == "" || ids[l.ID] {
-			return errors.New("every cable has an ID of its own")
+		if err := c.Add(l); err != nil {
+			return err
 		}
-		ids[l.ID] = true
-		if l.A.Device == l.B.Device {
-			return errors.New("a cable joins two devices, not two ports of one")
+	}
+	return nil
+}
+
+// A LinkChecker holds cables to the devices they join, one cable at a time,
+// each device described once however many cables are checked: keeping the
+// cables of a bench that still fit is one pass, not one CheckLinks per cable.
+type LinkChecker struct {
+	byID      map[string]Device
+	described map[string]*benchDevice
+	ids       map[string]bool
+	used      map[string]bool
+}
+
+// NewLinkChecker is a checker of cables among devices, holding none yet.
+func NewLinkChecker(devices []Device) *LinkChecker {
+	c := &LinkChecker{byID: map[string]Device{}, described: map[string]*benchDevice{}, ids: map[string]bool{},
+		used: map[string]bool{}}
+	for _, d := range devices {
+		c.byID[d.ID] = d
+	}
+	return c
+}
+
+// Add checks l against the devices and the cables added before it, and adds it
+// when nothing is wrong with it; a cable refused leaves the checker as it was.
+func (c *LinkChecker) Add(l Link) error {
+	if l.ID == "" || c.ids[l.ID] {
+		return errors.New("every cable has an ID of its own")
+	}
+	if l.A.Device == l.B.Device {
+		return errors.New("a cable joins two devices, not two ports of one")
+	}
+	ends := []LinkEnd{l.A, l.B}
+	for _, end := range ends {
+		d, ok := c.byID[end.Device]
+		if !ok {
+			return fmt.Errorf("a cable is plugged into a device that does not exist (%s)", end.Device)
 		}
-		for _, end := range []LinkEnd{l.A, l.B} {
-			d, ok := byID[end.Device]
-			if !ok {
-				return fmt.Errorf("a cable is plugged into a device that does not exist (%s)", end.Device)
+		b, ok := c.described[d.ID]
+		if !ok {
+			var err error
+			if b, err = describe(d); err != nil {
+				return fmt.Errorf("%s: %w", d.Name, err)
 			}
-			b := described[d.ID]
-			if b == nil {
-				var err error
-				if b, err = describe(d); err != nil {
-					return fmt.Errorf("%s: %w", d.Name, err)
-				}
-				described[d.ID] = b
-			}
-			if b.byName[end.Port] == nil {
-				return fmt.Errorf("%s has no port %q", d.Name, end.Port)
-			}
-			key := d.ID + "\x00" + end.Port
-			if other, taken := used[key]; taken && other != l.ID {
-				return fmt.Errorf("port %s of %s already has a cable in it", end.Port, d.Name)
-			}
-			used[key] = l.ID
+			c.described[d.ID] = b
 		}
+		if b.byName[end.Port] == nil {
+			return fmt.Errorf("%s has no port %q", d.Name, end.Port)
+		}
+		if c.used[d.ID+"\x00"+end.Port] {
+			return fmt.Errorf("port %s of %s already has a cable in it", end.Port, d.Name)
+		}
+	}
+	c.ids[l.ID] = true
+	for _, end := range ends {
+		c.used[end.Device+"\x00"+end.Port] = true
 	}
 	return nil
 }

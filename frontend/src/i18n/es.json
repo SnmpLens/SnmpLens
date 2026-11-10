@@ -1827,6 +1827,7 @@
         "iconMissing": "{name}: el archivo no contiene «{detail}», así que el modelo no tiene icono",
         "iconRefused": "{name}: su icono fue rechazado ({detail})",
         "restartFailed": "{name}: un dispositivo no se reinició — {detail}",
+        "cableUnplugged": "{name}: se desconectó un cable — {detail}",
         "walkSkipped": "{name}: se omitieron valores grabados que no se pudieron leer ({detail})",
         "walkAgentOwned": "{name}: {detail} objetos grabados pertenecen al propio agente — sus contadores SNMP, su motor, sus usuarios, grupos y comunidades — y se omitieron",
         "packageIgnored": "{name}: «{detail}» no es un archivo que lea un paquete, y se omitió"

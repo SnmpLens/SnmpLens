@@ -1827,6 +1827,7 @@
         "iconMissing": "{name}: the archive holds no “{detail}”, so the model has no icon",
         "iconRefused": "{name}: its icon was refused ({detail})",
         "restartFailed": "{name}: a device did not restart — {detail}",
+        "cableUnplugged": "{name}: a cable was unplugged — {detail}",
         "walkSkipped": "{name}: recorded values that could not be read were left out ({detail})",
         "walkAgentOwned": "{name}: {detail} recorded objects belong to the agent itself — its SNMP counters, engine, users, groups and communities — and were left out",
         "packageIgnored": "{name}: “{detail}” is not a file a package reads, and was left out"

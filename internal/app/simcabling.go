@@ -16,18 +16,75 @@ import (
 // without restarting it — a switch does not reboot when a cable is plugged in,
 // and its uptime and counters are what the tests on the bench watch.
 
+// unplugged is a cable that no longer fits the devices, and why.
+type unplugged struct {
+	link simulator.Link
+	err  error
+}
+
 // keptLinks are the links that still fit devices, one at a time: a cable whose
-// device or port has gone is dropped, and the rest are kept.
-func keptLinks(devices []simulator.Device, links []simulator.Link) []simulator.Link {
+// device or port has gone is dropped, with what was wrong with it, and the rest
+// are kept.
+func keptLinks(devices []simulator.Device, links []simulator.Link) ([]simulator.Link, []unplugged) {
 	out := []simulator.Link{}
+	var dropped []unplugged
+	c := simulator.NewLinkChecker(devices)
 	for _, l := range links {
-		if err := simulator.CheckLinks(devices, append(slices.Clone(out), l)); err != nil {
-			log.Printf("simulator: a cable is dropped: %v", err)
+		if err := c.Add(l); err != nil {
+			dropped = append(dropped, unplugged{l, err})
 			continue
 		}
 		out = append(out, l)
 	}
-	return out
+	return out, dropped
+}
+
+// settleBenchLocked unplugs the cables the devices no longer have a port for,
+// and recables the running devices as the bench then stands. Saving a device
+// refuses to leave a cable in a port it no longer has; a device restored from
+// a backup, or a model imported again with fewer interfaces, cannot be refused,
+// and left in, one such cable failed every cable checked after it — a backup's
+// were all refused, naming a port nobody had asked for. What was unplugged is
+// returned, to be said; a failure to save it is returned as an error.
+func (s *simulatorService) settleBenchLocked() ([]unplugged, error) {
+	links, dropped := keptLinks(s.devices, s.links)
+	if len(dropped) > 0 {
+		if err := s.writeBench(s.devices, links); err != nil {
+			return nil, fmt.Errorf("saving the simulated devices: %w", err)
+		}
+		s.links = links
+	}
+	s.rewireLocked()
+	return dropped, nil
+}
+
+// settleModelsLocked settles the bench once models were imported, and says each
+// cable it unplugged beside the import of a model at one of its ends.
+func (s *simulatorService) settleModelsLocked(results []SimulatorModelImportResult) {
+	dropped, err := s.settleBenchLocked()
+	if err != nil {
+		log.Printf("simulator: %v", err)
+	}
+	modelOf := make(map[string]string, len(s.devices))
+	for _, d := range s.devices {
+		modelOf[d.ID] = d.Model
+	}
+	for _, u := range dropped {
+		said := false
+		for r := range results {
+			res := &results[r]
+			if !res.Success || !res.Replaced {
+				continue
+			}
+			if modelOf[u.link.A.Device] == res.ModelID || modelOf[u.link.B.Device] == res.ModelID {
+				res.Warnings = append(res.Warnings, SimulatorModelWarning{Key: "cableUnplugged", Detail: u.err.Error()})
+				said = true
+			}
+		}
+		if !said {
+			log.Printf("simulator: a cable is unplugged: %v", u.err)
+		}
+	}
 }
 
 // planLocked is the wiring of every cabled device as the bench stands.

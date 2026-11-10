@@ -1827,6 +1827,7 @@
         "iconMissing": "{name} : l’archive ne contient pas « {detail} », le modèle n’a donc pas d’icône",
         "iconRefused": "{name} : son icône a été refusée ({detail})",
         "restartFailed": "{name} : un appareil n’a pas redémarré — {detail}",
+        "cableUnplugged": "{name} : un câble a été débranché — {detail}",
         "walkSkipped": "{name} : des valeurs enregistrées illisibles ont été écartées ({detail})",
         "walkAgentOwned": "{name} : {detail} objets enregistrés appartiennent à l’agent lui-même — ses compteurs SNMP, son moteur, ses utilisateurs, ses groupes et ses communautés — et ont été écartés",
         "packageIgnored": "{name} : « {detail} » n’est pas un fichier que lit un paquet, et a été écarté"

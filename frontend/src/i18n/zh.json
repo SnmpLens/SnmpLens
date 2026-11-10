@@ -1827,6 +1827,7 @@
         "iconMissing": "{name}：压缩包中没有“{detail}”，因此该型号没有图标",
         "iconRefused": "{name}：其图标被拒绝（{detail}）",
         "restartFailed": "{name}：有设备未能重启——{detail}",
+        "cableUnplugged": "{name}：有一根线缆被拔下——{detail}",
         "walkSkipped": "{name}：无法读取的录制值已被略过（{detail}）",
         "walkAgentOwned": "{name}：{detail} 个录制对象属于代理本身——其 SNMP 计数器、引擎、用户、组和团体——已被略过",
         "packageIgnored": "{name}：“{detail}”不是型号包会读取的文件，已被略过"

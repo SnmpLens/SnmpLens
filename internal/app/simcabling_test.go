@@ -217,3 +217,53 @@ func TestCablesAreKeptAndAppliedToRunningDevices(t *testing.T) {
 		t.Errorf("a deleted device's cable remains: %+v", got)
 	}
 }
+
+// A device a backup restores without the port a cable is in unplugs that cable,
+// and says so; the backup's own cables are then restored. Left in, the cable
+// failed every cable checked after it, each refused for a port nobody had asked
+// for.
+func TestARestoredDeviceThatLostAPortUnplugsItsCable(t *testing.T) {
+	a, _ := simApp(t)
+	coreDevice := simDevice()
+	coreDevice.Name, coreDevice.Model = "core-01", "cisco-catalyst-9300"
+	core, err := a.SimulatorSaveDevice(coreDevice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srvDevice := simDevice()
+	srvDevice.Address = "127.0.0.3"
+	srv, err := a.SimulatorSaveDevice(srvDevice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SimulatorConnect(simulator.Link{A: simulator.LinkEnd{Device: core.ID, Port: "Gi1/0/8"},
+		B: simulator.LinkEnd{Device: srv.ID, Port: "eth0"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	a.sim.mu.Lock()
+	fewer := a.sim.devices[a.sim.index(core.ID)]
+	a.sim.mu.Unlock()
+	fewer.Params = map[string]int{"ports": 4}
+	var restored int
+	problems := a.restoreSimulatedDevices([]simulator.Device{fewer}, nil, &restored)
+	if restored != 1 || len(problems) != 1 || !strings.Contains(problems[0], "Gi1/0/8") {
+		t.Fatalf("restored %d, said %q", restored, problems)
+	}
+	if got := a.ListSimulatorLinks(); len(got) != 0 {
+		t.Errorf("the cable is still in a port the device no longer has: %+v", got)
+	}
+	again := newSimulatorService(filepath.Dir(a.sim.path))
+	if len(again.links) != 0 {
+		t.Errorf("the unplugged cable was kept in the file: %+v", again.links)
+	}
+
+	backup := simulator.Link{ID: simulator.NewLinkID(), A: simulator.LinkEnd{Device: core.ID, Port: "Gi1/0/2"},
+		B: simulator.LinkEnd{Device: srv.ID, Port: "eth0"}}
+	if problems := a.restoreSimulatorLinks([]simulator.Link{backup}); len(problems) != 0 {
+		t.Errorf("the backup's cable was refused: %q", problems)
+	}
+	if got := a.ListSimulatorLinks(); len(got) != 1 || got[0].ID != backup.ID {
+		t.Errorf("links: %+v", got)
+	}
+}

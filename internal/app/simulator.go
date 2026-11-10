@@ -71,7 +71,11 @@ func newSimulatorService(dir string) *simulatorService {
 	s.loadModels()
 	// The cables once every model is known: a cable is checked against the
 	// ports of the devices at its ends, and one that no longer fits is dropped.
-	s.links = keptLinks(s.devices, s.links)
+	var dropped []unplugged
+	s.links, dropped = keptLinks(s.devices, s.links)
+	for _, u := range dropped {
+		log.Printf("simulator: a cable is dropped: %v", u.err)
+	}
 	return s
 }
 

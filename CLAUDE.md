@@ -895,7 +895,9 @@ a `rocommunity` or a `rouser`, or `noSuchName` in v1, and a community used so is
 `Agent` built from its model again: nothing is saved, as a running configuration is not until someone saves it.
 Every varbind is checked before any is applied (RFC 3416 4.2.5), and the tree is REPLACED rather than edited — a
 copy with the changes, swapped in through an `atomic.Pointer` — because notifications read it from their own
-goroutines, and neither they nor a GETBULK may see a SET half-applied. The agent's own subtrees (the snmp group, the
+goroutines, and neither they nor a GETBULK may see a SET half-applied. A rewire (see the bench, below) stores new
+trees from another goroutine than the SET's, so both hold `Agent.swap` — the SET from its Load to its Store —
+or a SET in flight put back the tree as it was cabled before (`TestASetInFlightDoesNotUndoARewire`). The agent's own subtrees (the snmp group, the
 engine, the USM, the VACM) and an object only a notification carries are `notWritable`. A varbind naming an instance
 nothing answers CREATES it, if it would sit in the tree as an instance does: a leaf, under no instance and with none
 under it. Errors are v2c's, mapped for v1 by `v1Status` (RFC 3584 4.4).
@@ -1010,7 +1012,10 @@ way). A running device is recabled with `Fleet.Rewire`, which rebuilds its trees
 switch does not reboot when a cable is plugged in, and its uptime and counters are what the bench is tested
 against — and only when its wiring changed (`rewireLocked` compares), since a rebuild forgets what a SET wrote.
 Saving a device whose port a cable is in, with fewer ports or another model, is refused; deleting it unplugs its
-cables. A bench file carries the cables between the devices it holds, each end by its place in the file; a backup
+cables. What cannot be refused — a device restored from a backup, a custom model imported or recorded again — and
+leaves a cable with no port unplugs it and says so (`settleBenchLocked`): left in, it failed every cable checked
+after it, and a backup's cables were all refused naming a port nobody had asked for. `LinkChecker` checks cables one
+at a time with each device described once. A bench file carries the cables between the devices it holds, each end by its place in the file; a backup
 carries them all.
 
 **A Cisco answers BRIDGE-MIB per VLAN** (`Object.VLAN`, `model.vlanContexts`, `Config.Contexts`). The FDB of a

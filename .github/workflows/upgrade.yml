@@ -53,7 +53,10 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
 
       - name: Install NSIS
-        run: choco install nsis -y
+        # Only when the image lacks it: the Chocolatey feed answering 504 failed
+        # a run that needed nothing from it.
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { choco install nsis -y }
         shell: pwsh
 
       - name: Build

@@ -804,7 +804,8 @@
     "hopIp": "IP 地址",
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
-    "hopRtt3": "RTT 3"
+    "hopRtt3": "RTT 3",
+    "ports": "端口映射"
   },
   "debug": {
     "title": "SNMP 调试",
@@ -1864,5 +1865,40 @@
     "automaticHint": "SnmpLens 在每次恢复前备份配置，并保留最近 {count} 份。恢复其中一份即可撤销其后的那次恢复。",
     "automaticEmpty": "暂无。",
     "undo": "恢复此备份"
+  },
+  "portmap": {
+    "switch": "交换机",
+    "resolveNames": "查找名称（反向 DNS）",
+    "scan": "映射端口",
+    "cancel": "停止",
+    "noTargets": "请先将交换机添加为目标。",
+    "gateways": "来自其他设备 ARP 缓存的 IP 地址（已选 {count} 个）",
+    "gatewaysHint": "交换机只知道 MAC 地址；为其终端路由的路由器和三层交换机知道它们的 IP 地址。始终会读取交换机自身的 ARP 缓存。",
+    "progress": {
+      "switch": "正在读取交换机…",
+      "vlans": "正在读取 VLAN {done}/{total}…",
+      "gateways": "正在读取 ARP 缓存 {done}/{total}…",
+      "names": "正在查找名称 {done}/{total}…"
+    },
+    "summary": "{ports} 个端口，{stations} 个地址",
+    "source": {
+      "q-bridge": "来自 Q-BRIDGE-MIB",
+      "bridge": "来自 BRIDGE-MIB",
+      "bridge-per-vlan": "来自 BRIDGE-MIB，逐个 VLAN"
+    },
+    "noStations": "交换机未报告任何已学习的地址。它可能既不响应 BRIDGE-MIB 也不响应 Q-BRIDGE-MIB，或者其转发表为空。",
+    "unplaced": "在没有接口对应的网桥端口上学习到的地址：{count}",
+    "filter": "筛选：端口、MAC、IP、名称…",
+    "usedOnly": "仅显示使用中的端口",
+    "nothing": "无匹配项。",
+    "uplink": "上联",
+    "col": {
+      "port": "端口",
+      "vlan": "VLAN",
+      "neighbour": "邻居",
+      "mac": "MAC 地址",
+      "ip": "IP 地址",
+      "name": "名称"
+    }
   }
 }

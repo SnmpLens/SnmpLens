@@ -804,7 +804,8 @@
     "hopIp": "IP-Adresse",
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
-    "hopRtt3": "RTT 3"
+    "hopRtt3": "RTT 3",
+    "ports": "Port-Karte"
   },
   "debug": {
     "title": "SNMP Debug",
@@ -1864,5 +1865,40 @@
     "automaticHint": "SnmpLens sichert die Konfiguration vor jeder Wiederherstellung und behält die letzten {count}. Eine davon wiederherzustellen macht die darauf folgende Wiederherstellung rückgängig.",
     "automaticEmpty": "Noch keine.",
     "undo": "Diese wiederherstellen"
+  },
+  "portmap": {
+    "switch": "Switch",
+    "resolveNames": "Namen auflösen (Reverse-DNS)",
+    "scan": "Ports kartieren",
+    "cancel": "Abbrechen",
+    "noTargets": "Fügen Sie den Switch zuerst als Ziel hinzu.",
+    "gateways": "IP-Adressen aus dem ARP-Cache anderer Geräte ({count} gewählt)",
+    "gatewaysHint": "Ein Switch kennt MAC-Adressen; die Router und Layer-3-Switches, die für seine Stationen routen, kennen deren IP-Adressen. Der ARP-Cache des Switches selbst wird immer gelesen.",
+    "progress": {
+      "switch": "Switch wird gelesen…",
+      "vlans": "VLAN {done} von {total} wird gelesen…",
+      "gateways": "ARP-Cache {done} von {total} wird gelesen…",
+      "names": "Namen werden aufgelöst, {done} von {total}…"
+    },
+    "summary": "{ports} Ports, {stations} Adressen",
+    "source": {
+      "q-bridge": "aus Q-BRIDGE-MIB",
+      "bridge": "aus BRIDGE-MIB",
+      "bridge-per-vlan": "aus BRIDGE-MIB, VLAN für VLAN"
+    },
+    "noStations": "Der Switch meldete keine gelernte Adresse. Vielleicht beantwortet er weder BRIDGE-MIB noch Q-BRIDGE-MIB, oder seine Weiterleitungstabelle ist leer.",
+    "unplaced": "Adressen auf einem Bridge-Port ohne Schnittstelle: {count}",
+    "filter": "Filtern: Port, MAC, IP, Name…",
+    "usedOnly": "Nur belegte Ports",
+    "nothing": "Keine Treffer.",
+    "uplink": "Uplink",
+    "col": {
+      "port": "Port",
+      "vlan": "VLAN",
+      "neighbour": "Nachbar",
+      "mac": "MAC-Adresse",
+      "ip": "IP-Adresse",
+      "name": "Name"
+    }
   }
 }

@@ -254,6 +254,37 @@ Persistent data location (`os.UserConfigDir()` + `SnmpLens/`):
 Contains `mibs/` (extracted + user MIBs), `presets/` (dashboard presets — a SIBLING of `mibs/`, never inside
 it) and `monitoring.db`.
 
+## The port mapper
+
+*Network → Port map* says what is plugged into which port of a switch: the MAC addresses it learnt on each, the IP
+addresses ARP caches give them, their names by reverse DNS, and the neighbour LLDP or CDP names on a port.
+`pkg/portmap` reads the tables and is pure; `internal/app/portmap.go` walks them (`Client.Record`, which keeps
+gosnmp's types) and resolves names, one scan at a time and cancellable. Every table is read by its index, never by
+its position in a walk, and four facts about real switches decide the shape.
+
+**A bridge port is not an interface.** BRIDGE-MIB numbers what it bridges from one and `dot1dBasePortIfIndex` says
+which interface each is; a forwarding entry names the bridge port. The simulated Catalyst numbers ports and
+interfaces alike, so the unit tests use a switch whose interfaces are 10101 and up, where reading one as the
+other puts nothing anywhere.
+
+**Q-BRIDGE first, BRIDGE-MIB otherwise, and Cisco VLAN by VLAN.** Q-BRIDGE says which VLAN a station is on. A Cisco
+switch answers BRIDGE-MIB only in one VLAN's context — the community indexed by it (`public@20`) or, in SNMPv3,
+the context `vlan-20` — for the VLANs `vtpVlanState` lists, at most 64, the reserved 1002-1005 left out. That is
+asked only when the default context has no forwarding entry at all.
+
+**The number LLDP gives a local port is the agent's choice**: an ifIndex on most switches, a bridge port on others.
+It is resolved through `lldpLocPortTable` by the interface name when the agent names it so, then as a switch port
+under either reading, and only then as any interface — a switch whose VLAN interface is ifIndex 1 otherwise puts
+bridge port 1's neighbour on the VLAN.
+
+**An uplink is a port towards more of the network**: its neighbour says it is a switch or a router (LLDP's and
+CDP's capability bits), or there are six stations or more behind it. An access point bridges, and is still an
+access point; a phone is a neighbour and not an uplink.
+
+A switch knows MACs, not IPs, so the ARP caches of devices the person picks — the routers and layer-3 switches that
+route for its stations — are read too, each with its own identifiers (`buildPortMapRequest` goes through
+`getEffectiveSettings`). Reverse DNS runs sixteen at a time, 1.5 s each, at most 1024 addresses.
+
 ## Backup and restore
 
 *Settings → Backup* writes the configuration to one file and reads it back (`pkg/backup` for the format,

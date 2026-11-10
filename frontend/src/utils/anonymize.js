@@ -58,6 +58,16 @@ export function anonymizeText(text) {
 }
 
 /**
+ * Mask a MAC address down to its vendor's prefix: the OUI says who made the card,
+ * the rest says which card it is.
+ */
+export function maskMac(mac) {
+  if (!mac) return mac;
+  const parts = String(mac).split(':');
+  return parts.length === 6 ? [...parts.slice(0, 3), '••', '••', '••'].join(':') : '••:••:••:••:••:••';
+}
+
+/**
  * Mask a sensitive string (community, username, etc.).
  */
 export function maskString(str) {

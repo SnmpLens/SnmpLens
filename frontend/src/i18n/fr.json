@@ -804,7 +804,8 @@
     "hopIp": "Adresse IP",
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
-    "hopRtt3": "RTT 3"
+    "hopRtt3": "RTT 3",
+    "ports": "Carte des ports"
   },
   "debug": {
     "title": "Debug SNMP",
@@ -1864,5 +1865,40 @@
     "automaticHint": "SnmpLens sauvegarde la configuration avant chaque restauration et garde les {count} dernières. En restaurer une annule la restauration qui l'a suivie.",
     "automaticEmpty": "Aucune pour l'instant.",
     "undo": "Restaurer celle-ci"
+  },
+  "portmap": {
+    "switch": "Switch",
+    "resolveNames": "Chercher les noms (DNS inverse)",
+    "scan": "Cartographier les ports",
+    "cancel": "Arrêter",
+    "noTargets": "Ajoutez d'abord le switch comme cible.",
+    "gateways": "Adresses IP tirées du cache ARP d'autres équipements ({count} choisi(s))",
+    "gatewaysHint": "Un switch connaît les adresses MAC ; les routeurs et switchs de niveau 3 qui routent pour ses stations en connaissent les adresses IP. Le cache ARP du switch lui-même est toujours lu.",
+    "progress": {
+      "switch": "Lecture du switch…",
+      "vlans": "Lecture du VLAN {done} sur {total}…",
+      "gateways": "Lecture du cache ARP {done} sur {total}…",
+      "names": "Recherche des noms, {done} sur {total}…"
+    },
+    "summary": "{ports} ports, {stations} adresses",
+    "source": {
+      "q-bridge": "d'après Q-BRIDGE-MIB",
+      "bridge": "d'après BRIDGE-MIB",
+      "bridge-per-vlan": "d'après BRIDGE-MIB, VLAN par VLAN"
+    },
+    "noStations": "Le switch n'a signalé aucune adresse apprise. Il ne répond peut-être ni à BRIDGE-MIB ni à Q-BRIDGE-MIB, ou sa table de commutation est vide.",
+    "unplaced": "Adresses apprises sur un port de pont sans interface : {count}",
+    "filter": "Filtrer : port, MAC, IP, nom…",
+    "usedOnly": "Seulement les ports utilisés",
+    "nothing": "Aucun résultat.",
+    "uplink": "uplink",
+    "col": {
+      "port": "Port",
+      "vlan": "VLAN",
+      "neighbour": "Voisin",
+      "mac": "Adresse MAC",
+      "ip": "Adresse IP",
+      "name": "Nom"
+    }
   }
 }

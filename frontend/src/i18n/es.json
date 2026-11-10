@@ -804,7 +804,8 @@
     "hopIp": "Dirección IP",
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
-    "hopRtt3": "RTT 3"
+    "hopRtt3": "RTT 3",
+    "ports": "Mapa de puertos"
   },
   "debug": {
     "title": "Debug SNMP",
@@ -1864,5 +1865,40 @@
     "automaticHint": "SnmpLens guarda la configuración antes de cada restauración y conserva las {count} últimas. Restaurar una deshace la restauración que la siguió.",
     "automaticEmpty": "Ninguna por ahora.",
     "undo": "Restaurar esta"
+  },
+  "portmap": {
+    "switch": "Switch",
+    "resolveNames": "Buscar nombres (DNS inverso)",
+    "scan": "Mapear los puertos",
+    "cancel": "Detener",
+    "noTargets": "Añada primero el switch como destino.",
+    "gateways": "Direcciones IP de la caché ARP de otros equipos ({count} elegido(s))",
+    "gatewaysHint": "Un switch conoce las direcciones MAC; los routers y switches de capa 3 que enrutan para sus estaciones conocen sus direcciones IP. La caché ARP del propio switch se lee siempre.",
+    "progress": {
+      "switch": "Leyendo el switch…",
+      "vlans": "Leyendo la VLAN {done} de {total}…",
+      "gateways": "Leyendo la caché ARP {done} de {total}…",
+      "names": "Buscando nombres, {done} de {total}…"
+    },
+    "summary": "{ports} puertos, {stations} direcciones",
+    "source": {
+      "q-bridge": "según Q-BRIDGE-MIB",
+      "bridge": "según BRIDGE-MIB",
+      "bridge-per-vlan": "según BRIDGE-MIB, VLAN por VLAN"
+    },
+    "noStations": "El switch no informó de ninguna dirección aprendida. Puede que no responda ni a BRIDGE-MIB ni a Q-BRIDGE-MIB, o que su tabla de reenvío esté vacía.",
+    "unplaced": "Direcciones aprendidas en un puerto de puente sin interfaz: {count}",
+    "filter": "Filtrar: puerto, MAC, IP, nombre…",
+    "usedOnly": "Solo los puertos en uso",
+    "nothing": "Sin resultados.",
+    "uplink": "uplink",
+    "col": {
+      "port": "Puerto",
+      "vlan": "VLAN",
+      "neighbour": "Vecino",
+      "mac": "Dirección MAC",
+      "ip": "Dirección IP",
+      "name": "Nombre"
+    }
   }
 }

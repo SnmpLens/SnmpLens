@@ -171,7 +171,7 @@ The frontend calls Go through auto-generated bindings in `frontend/wailsjs/`, wh
   function (e.g. `import { SnmpGet } from '../wailsjs/go/app/App'`); the directory is named after the Go package.
 - That includes the methods PROMOTED from an embedded field: `App` embeds `engine.Backend` (see **The supervision
   engine**), and every method of that interface is bound as if `App` declared it — which is why what the
-  application reaches and the renderer must not (`engine.Host`: journalling an event of the window's own, creating
+  application reaches and the renderer must not (`remote.Host`: journalling an event of the window's own, creating
   a preset's session) sits on a second interface that `App` holds as a field and does NOT embed.
 - `main.go` holds only what the binary embeds — `frontend/dist`, `mibs/`, `presets/`, the tray artwork — because
   `//go:embed` cannot reach above the directory of the file it sits in, and hands it to `app.Run` as `fs.FS`, after
@@ -201,10 +201,28 @@ consumers: router, outbox, poll clock, with what was journalled and not routed r
 the last exit) and `Close` (producers before consumers, the database last). The engine polls and listens on an
 `snmp.Client` of its own; the window's sends what a person asks for, and journals nothing.
 
-`Backend` is the engine's half of the bridge — every engine method the renderer calls, by the name it calls it —
-and `App` embeds it, so moving the engine did not change a single binding. `Host` is `Backend` plus what the
-application reaches and the renderer must not. The window opens the engine on its own directory and SHARES its
+`remote.Backend` is the engine's half of the bridge — every engine method the renderer calls, by the name it calls
+it — and `App` embeds it, so moving the engine did not change a single binding. `remote.Host` is `Backend` plus what
+the application reaches and the renderer must not. The window opens the engine on its own directory and SHARES its
 secret store with it (two stores over one file would each write the whole of it).
+
+**A window drives an engine in another process as if it were its own** (`internal/remote`). `App`'s Backend and
+Host are a `Switch`, which forwards each call to whichever is current: the window's own engine, or a `Client`
+connected to the service's. The `Client` and the `Switch` are GENERATED from `backend.go` (`go generate
+./internal/remote`; `gen`'s test fails when they are stale), so a method added to `Host` is one line. The wire is
+newline-delimited JSON over a `net.Conn` the host provides: a hello first (protocol, version, PID, build commit),
+which the window checks — the two are one executable, so a different version, or an unversioned build from another
+commit, is refused before anything is sent — then requests with positional parameters, answers with positional
+results and the error apart, and events. The `Server` calls the `Host` methods by reflection, one goroutine per call,
+answers a panic as an error, and is the engine's `Emitter`: it broadcasts what the engine emits to every window,
+disconnecting one that stopped reading rather than holding the engine up. A method with no error result cannot say
+the service went; it returns its zero value, and `Client.Done` says so.
+
+**A key is minted once** (`pkg/secrets`, `resolveKey`): two processes opening a store with no key yet — the window
+and `--headless` on a first run, two test binaries on macOS, whose Keychain item is per account and not per
+directory — each minted one and the second save failed or, with `security -U`, REPLACED the first process's key
+while it sealed with it. Saving never replaces now (`writeKeyOnce`: a temporary file and a hard link; the Keychain
+add without `-U`), and the loser of the race takes the key that was kept.
 
 **One engine per directory** (`pkg/dirlock`, an OS lock held by an open handle, so a process that dies releases
 it): two would poll every session into one database and send every alert twice. A window started on a directory

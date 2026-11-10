@@ -1,11 +1,24 @@
-package engine
+// Package remote lets a window drive a supervision engine that runs in another
+// process — the system service — as if it ran in its own.
+//
+// The service owns the engine: the sessions, the journal, the destinations,
+// the trap port. A window that connects gets a Client, which satisfies the
+// same Backend the in-process engine does, so the renderer cannot tell the two
+// apart. Calls travel as JSON over a stream the host provides — a named pipe on
+// Windows, a Unix socket on Linux — and what the engine emits is broadcast to
+// every connected window. The transport, and who may use it, are the host's
+// business: this package speaks over a net.Conn it is given.
+package remote
 
 import (
+	"SnmpLens/internal/engine"
 	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/notify"
 	"SnmpLens/pkg/snmp"
 	"SnmpLens/pkg/storage"
 )
+
+//go:generate go run ./gen
 
 // Backend is what a window drives: the sessions and their history, the event
 // journal, the notification destinations and routes, and the trap listener —
@@ -19,12 +32,12 @@ import (
 // promoted ones included.
 type Backend interface {
 	// Monitoring sessions
-	MonitorCreateSession(oid string, targets []string, intervalMs int, snmpVersion string, thresholds map[string]*storage.Thresholds, name string, conn MonitorConnection) (string, error)
+	MonitorCreateSession(oid string, targets []string, intervalMs int, snmpVersion string, thresholds map[string]*storage.Thresholds, name string, conn engine.MonitorConnection) (string, error)
 	MonitorAcceptSlow(sessionID string)
 	MonitorStart(sessionID string) error
 	MonitorStop(sessionID string) error
 	MonitorRunning() []string
-	MonitorUpdateConnection(sessionID, snmpVersion string, conn MonitorConnection) error
+	MonitorUpdateConnection(sessionID, snmpVersion string, conn engine.MonitorConnection) error
 	MonitorSaveDataPoints(points []storage.DataPoint)
 	MonitorLoadSessions() ([]storage.Session, error)
 	MonitorLoadSessionData(sessionID string, limit int) ([]storage.DataPoint, error)
@@ -62,7 +75,7 @@ type Backend interface {
 	NotifyTestSink(cfg notify.SinkConfig) error
 	NotifyTemplateVariables() []notify.VariableDoc
 	NotifyValidateTemplate(tpl notify.MessageTemplate) []notify.TemplateError
-	NotifyPreviewTemplate(cfg notify.SinkConfig, kind string) TemplatePreview
+	NotifyPreviewTemplate(cfg notify.SinkConfig, kind string) engine.TemplatePreview
 	NotifyListRoutes() ([]notify.Route, error)
 	NotifySaveRoute(r notify.Route) (notify.Route, error)
 	NotifyDeleteRoute(id string) error
@@ -77,9 +90,6 @@ type Backend interface {
 	StopTrapListener()
 }
 
-// The engine is a Backend.
-var _ Backend = (*Engine)(nil)
-
 // Host is a Backend and what the application reaches that the renderer must
 // not: the application holds one, and embeds only its Backend.
 type Host interface {
@@ -87,7 +97,7 @@ type Host interface {
 	// MonitorCreatePresetSession creates and starts the session a preset is
 	// bound as, its OIDs and bands materialised and its snapshot kept.
 	MonitorCreatePresetSession(name string, oids []string, target string, intervalMs int, snmpVersion string,
-		thresholds map[string]*storage.Thresholds, conn MonitorConnection, snapshot *storage.SessionPreset) (storage.Session, error)
+		thresholds map[string]*storage.Thresholds, conn engine.MonitorConnection, snapshot *storage.SessionPreset) (storage.Session, error)
 	// Journal records an event of the window's own: a refused SET.
 	Journal(e events.Event)
 	// RecordSystemEvent journals a system event: a MIB that did not load.
@@ -95,6 +105,3 @@ type Host interface {
 	// TrapListenerRunning reports whether the trap listener is listening.
 	TrapListenerRunning() bool
 }
-
-// The engine is a Host.
-var _ Host = (*Engine)(nil)

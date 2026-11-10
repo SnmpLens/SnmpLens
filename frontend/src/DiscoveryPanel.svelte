@@ -67,7 +67,10 @@
 
     try {
       results = await SnmpDiscover(buildDiscoverRequest(withProfile($settingsStore, scanProfile), cidr.trim(), scanTimeout));
-      notificationStore.add(t('discovery.scanComplete', { values: { count: reachableCount, total: results.length } }), 'success');
+      // Counted here: reachableCount is reactive and not yet recomputed from the
+      // results just assigned, so it said 0 found whatever answered.
+      const found = results.filter((r) => r.reachable).length;
+      notificationStore.add(t('discovery.scanComplete', { values: { count: found, total: results.length } }), 'success');
     } catch (err) {
       notificationStore.add(t('discovery.scanFailed', { values: { error: err } }), 'error');
     } finally {

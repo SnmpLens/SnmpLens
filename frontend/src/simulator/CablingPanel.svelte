@@ -16,6 +16,7 @@
   // The ports of each device, read once it is chosen, under what decides them:
   // a device edited to another model or another number of ports is read again.
   let ports = {};
+  const loading = new Set();
   let busy = false;
 
   function portsKey(id, list) {
@@ -25,18 +26,26 @@
 
   async function loadPorts(id, list) {
     const key = portsKey(id, list);
-    if (!key || ports[key]) return;
+    if (!key || ports[key] || loading.has(key)) return;
+    loading.add(key);
     try {
       const read = await simulatorStore.ports(id);
       ports = { ...ports, [key]: [...read].sort((x, y) => portOrder(x.name, y.name)) };
     } catch (e) {
       notificationStore.add(String(e), 'error');
+    } finally {
+      loading.delete(key);
     }
   }
 
+  // The ports of the devices chosen, read when one is chosen and again when it
+  // is saved as another model or with another number of ports — which used to
+  // leave its port list disabled until it was chosen again.
+  $: loadPorts(draft.a.device, devices);
+  $: loadPorts(draft.b.device, devices);
+
   function chooseDevice(end, id) {
     draft = { ...draft, [end]: { device: id, port: '' } };
-    loadPorts(id, devices);
   }
 
   async function connect() {

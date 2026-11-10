@@ -389,6 +389,11 @@ dynamic.MonitorLoadSessions = () => {
 const DEMO_ONLY = {
   AutostartSet: 'Starting with the session writes a login entry — the HKCU Run key, a LaunchAgent, or an XDG autostart file.',
   ServiceSetConfig: 'Running in the background registers a per-user service.',
+  SystemServiceInstall: 'Installing the system service asks Windows for administrator rights and registers a service.',
+  SystemServiceUninstall: 'Removing the system service asks Windows for administrator rights.',
+  SystemServiceStart: 'Starting the system service asks Windows for administrator rights.',
+  SystemServiceStop: 'Stopping the system service asks Windows for administrator rights.',
+  SystemServiceAllow: 'Allowing an account to drive the system service asks Windows for administrator rights.',
   CheckForUpdate: 'The updater asks GitHub for a newer release and verifies its Ed25519 signature.',
   DownloadAndApplyUpdate: 'Applying an update replaces the executable on disk.',
   BrowseDialog: 'Choosing a file opens the operating system’s file dialog.',

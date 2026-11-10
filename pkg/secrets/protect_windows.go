@@ -18,13 +18,28 @@ import (
 // produces mode 0666 on Windows, because Go does not translate Unix permission
 // bits into Windows ACLs. "The key file is 0600" is therefore not a protection
 // story on this platform — DPAPI is.
-type dpapiProtector struct{ path string }
+type dpapiProtector struct {
+	path string
+	// machine seals for this computer, not for the account (OpenMachine).
+	machine bool
+}
 
 func newProtector(dir string) keyProtector {
 	return &dpapiProtector{path: filepath.Join(dir, "sinks.key")}
 }
 
-func (p *dpapiProtector) name() string { return "windows-dpapi" }
+// newMachineProtector seals the key for this computer rather than for an
+// account (OpenMachine).
+func newMachineProtector(dir string) keyProtector {
+	return &dpapiProtector{path: filepath.Join(dir, "sinks.key"), machine: true}
+}
+
+func (p *dpapiProtector) name() string {
+	if p.machine {
+		return "windows-dpapi-machine"
+	}
+	return "windows-dpapi"
+}
 
 func (p *dpapiProtector) loadKey() ([]byte, error) {
 	sealed, err := os.ReadFile(p.path)
@@ -35,7 +50,7 @@ func (p *dpapiProtector) loadKey() ([]byte, error) {
 }
 
 func (p *dpapiProtector) saveKey(key []byte) error {
-	sealed, err := protect(key)
+	sealed, err := protect(key, p.machine)
 	if err != nil {
 		return err
 	}
@@ -59,13 +74,17 @@ func blobBytes(b windows.DataBlob) []byte {
 	return out
 }
 
-func protect(plain []byte) ([]byte, error) {
+func protect(plain []byte, machine bool) ([]byte, error) {
 	in := blobFrom(plain)
 	ent := blobFrom(entropy)
 	var out windows.DataBlob
-	// CRYPTPROTECT_UI_FORBIDDEN (0x1): never show a prompt; this may run with
-	// no window at all.
-	if err := windows.CryptProtectData(&in, nil, &ent, 0, nil, 0x1, &out); err != nil {
+	// CRYPTPROTECT_UI_FORBIDDEN: never show a prompt; this may run with no
+	// window at all. CRYPTPROTECT_LOCAL_MACHINE for the service's store.
+	flags := uint32(windows.CRYPTPROTECT_UI_FORBIDDEN)
+	if machine {
+		flags |= windows.CRYPTPROTECT_LOCAL_MACHINE
+	}
+	if err := windows.CryptProtectData(&in, nil, &ent, 0, nil, flags, &out); err != nil {
 		return nil, fmt.Errorf("dpapi protect: %w", err)
 	}
 	defer windows.LocalFree(windows.Handle(unsafe.Pointer(out.Data)))

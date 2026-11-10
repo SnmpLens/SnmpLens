@@ -103,7 +103,7 @@ func TestPresetBindMaterialisesTheOidsAndTheInterval(t *testing.T) {
 	}
 
 	// And the specification the poll clock would build reads the columns.
-	spec := a.eng.SessionSpec(sess)
+	spec := a.localEngine().SessionSpec(sess)
 	if len(spec.OIDs) != 3 || spec.Interval.Seconds() != 45 {
 		t.Errorf("the poll clock would use %d OID(s) every %v", len(spec.OIDs), spec.Interval)
 	}
@@ -128,7 +128,7 @@ func TestAPresetWithProblemsCannotBeBound(t *testing.T) {
 		t.Errorf("the refusal does not say why: %v", err)
 	}
 	// And nothing was created on the way to refusing.
-	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.localEngine().Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) left behind by a refused bind", len(sessions))
 	}
 }
@@ -145,7 +145,7 @@ func TestBindingRefusesWithoutATarget(t *testing.T) {
 	if _, err := a.PresetBind("../monitoring.db", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161}); err == nil {
 		t.Error("a path outside the library was bound")
 	}
-	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.localEngine().Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) created by refused binds", len(sessions))
 	}
 }
@@ -172,7 +172,7 @@ func TestBindingStoresTheCredentialsOutsideTheDatabase(t *testing.T) {
 	}
 
 	// Nothing secret in the row itself.
-	sessions, _ := a.eng.Storage().ListSessions()
+	sessions, _ := a.localEngine().Storage().ListSessions()
 	for _, s := range sessions {
 		if s.Conn != nil && strings.Contains(strings.ToLower(s.Name+s.OID), "s3cret") {
 			t.Error("the community reached the session row")
@@ -201,7 +201,7 @@ func TestBindingTheSamePresetTwiceGivesTwoSessions(t *testing.T) {
 	if !slices.Contains(a.MonitorRunning(), first.ID) || !slices.Contains(a.MonitorRunning(), second.ID) {
 		t.Error("both sessions should be polling independently")
 	}
-	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 2 {
+	if sessions, _ := a.localEngine().Storage().ListSessions(); len(sessions) != 2 {
 		t.Errorf("%d session(s) for two equipments", len(sessions))
 	}
 }
@@ -227,7 +227,7 @@ func TestEditingOrDeletingThePresetDoesNotChangeABoundSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sessions, _ := a.eng.Storage().ListSessions()
+	sessions, _ := a.localEngine().Storage().ListSessions()
 	if len(sessions) != 1 {
 		t.Fatalf("%d session(s) after deleting the file", len(sessions))
 	}

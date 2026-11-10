@@ -4,6 +4,7 @@
   import { get } from 'svelte/store';
   import Icon from '../Icon.svelte';
   import { notificationStore } from '../stores/notifications';
+  import SystemService from './SystemService.svelte';
   import { ServiceGetStatus, ServiceSetConfig, AutostartGet, AutostartSet } from '../../wailsjs/go/app/App';
 
   // These preferences do NOT live in the settings store: they are read by Go
@@ -73,6 +74,8 @@
   {#if !status}
     <p class="empty-state">{$_('common.loading')}</p>
   {:else}
+    <SystemService />
+
     <section>
       <h4>{$_('service.backgroundTitle')}</h4>
       <p class="hint">{$_('service.backgroundHint')}</p>

@@ -1065,7 +1065,39 @@
     "loginWindowNote": "Das Fenster öffnet sich bei der Anmeldung. Für einen stillen Start oben „Minimiert im Infobereich starten“ aktivieren.",
     "loginUnsupported": "Ein Anmeldeeintrag ist auf dieser Plattform nicht implementiert.",
     "loginRegistered": "SnmpLens startet nun bei der Anmeldung.",
-    "loginRemoved": "SnmpLens startet nicht mehr bei der Anmeldung."
+    "loginRemoved": "SnmpLens startet nicht mehr bei der Anmeldung.",
+    "system": {
+      "title": "Systemdienst",
+      "hint": "Überwachen ab dem Start des PCs, auch ohne angemeldete Benutzer: Die Überwachungssitzungen, ihre Schwellwerte, der Trap-Empfang und die Benachrichtigungen laufen als Windows-Dienst, und dieses Fenster steuert ihn, solange er läuft.",
+      "notInstalled": "Nicht installiert: Dieses Fenster überwacht, solange es geöffnet ist.",
+      "driving": "Läuft — dieses Fenster steuert den Dienst (SnmpLens {version}).",
+      "runningElsewhere": "Läuft, aber dieses Fenster steuert ihn nicht.",
+      "stopped": "Installiert, angehalten: Dieses Fenster überwacht, solange es geöffnet ist.",
+      "reason": {
+        "stopped": "Der Dienst ist angehalten.",
+        "denied": "Dieses Konto darf den Dienst nicht steuern. Erlauben Sie es — Windows fragt nach Administratorrechten.",
+        "version": "Dienst und Fenster haben unterschiedliche Versionen: Installieren Sie für beide dieselbe Version von SnmpLens.",
+        "notService": "Ein anderes Programm antwortet auf dem Kanal des Dienstes, daher spricht dieses Fenster nicht mit ihm.",
+        "unreachable": "Der Dienst ist nicht erreichbar."
+      },
+      "location": "Diese Kopie kann den Dienst nicht installieren: Sie muss für alle Benutzer in Program Files installiert sein — führen Sie das Installationsprogramm aus und wählen Sie das.",
+      "install": "Dienst installieren",
+      "installHint": "Die Sitzungen, Benachrichtigungsziele, Trap-Benutzer und der Verlauf dieses Fensters werden ihm übergeben. Windows fragt einmal nach Administratorrechten.",
+      "update": "Auf diese Version aktualisieren",
+      "start": "Starten",
+      "stop": "Anhalten",
+      "allow": "Dieses Konto erlauben",
+      "uninstall": "Entfernen…",
+      "bringBack": "Verlauf und Einstellungen in dieses Fenster zurückholen",
+      "purge": "Auch die Daten des Dienstes löschen",
+      "uninstallConfirm": "Dienst entfernen",
+      "installed": "Der Dienst ist installiert und läuft.",
+      "updated": "Der Dienst läuft mit dieser Version.",
+      "started": "Der Dienst läuft.",
+      "stoppedDone": "Der Dienst ist angehalten.",
+      "allowed": "Dieses Konto darf den Dienst steuern.",
+      "uninstalled": "Der Dienst wurde entfernt."
+    }
   },
   "mibVerdict": {
     "failed": "Lädt nicht",

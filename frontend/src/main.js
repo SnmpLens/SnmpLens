@@ -3,6 +3,7 @@ import './styles/shared.css'
 import { setupI18n } from './i18n/index.js'
 import { mount } from 'svelte'
 import App from './App.svelte'
+import { EventsOn } from '../wailsjs/runtime/runtime'
 
 // `new App({ target })` was the Svelte 3 and 4 way and Svelte 5 refuses it
 // outright (`component_api_invalid_new`). A component is no longer a class, so
@@ -18,3 +19,8 @@ setupI18n().then(() => {
     target: document.getElementById('app')
   })
 })
+
+// The window moved to another supervision — the system service's, or its own
+// once the service stopped. Every store read from the one before, so the
+// interface starts again and reads everything afresh from the one it drives now.
+EventsOn('backend:changed', () => window.location.reload())

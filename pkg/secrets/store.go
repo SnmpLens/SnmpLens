@@ -110,6 +110,24 @@ type fileStore struct {
 
 // Open selects the best available backend for dir (the app's config directory).
 func Open(dir string) (Store, error) {
+	return open(dir, newProtector(dir))
+}
+
+// OpenMachine opens the store of the system service, in its own directory.
+//
+// Its key is bound to this computer and not to an account: the files are
+// written by the elevated installer, which runs as the administrator who
+// approved it, and read by the service's own account — a key sealed for one
+// account cannot be opened by another. Who may read it on this computer is
+// decided by the directory's access rules, which admit only the service,
+// SYSTEM and administrators; a copy carried to another computer is useless.
+// Where there is no such scope — Linux — the key is a file in that directory,
+// as with Open.
+func OpenMachine(dir string) (Store, error) {
+	return open(dir, newMachineProtector(dir))
+}
+
+func open(dir string, protector keyProtector) (Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("secrets: create %s: %w", dir, err)
 	}
@@ -124,7 +142,7 @@ func Open(dir string) (Store, error) {
 	}
 	s := &fileStore{
 		path:      filepath.Join(dir, "sinks.secrets"),
-		protector: newProtector(dir),
+		protector: protector,
 	}
 	key, err := resolveKey(s.protector)
 	if err != nil {

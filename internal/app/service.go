@@ -161,8 +161,8 @@ func (a *App) ServiceSetConfig(cfg service.Config) (ServiceStatus, error) {
 		return a.ServiceGetStatus(), err
 	}
 	a.serviceCfg = saved
-	if a.eng != nil {
-		a.eng.SetConfig(saved)
+	if eng := a.localEngine(); eng != nil {
+		eng.SetConfig(saved)
 	}
 
 	// Turning background mode on is worth honouring immediately: it is the one

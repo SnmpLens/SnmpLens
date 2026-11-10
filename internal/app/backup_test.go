@@ -50,7 +50,7 @@ func fillForBackup(t *testing.T, a *App) (sinkID, sessionID, deviceID string) {
 	if _, err := a.NotifySaveRoute(notify.Route{Name: "everything", Enabled: true, SinkIDs: []string{sink.ID}}); err != nil {
 		t.Fatal(err)
 	}
-	sessionID, err = a.eng.Storage().CreateSession("uplinks", "1.3.6.1.2.1.1.3.0", []string{"10.0.0.1"}, 5000, "v2c",
+	sessionID, err = a.localEngine().Storage().CreateSession("uplinks", "1.3.6.1.2.1.1.3.0", []string{"10.0.0.1"}, 5000, "v2c",
 		"2026-11-01T00:00:00Z", nil, &storage.SessionConn{Port: 161, TimeoutSec: 2, Retries: 1}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func fillForBackup(t *testing.T, a *App) (sinkID, sessionID, deviceID string) {
 	// Not RunInBackground: restoring that starts a real tray icon, which macOS
 	// refuses to create anywhere but on the main thread of a real application.
 	a.serviceCfg = service.Config{AutoResumeMonitors: true, TrapPort: 1162}
-	if err := a.eng.SetTrapEngineID([]byte{0x80, 0, 0, 0, 5, 1, 2, 3, 4, 5, 6, 7, 8}); err != nil {
+	if err := a.localEngine().SetTrapEngineID([]byte{0x80, 0, 0, 0, 5, 1, 2, 3, 4, 5, 6, 7, 8}); err != nil {
 		t.Fatal(err)
 	}
 	return sink.ID, sessionID, dev.ID
@@ -135,10 +135,10 @@ func TestABackupRestoresEverythingItHoldsOnAnotherMachine(t *testing.T) {
 	if got := dst.storedSinkSecret(sinkID); got != "WEBHOOK-TOKEN" {
 		t.Errorf("the destination's token = %q", got)
 	}
-	if routes, _ := dst.eng.Storage().ListRoutes(); len(routes) != 1 || routes[0].SinkIDs[0] != sinkID {
+	if routes, _ := dst.localEngine().Storage().ListRoutes(); len(routes) != 1 || routes[0].SinkIDs[0] != sinkID {
 		t.Errorf("routes = %+v", routes)
 	}
-	sessions, _ := dst.eng.Storage().ListSessions()
+	sessions, _ := dst.localEngine().Storage().ListSessions()
 	if len(sessions) != 1 || sessions[0].ID != sessionID || sessions[0].Active {
 		t.Errorf("sessions = %+v", sessions)
 	}
@@ -165,7 +165,7 @@ func TestABackupRestoresEverythingItHoldsOnAnotherMachine(t *testing.T) {
 	if got := dst.TrapListenerEngineID(); got != src.TrapListenerEngineID() {
 		t.Errorf("engine ID = %s, want %s", got, src.TrapListenerEngineID())
 	}
-	if kept := reopenedEngineID(t, dst.configDir); string(kept) != string(src.eng.TrapEngineID()) {
+	if kept := reopenedEngineID(t, dst.configDir); string(kept) != string(src.localEngine().TrapEngineID()) {
 		t.Errorf("the engine ID kept on disk = %x", kept)
 	}
 }
@@ -227,7 +227,7 @@ func TestAWrongPassphraseChangesNothing(t *testing.T) {
 	if !errors.Is(err, backup.ErrPassphrase) {
 		t.Fatalf("err = %v", err)
 	}
-	if sinks, _ := dst.eng.Storage().ListSinks(); len(sinks) != 0 {
+	if sinks, _ := dst.localEngine().Storage().ListSinks(); len(sinks) != 0 {
 		t.Errorf("a wrong passphrase restored %d destinations", len(sinks))
 	}
 	if points := dst.ListAutomaticBackups(); len(points) != 0 {
@@ -274,7 +274,7 @@ func TestASessionThatExistsKeepsItsHistory(t *testing.T) {
 	if res.Restored.Sessions != 0 {
 		t.Errorf("an existing session was restored over: %+v", res.Restored)
 	}
-	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 1 || sessions[0].ID != sessionID {
+	if sessions, _ := a.localEngine().Storage().ListSessions(); len(sessions) != 1 || sessions[0].ID != sessionID {
 		t.Errorf("sessions = %+v", sessions)
 	}
 }

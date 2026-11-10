@@ -15,6 +15,8 @@ import (
 	"log"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"SnmpLens/pkg/dirlock"
 	"SnmpLens/pkg/events"
@@ -76,11 +78,17 @@ type Engine struct {
 	// release lets go of the data directory (pkg/dirlock).
 	release   func()
 	closeOnce sync.Once
+	// closing is closed when the engine closes, for what waits on its own.
+	closing chan struct{}
+	// trapTouched is set when a window starts or stops the trap listener,
+	// which ends the retries of one that could not bind at start.
+	trapTouched atomic.Bool
 }
 
 // New makes an engine; Open opens it.
 func New(opts Options) *Engine {
-	eng := &Engine{dataDir: opts.DataDir, cfg: opts.Config, emitter: opts.Emitter, secrets: opts.Secrets}
+	eng := &Engine{dataDir: opts.DataDir, cfg: opts.Config, emitter: opts.Emitter, secrets: opts.Secrets,
+		closing: make(chan struct{})}
 	// Made here and not in Open, so an engine whose directory is another
 	// process's still answers every call — with nothing — rather than panic.
 	//lint:ignore SA1012 a nil context is how pkg/snmp tells a client no runtime is behind it
@@ -161,24 +169,69 @@ func (eng *Engine) Open() error {
 // Start starts what produces: the trap listener when the preferences say it
 // starts with SnmpLens, and the sessions that were running at the last exit.
 func (eng *Engine) Start() {
-	if eng.cfg.AutoStartTrapListener {
-		port := eng.cfg.TrapPort
-		// The users last applied from a window. This may run before any window
-		// exists, and without them a background start used to hear v1 and v2c
-		// and drop every v3 notification.
-		info, err := eng.snmpClient.StartTrapListener(port, eng.loadTrapUsers())
-		if err != nil {
-			log.Printf("WARNING: could not auto-start the trap listener on port %d: %v", port, err)
-			eng.RecordSystemEvent(events.KindSystemInfo, "major",
-				"The trap listener could not bind its port at startup: "+err.Error())
-		} else {
-			log.Printf("trap listener auto-started on port %d with %d SNMPv3 users", port, info.Users)
-			for _, r := range info.Refused {
-				log.Printf("WARNING: the trap listener did not take SNMPv3 user %q: %s", r.User, r.Reason)
-			}
-		}
+	if eng.cfg.AutoStartTrapListener && !eng.startTrapListener() {
+		go eng.retryTrapListener()
 	}
 	eng.resumeActiveSessions()
+}
+
+// trapRetry is how often a trap listener that could not bind its port tries
+// again.
+var trapRetry = 15 * time.Second
+
+// bindWait bounds the wait for a started listener to bind its port.
+const bindWait = 2 * time.Second
+
+// startTrapListener starts the listener with the users last applied from a
+// window, and says whether it listens. This may run before any window exists,
+// and without the users a background start used to hear v1 and v2c and drop
+// every v3 notification.
+func (eng *Engine) startTrapListener() bool {
+	port := eng.cfg.TrapPort
+	info, err := eng.snmpClient.StartTrapListener(port, eng.loadTrapUsers())
+	if err == nil && !eng.snmpClient.TrapListenerBound(bindWait) {
+		err = fmt.Errorf("port %d is taken", port)
+	}
+	if err != nil {
+		log.Printf("WARNING: could not auto-start the trap listener on port %d: %v", port, err)
+		eng.RecordSystemEvent(events.KindSystemInfo, "major",
+			"The trap listener could not bind its port at startup, and tries again every 15 seconds: "+err.Error())
+		return false
+	}
+	log.Printf("trap listener auto-started on port %d with %d SNMPv3 users", port, info.Users)
+	for _, r := range info.Refused {
+		log.Printf("WARNING: the trap listener did not take SNMPv3 user %q: %s", r.User, r.Reason)
+	}
+	return true
+}
+
+// retryTrapListener tries again until the port is free. A port taken at start
+// is often taken for a moment: by a window's own supervision about to hand over
+// to the service, by a collector being replaced. The service must not stay
+// deaf to traps for the rest of its run over that. It stops trying once
+// something — a window — started or stopped the listener itself, or the engine
+// closes.
+func (eng *Engine) retryTrapListener() {
+	t := time.NewTicker(trapRetry)
+	defer t.Stop()
+	for {
+		select {
+		case <-eng.closing:
+			return
+		case <-t.C:
+		}
+		if eng.snmpClient.TrapListenerRunning() || eng.trapTouched.Load() {
+			return
+		}
+		port := eng.cfg.TrapPort
+		if _, err := eng.snmpClient.StartTrapListener(port, eng.loadTrapUsers()); err == nil &&
+			eng.snmpClient.TrapListenerBound(bindWait) {
+			log.Printf("trap listener started on port %d once it was free", port)
+			eng.RecordSystemEvent(events.KindSystemInfo, "info",
+				fmt.Sprintf("The trap listener could bind port %d after all, and listens.", port))
+			return
+		}
+	}
 }
 
 // Close stops the engine: every producer before any consumer, and the
@@ -188,6 +241,9 @@ func (eng *Engine) Close() {
 }
 
 func (eng *Engine) close() {
+	if eng.closing != nil {
+		close(eng.closing)
+	}
 	// The trap listener FIRST. It is the one producer fed from outside: a
 	// datagram arriving during teardown runs handleTrap on gosnmp's goroutine,
 	// which journals and routes through storage the lines below are about to
@@ -253,6 +309,7 @@ func (eng *Engine) TrapListenerRunning() bool {
 
 // StopTrapListener stops listening for SNMP traps.
 func (eng *Engine) StopTrapListener() {
+	eng.trapTouched.Store(true)
 	if eng.snmpClient != nil {
 		eng.snmpClient.StopTrapListener()
 	}

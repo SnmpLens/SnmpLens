@@ -6,6 +6,7 @@ toolchain go1.26.10
 
 require (
 	fyne.io/systray v1.12.2
+	github.com/Microsoft/go-winio v0.6.4
 	github.com/gosnmp/gosnmp v1.47.0
 	github.com/minio/selfupdate v0.6.0
 	github.com/prometheus-community/pro-bing v0.9.1

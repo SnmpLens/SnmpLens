@@ -1712,7 +1712,8 @@
       "environment": "Umgebung",
       "security": "Sicherheit",
       "wireless": "Drahtlos",
-      "other": "Sonstige"
+      "other": "Sonstige",
+      "telephony": "Telefonie"
     },
     "model": {
       "windows-server": {
@@ -1721,11 +1722,11 @@
       },
       "cisco-catalyst-24": {
         "name": "Cisco Catalyst 2960, 24 Ports",
-        "description": "Ein Access-Switch: 24 Fast-Ethernet-Ports, zwei Gigabit-Uplinks und VLAN 1, mit MAC-Adresstabelle, Spanning Tree, VLANs (Q-BRIDGE und VTP), LLDP- und CDP-Nachbarn, Hardware in der ENTITY-MIB sowie Ciscos CPU, Speicher und Umgebung. Als Cisco erkannt, daher steht das Preset „Cisco (IF-MIB)“ an erster Stelle; passt auch zu „Switch ports“ und „Switch drawing (24 ports)“."
+        "description": "Ein Access-Switch: 24 Fast-Ethernet-Ports, zwei Gigabit-Uplinks und VLAN 1, mit MAC-Adresstabelle, Spanning Tree, VLANs (Q-BRIDGE und VTP), LLDP- und CDP-Nachbarn, Hardware in der ENTITY-MIB sowie Ciscos CPU, Speicher und Umgebung. Als Cisco erkannt, daher steht das Preset „Cisco (IF-MIB)“ an erster Stelle; passt auch zu „Switch ports“ und „Switch drawing (24 ports)“. Seine MAC-Adresstabelle wird VLAN für VLAN geliefert, wie IOS sie liefert (public@10), und an Port 3 steckt ein Tischtelefon."
       },
       "cisco-catalyst-48": {
         "name": "Cisco Catalyst 2960, 48 Ports",
-        "description": "Derselbe Access-Switch mit 48 Ports und allem, was dazugehört. Als Cisco erkannt, daher steht das Preset „Cisco (IF-MIB)“ an erster Stelle; passt auch zu „Switch ports“."
+        "description": "Derselbe Access-Switch mit 48 Ports und allem, was dazugehört. Als Cisco erkannt, daher steht das Preset „Cisco (IF-MIB)“ an erster Stelle; passt auch zu „Switch ports“. Seine MAC-Adresstabelle wird VLAN für VLAN geliefert, wie IOS sie liefert (public@10), und an Port 3 steckt ein Tischtelefon."
       },
       "cisco-isr-4331": {
         "name": "Cisco-Router ISR 4331",
@@ -1770,6 +1771,18 @@
       "apc-rack-pdu": {
         "name": "Schaltbare APC-Rack-PDU",
         "description": "Eine AP7921B: acht Steckdosen, eine davon ausgeschaltet, die Phasenlast in Ampere und die aufgenommene Leistung (PowerNet-MIB), dazu Adresse und Dienste der Karte. Sendet rPDUOutletOff und rPDUNearOverload."
+      },
+      "cisco-catalyst-9300": {
+        "name": "Cisco Catalyst 9300-24T (Core)",
+        "description": "Ein Layer-3-Core-Switch: 24 Gigabit-Ports, vier 10-G-Uplinks und VLAN-Interfaces, die die Subnetze des Prüfstands in IPv4 und IPv6 routen, sodass sein ARP-Cache — in beiden Tabellen der IP-MIB — jede Station der an ihn verkabelten Switches enthält. Seine MAC-Adresstabelle wird VLAN für VLAN geliefert, wie IOS sie liefert; LLDP, CDP, VTP und ENTITY-MIB; seine Ports beginnen nicht bei ifIndex 1. Passt zu den Presets „Cisco (IF-MIB)“, „Interfaces (IF-MIB)“ und „Switch ports“."
+      },
+      "aruba-2930f-24": {
+        "name": "Aruba 2930F-24G-4SFP+",
+        "description": "Ein Access-Switch, der kein Cisco ist: 24 nach ihrer Nummer benannte Ports, vier SFP+-Trunks, ein Benutzer-VLAN und ein Voice-VLAN mit einem Tischtelefon. Q-BRIDGE-MIB nennt das VLAN jeder Station; LLDP, kein CDP. Passt zu den Presets „Interfaces (IF-MIB)“ und „Switch ports“."
+      },
+      "ip-phone": {
+        "name": "IP-Tischtelefon",
+        "description": "Ein SIP-Tischtelefon mit einem Computer hinter seinem PC-Port. LLDP-MED weist es als Telefon aus, daher ist der Switch-Port, an dem es steckt, weder ein Uplink noch ein Switch. Ein generischer net-snmp-Agent; passt zum Preset „Interfaces (IF-MIB)“."
       }
     },
     "userN": "Benutzer {n}",
@@ -1849,10 +1862,25 @@
         "iconMissing": "{name}: Das Archiv enthält kein „{detail}“, das Modell hat also kein Symbol",
         "iconRefused": "{name}: Das Symbol wurde abgelehnt ({detail})",
         "restartFailed": "{name}: Ein Gerät wurde nicht neu gestartet — {detail}",
+        "cableUnplugged": "{name}: Ein Kabel wurde abgezogen — {detail}",
         "walkSkipped": "{name}: Aufgezeichnete Werte, die nicht gelesen werden konnten, wurden ausgelassen ({detail})",
         "walkAgentOwned": "{name}: {detail} aufgezeichnete Objekte gehören dem Agenten selbst — seine SNMP-Zähler, seine Engine, seine Benutzer, Gruppen und Communities — und wurden ausgelassen",
         "packageIgnored": "{name}: „{detail}“ ist keine Datei, die ein Paket liest, und wurde ausgelassen"
       }
+    },
+    "cabling": {
+      "title": "Verkabelung",
+      "hint": "Verbinden Sie die Geräte miteinander, Port an Port. Jedes nennt dann das andere in LLDP und CDP, unter der Adresse, unter der es antwortet, und lernt, was dahinter liegt; der ARP-Cache eines Core-Switches enthält die Adressen der Stationen: Netzwerkkarte und Port-Map sehen ein einziges Netz. Ein laufendes Gerät wird ohne Neustart umverkabelt.",
+      "none": "Noch kein Kabel.",
+      "chooseDevice": "Gerät…",
+      "choosePort": "Port…",
+      "aDevice": "Erstes Gerät",
+      "aPort": "Port des ersten Geräts",
+      "bDevice": "Zweites Gerät",
+      "bPort": "Port des zweiten Geräts",
+      "connect": "Verbinden",
+      "disconnect": "Trennen",
+      "connected": "{a} {aPort} ist mit {b} {bPort} verkabelt."
     }
   },
   "backup": {
@@ -1908,7 +1936,7 @@
     "scan": "Ports kartieren",
     "cancel": "Abbrechen",
     "noTargets": "Fügen Sie den Switch zuerst als Ziel hinzu.",
-    "gateways": "IP-Adressen aus dem ARP-Cache anderer Geräte ({count} gewählt)",
+    "arp": "ARP-Caches",
     "gatewaysHint": "Ein Switch kennt MAC-Adressen; die Router und Layer-3-Switches, die für seine Stationen routen, kennen deren IP-Adressen. Der ARP-Cache des Switches selbst wird immer gelesen.",
     "progress": {
       "switch": "Switch wird gelesen…",
@@ -1939,7 +1967,7 @@
   },
   "topology": {
     "noTargets": "Fügen Sie die Geräte zuerst als Ziele hinzu.",
-    "devices": "Startgeräte: {count}",
+    "devices": "Starten bei",
     "depth": "Nachbarn folgen",
     "depthNone": "Nein — nur diese Geräte",
     "depthHops": "{count} Hop(s) weiter",
@@ -1951,7 +1979,7 @@
     "summary": "{nodes} Geräte, {links} Verbindungen",
     "relayout": "Neu anordnen",
     "nothing": "Kein Gerät hat geantwortet.",
-    "help": "Ziehen, um die Karte oder ein Gerät zu verschieben, scrollen zum Zoomen, ein Gerät anklicken für seine Verbindungen. Eine gestrichelte Linie wurde nur von einer Seite gemeldet; ein gestrichelter Kreis ist ein Gerät, das nur seine Nachbarn nennen.",
+    "help": "Ziehen, um die Karte oder ein Gerät zu verschieben, scrollen zum Zoomen, ein Gerät anklicken für seine Verbindungen.",
     "managed": "abgefragt",
     "heard": "von einem Nachbarn genannt",
     "kind": {
@@ -1961,6 +1989,7 @@
       "phone": "Telefon",
       "host": "Host",
       "unknown": "Gerät"
-    }
+    },
+    "oneSided": "nur von einer Seite gemeldet"
   }
 }

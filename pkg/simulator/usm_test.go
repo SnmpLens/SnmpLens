@@ -259,7 +259,9 @@ func TestAManagerFollowsARestartedDevice(t *testing.T) {
 	}
 }
 
-func TestOnlyTheDefaultContextIsServed(t *testing.T) {
+// A context the device does not have is reported, never answered from the
+// default one: an agent with no VLAN views has the default context alone.
+func TestAContextTheDeviceHasNotIsUnknown(t *testing.T) {
 	c := caseNamed(t, "sha-aes")
 	a := v3Agent(t, c)
 	g := c.manager(a)

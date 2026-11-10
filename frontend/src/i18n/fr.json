@@ -1712,7 +1712,8 @@
       "environment": "Environnement",
       "security": "Sécurité",
       "wireless": "Sans fil",
-      "other": "Autres"
+      "other": "Autres",
+      "telephony": "Téléphonie"
     },
     "model": {
       "windows-server": {
@@ -1721,11 +1722,11 @@
       },
       "cisco-catalyst-24": {
         "name": "Cisco Catalyst 2960, 24 ports",
-        "description": "Un commutateur d’accès : 24 ports Fast Ethernet, deux liens montants gigabit et le VLAN 1, avec sa table d’adresses MAC, son spanning tree, ses VLAN (Q-BRIDGE et VTP), ses voisins LLDP et CDP, son matériel dans l’ENTITY-MIB, et le CPU, la mémoire et l’environnement de Cisco. Reconnu comme un Cisco : le preset « Cisco (IF-MIB) » vient en premier ; convient aussi à « Switch ports » et « Switch drawing (24 ports) »."
+        "description": "Un commutateur d’accès : 24 ports Fast Ethernet, deux liens montants gigabit et le VLAN 1, avec sa table d’adresses MAC, son spanning tree, ses VLAN (Q-BRIDGE et VTP), ses voisins LLDP et CDP, son matériel dans l’ENTITY-MIB, et le CPU, la mémoire et l’environnement de Cisco. Reconnu comme un Cisco : le preset « Cisco (IF-MIB) » vient en premier ; convient aussi à « Switch ports » et « Switch drawing (24 ports) ». Sa table d’adresses MAC est donnée VLAN par VLAN, comme IOS la donne (public@10), et un téléphone est branché sur le port 3."
       },
       "cisco-catalyst-48": {
         "name": "Cisco Catalyst 2960, 48 ports",
-        "description": "Le même commutateur d’accès, avec 48 ports et tout ce qui va avec. Reconnu comme un Cisco : le preset « Cisco (IF-MIB) » vient en premier ; convient aussi à « Switch ports »."
+        "description": "Le même commutateur d’accès, avec 48 ports et tout ce qui va avec. Reconnu comme un Cisco : le preset « Cisco (IF-MIB) » vient en premier ; convient aussi à « Switch ports ». Sa table d’adresses MAC est donnée VLAN par VLAN, comme IOS la donne (public@10), et un téléphone est branché sur le port 3."
       },
       "cisco-isr-4331": {
         "name": "Routeur Cisco ISR 4331",
@@ -1770,6 +1771,18 @@
       "apc-rack-pdu": {
         "name": "PDU APC commutable",
         "description": "Une AP7921B : huit prises, dont une coupée, la charge de la phase en ampères et la puissance consommée (PowerNet-MIB), plus l’adresse et les services de la carte. Envoie rPDUOutletOff et rPDUNearOverload."
+      },
+      "cisco-catalyst-9300": {
+        "name": "Cisco Catalyst 9300-24T (cœur)",
+        "description": "Un commutateur de cœur de niveau 3 : 24 ports gigabit, quatre liens montants 10 G et des interfaces VLAN qui routent les sous-réseaux du banc en IPv4 et en IPv6 ; son cache ARP — dans les deux tables d’IP-MIB — contient donc chaque station des commutateurs qui lui sont câblés. Sa table d’adresses MAC est donnée VLAN par VLAN, comme IOS la donne ; LLDP, CDP, VTP et ENTITY-MIB ; ses ports ne commencent pas à l’ifIndex 1. Convient aux presets « Cisco (IF-MIB) », « Interfaces (IF-MIB) » et « Switch ports »."
+      },
+      "aruba-2930f-24": {
+        "name": "Aruba 2930F-24G-4SFP+",
+        "description": "Un commutateur d’accès qui n’est pas un Cisco : 24 ports nommés par leur numéro, quatre trunks SFP+, un VLAN utilisateurs et un VLAN voix où est branché un téléphone. Q-BRIDGE-MIB donne le VLAN de chaque station ; LLDP et pas de CDP. Convient aux presets « Interfaces (IF-MIB) » et « Switch ports »."
+      },
+      "ip-phone": {
+        "name": "Téléphone IP de bureau",
+        "description": "Un téléphone SIP de bureau, avec un ordinateur derrière son port PC. LLDP-MED le dit téléphone : le port du commutateur où il est branché n’est donc ni un lien montant ni un commutateur. Un agent net-snmp générique ; convient au preset « Interfaces (IF-MIB) »."
       }
     },
     "userN": "Utilisateur {n}",
@@ -1849,10 +1862,25 @@
         "iconMissing": "{name} : l’archive ne contient pas « {detail} », le modèle n’a donc pas d’icône",
         "iconRefused": "{name} : son icône a été refusée ({detail})",
         "restartFailed": "{name} : un appareil n’a pas redémarré — {detail}",
+        "cableUnplugged": "{name} : un câble a été débranché — {detail}",
         "walkSkipped": "{name} : des valeurs enregistrées illisibles ont été écartées ({detail})",
         "walkAgentOwned": "{name} : {detail} objets enregistrés appartiennent à l’agent lui-même — ses compteurs SNMP, son moteur, ses utilisateurs, ses groupes et ses communautés — et ont été écartés",
         "packageIgnored": "{name} : « {detail} » n’est pas un fichier que lit un paquet, et a été écarté"
       }
+    },
+    "cabling": {
+      "title": "Câblage",
+      "hint": "Branchez les équipements les uns aux autres, port à port. Chacun nomme alors l’autre en LLDP et en CDP, à l’adresse où il répond, et apprend ce qui se trouve derrière ; le cache ARP d’un cœur contient l’adresse des stations : la carte du réseau et le port mapper voient un seul réseau. Un équipement démarré est recâblé sans redémarrer.",
+      "none": "Aucun câble pour l’instant.",
+      "chooseDevice": "Équipement…",
+      "choosePort": "Port…",
+      "aDevice": "Premier équipement",
+      "aPort": "Port du premier équipement",
+      "bDevice": "Second équipement",
+      "bPort": "Port du second équipement",
+      "connect": "Brancher",
+      "disconnect": "Débrancher",
+      "connected": "{a} {aPort} est câblé à {b} {bPort}."
     }
   },
   "backup": {
@@ -1908,7 +1936,7 @@
     "scan": "Cartographier les ports",
     "cancel": "Arrêter",
     "noTargets": "Ajoutez d'abord le switch comme cible.",
-    "gateways": "Adresses IP tirées du cache ARP d'autres équipements ({count} choisi(s))",
+    "arp": "Caches ARP",
     "gatewaysHint": "Un switch connaît les adresses MAC ; les routeurs et switchs de niveau 3 qui routent pour ses stations en connaissent les adresses IP. Le cache ARP du switch lui-même est toujours lu.",
     "progress": {
       "switch": "Lecture du switch…",
@@ -1939,7 +1967,7 @@
   },
   "topology": {
     "noTargets": "Ajoutez d'abord les équipements comme cibles.",
-    "devices": "Équipements de départ : {count}",
+    "devices": "Partir de",
     "depth": "Suivre les voisins",
     "depthNone": "Non — seulement ces équipements",
     "depthHops": "{count} saut(s) plus loin",
@@ -1951,7 +1979,7 @@
     "summary": "{nodes} équipements, {links} liens",
     "relayout": "Réorganiser",
     "nothing": "Aucun équipement n'a répondu.",
-    "help": "Glissez pour déplacer la carte ou un équipement, faites défiler pour zoomer, cliquez un équipement pour voir ses liens. Un trait pointillé n'a été signalé que par une extrémité ; un cercle pointillé est un équipement que seuls ses voisins nomment.",
+    "help": "Glissez pour déplacer la carte ou un équipement, faites défiler pour zoomer, cliquez un équipement pour voir ses liens.",
     "managed": "parcouru",
     "heard": "nommé par un voisin",
     "kind": {
@@ -1961,6 +1989,7 @@
       "phone": "Téléphone",
       "host": "Hôte",
       "unknown": "Équipement"
-    }
+    },
+    "oneSided": "signalé par une seule extrémité"
   }
 }

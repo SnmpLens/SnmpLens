@@ -439,6 +439,10 @@ const DEMO_ONLY = {
   // There is no Go here, and a canned table would show one device's objects
   // under every other device's name.
   SimulatorPreview: 'The preview is worked out by the application itself, from the model and the device’s settings.',
+  // The ports a cable can go into are the model's, as Go builds it for the device.
+  SimulatorPorts: 'A device’s ports are read from its model by the application itself.',
+  SimulatorConnect: 'Plugging a cable in writes it to your configuration directory and recables the devices running on this machine.',
+  SimulatorDisconnect: 'Unplugging a cable writes to your configuration directory and recables the devices running on this machine.',
 };
 
 for (const [name, why] of Object.entries(DEMO_ONLY)) {

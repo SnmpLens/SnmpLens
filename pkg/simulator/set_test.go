@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -191,5 +192,59 @@ func TestAV3UserWritesWithWriteAccessUntilTheDeviceRestarts(t *testing.T) {
 	g := connect(t, v3Manager(again, "reader", gosnmp.AuthPriv, gosnmp.SHA256, "authpass-1", gosnmp.AES, "privpass-1"))
 	if v := getOne(t, g, sysContactOID); text(v) != "noc@example.net" {
 		t.Errorf("a write outlived the restart: %q", text(v))
+	}
+}
+
+// A device recabled while a manager writes to it answers as it is cabled now. A
+// SET runs on the receive goroutine and a rewire on the application's, and a SET
+// that read the tree before the rewire stored a copy of the old one after it.
+func TestASetInFlightDoesNotUndoARewire(t *testing.T) {
+	cabled := func(i int) []Object {
+		objs := []Object{
+			{OID: sysContactOID, Type: gosnmp.OctetString, Value: Const("noc@example.net")},
+			{OID: sysLocationOID, Type: gosnmp.OctetString, Value: Const(fmt.Sprintf("rack %d", i))},
+		}
+		// Enough of a device that copying its tree takes a while, as a
+		// switch's does.
+		for n := 1; n <= 2000; n++ {
+			objs = append(objs, Object{OID: fmt.Sprintf("1.3.6.1.4.1.32473.20.1.%d", n),
+				Type: gosnmp.Integer, Value: Const(n)})
+		}
+		return objs
+	}
+	a := newAgent(t, Config{Versions: []string{"v2c"}, Community: "public", WriteCommunity: "private",
+		Objects: cabled(0)})
+	req := &gosnmp.SnmpPacket{PDUType: gosnmp.SetRequest, Variables: []gosnmp.SnmpPDU{
+		{Name: sysContactOID, Type: gosnmp.OctetString, Value: "ops@example.net"}}}
+	location, err := parseArcs(sysLocationOID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 50; i++ {
+		// A manager writing all the while the device is recabled.
+		stop, done := make(chan struct{}), make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if ans := a.set(gosnmp.Version2c, req); ans.status != gosnmp.NoError {
+					t.Errorf("SET: %v", ans.status)
+					return
+				}
+			}
+		}()
+		if err := a.Rewire(cabled(i), nil); err != nil {
+			t.Fatal(err)
+		}
+		close(stop)
+		<-done
+		want := fmt.Sprintf("rack %d", i)
+		if got := textOf(a.tree.Load().get(location).val.read(clock{})); got != want {
+			t.Fatalf("after rewire %d the location reads %q: a SET put back the tree as it was cabled before", i, got)
+		}
 	}
 }

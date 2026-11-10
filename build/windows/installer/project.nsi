@@ -620,6 +620,31 @@ Function RestartService
     ${EndIf}
 FunctionEnd
 
+; Ends every running copy, then waits until the executable here can be written.
+; taskkill returns once the end is REQUESTED, and a process still exiting holds
+; its executable: the File that follows failed with "Error opening file for
+; writing", now and then, the old release's window still running in the
+; background (found by the Upgrade workflow). What is waited for is the file
+; itself, not taskkill's answer, which is an error as soon as one copy may not
+; be ended — the service's, from an installation for this user.
+!macro CloseRunningCopies
+    nsExec::ExecToLog 'taskkill /F /IM "${PRODUCT_EXECUTABLE}"'
+    Pop $0
+    ${If} ${FileExists} "$INSTDIR\${PRODUCT_EXECUTABLE}"
+        StrCpy $1 0
+        ${Do}
+            ClearErrors
+            FileOpen $2 "$INSTDIR\${PRODUCT_EXECUTABLE}" a
+            ${IfNot} ${Errors}
+                FileClose $2
+                ${ExitDo}
+            ${EndIf}
+            Sleep 500
+            IntOp $1 $1 + 1
+        ${LoopUntil} $1 >= 30
+    ${EndIf}
+!macroend
+
 ; Removes what the current user's own uninstaller would, except what the new
 ; copy shares with it: the settings and the history live per user whichever
 ; copy runs. Its start at sign-in now starts the new copy, and its desktop
@@ -656,8 +681,7 @@ Section "Install"
 
     ; Kill running instances before install/upgrade — the replaced per-user
     ; copy's too.
-    nsExec::ExecToLog 'taskkill /F /IM "${PRODUCT_EXECUTABLE}"'
-    Pop $0
+    !insertmacro CloseRunningCopies
 
     SetOutPath "$INSTDIR"
 
@@ -803,8 +827,7 @@ Section "Uninstall"
     ${EndIf}
 
     ; Kill running instance
-    nsExec::ExecToLog 'taskkill /F /IM "${PRODUCT_EXECUTABLE}"'
-    Pop $0
+    !insertmacro CloseRunningCopies
 
     ; Files
     Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"

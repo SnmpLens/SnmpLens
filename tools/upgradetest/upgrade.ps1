@@ -195,10 +195,18 @@ function Invoke-Installer {
                 if (-not $seen.ContainsKey("message:$page")) {
                     $seen["message:$page"] = $true
                     $failures.Add("the installer showed a message: $page")
+                    Save-Screen 'message'
                 }
-            } else {
-                & $OnPage $visible
+                # Abort, else Cancel, else OK: the message is the failure, and
+                # waiting on it only spends the timeout.
+                $answers = @(foreach ($id in 3, 2, 1) {
+                        $visible | Where-Object { $_.Id -eq $id -and $_.Class -eq 'Button' } | Select-Object -First 1
+                    })
+                if ($answers.Count) { [Win]::Press($answers[0].Handle) }
+                Start-Sleep -Milliseconds 1500
+                continue
             }
+            & $OnPage $visible
             $default = $visible | Where-Object { $_.Id -eq 1 -and $_.Class -eq 'Button' -and $_.Enabled } | Select-Object -First 1
             if ($default) { [Win]::Press($default.Handle) }
             if ($lastPage -ne $page) { $lastPage = $page; $pageSince = Get-Date }

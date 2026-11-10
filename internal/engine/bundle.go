@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/secrets"
@@ -243,4 +244,35 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.Rename(tmp, dst)
+}
+
+// StopSessionsAt marks every session kept in dataDir stopped, with no engine
+// running there: what a window hands the service it no longer polls itself.
+// Left active, they would be resumed by any copy of SnmpLens opening the
+// directory that knows nothing of the service — an older one, a portable one —
+// and polled beside the service, every alert sent twice.
+func StopSessionsAt(dataDir string) error {
+	path := filepath.Join(dataDir, "monitoring.db")
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	st, err := storage.Init(path)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	sessions, err := st.ListSessions()
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, s := range sessions {
+		if !s.Active {
+			continue
+		}
+		if err := st.UpdateSession(s.ID, false, now); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/mod/semver"
 )
 
@@ -75,6 +76,7 @@ type Service struct {
 
 	mu      sync.Mutex
 	ctx     context.Context
+	quit    func()
 	pending *pending
 }
 
@@ -92,6 +94,32 @@ func (s *Service) SetContext(ctx context.Context) {
 	s.mu.Lock()
 	s.ctx = ctx
 	s.mu.Unlock()
+	cleanupLeftoverOld()
+}
+
+// SetQuit sets how the application exits so an update can replace it.
+//
+// The runtime's own Quit goes through OnBeforeClose, which hides the window to
+// the tray while background mode is on: the update then hid the window and
+// left the process running — holding the executable the installer must
+// replace, and, after a self-replace, the old version running in the tray
+// while the new one it had just started gave way to it.
+func (s *Service) SetQuit(quit func()) {
+	s.mu.Lock()
+	s.quit = quit
+	s.mu.Unlock()
+}
+
+// quitApp exits through the quit SetQuit gave, or the runtime's otherwise.
+func (s *Service) quitApp(ctx context.Context) {
+	s.mu.Lock()
+	quit := s.quit
+	s.mu.Unlock()
+	if quit != nil {
+		quit()
+		return
+	}
+	wruntime.Quit(ctx)
 }
 
 func (s *Service) context() context.Context {

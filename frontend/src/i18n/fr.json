@@ -1100,7 +1100,8 @@
       "handOverHint": "Le service a démarré vide, comme l’installateur le met en place. Cette fenêtre supervisait avant lui : ses sessions, destinations et son historique peuvent lui être transmis.",
       "handOver": "Transmettre la supervision de cette fenêtre",
       "handedOver": "Le service supervise désormais ce que faisait cette fenêtre.",
-      "locationLinux": "Cette copie ne peut pas installer le service : il n’exécute qu’une copie que seul root peut modifier, comme celle d’un paquet installé — installez le paquet de SnmpLens."
+      "locationLinux": "Cette copie ne peut pas installer le service : il n’exécute qu’une copie que seul root peut modifier, comme celle d’un paquet installé — installez le paquet de SnmpLens.",
+      "idle": "En attendant, cette fenêtre montre son propre historique et ne supervise rien : le service le fait déjà, et une seconde supervision sonderait chaque session deux fois et enverrait chaque alerte deux fois."
     }
   },
   "mibVerdict": {

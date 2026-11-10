@@ -14,6 +14,7 @@ import (
 	"SnmpLens/internal/engine"
 	"SnmpLens/internal/remote"
 	"SnmpLens/internal/sysvc"
+	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/updater"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -71,6 +72,10 @@ type serviceLink struct {
 	// service: the supervision it drives is changing on purpose, and the
 	// watcher leaves it alone.
 	busy bool
+	// idle is set while the window's own engine is open but not started: the
+	// service runs and this window may not drive it, so it polls and listens
+	// for nothing beside it (ownsSupervision).
+	idle bool
 
 	stop chan struct{}
 	done chan struct{}
@@ -99,6 +104,19 @@ type SystemServiceLink struct {
 	// — the installer's, started on the defaults — and the supervision this
 	// window ran before holds something to hand it.
 	CanHandOver bool `json:"canHandOver,omitempty"`
+	// Idle is true while the service runs and this window may not drive it: the
+	// window shows its own history and supervises nothing beside the service.
+	Idle bool `json:"idle,omitempty"`
+}
+
+// ownsSupervision reports whether the window supervises by itself, given why
+// it does not drive the service: with no service, or one that is stopped. A
+// service that RUNS and that this window may not drive — another account's, of
+// another version, unreachable — supervises already: a window polling beside it
+// would poll every session twice, send every alert twice and fight it for the
+// trap port. That window opens its own history and starts nothing.
+func ownsSupervision(reason string) bool {
+	return reason == "" || reason == reasonStopped
 }
 
 // localDataDir is where the window's own supervision keeps its data.
@@ -166,15 +184,26 @@ func (a *App) newLocalEngine() *engine.Engine {
 	return eng
 }
 
-// openLocal starts the window's own supervision and drives it.
+// openLocal opens the window's own engine and drives it, and starts it — the
+// trap listener, the sessions — when the window owns the supervision for the
+// reason last set (ownsSupervision).
 func (a *App) openLocal() {
 	eng := a.newLocalEngine()
 	if err := eng.Open(); err != nil {
 		log.Printf("WARNING: %v", err)
 	}
-	eng.Start()
 	a.svc.mu.Lock()
-	a.svc.eng = eng
+	reason := a.svc.reason
+	a.svc.mu.Unlock()
+	idle := !ownsSupervision(reason)
+	if idle {
+		eng.RecordSystemEvent(events.KindSystemInfo, "warning",
+			"The system service runs and this window may not drive it ("+reason+"): this window polls nothing and listens for nothing beside it.")
+	} else {
+		eng.Start()
+	}
+	a.svc.mu.Lock()
+	a.svc.eng, a.svc.idle = eng, idle
 	a.svc.mu.Unlock()
 	a.link.Set(eng)
 	a.refreshTrayStatus()
@@ -341,7 +370,13 @@ func (a *App) followService() {
 	next, reason, detail := a.dialService()
 	if next == nil {
 		a.setReason(reason, detail)
-		if a.localEngine() == nil {
+		a.svc.mu.Lock()
+		eng, idle := a.svc.eng, a.svc.idle
+		a.svc.mu.Unlock()
+		// Open, or open again when whether the window owns the supervision
+		// changed: the service it may not drive stopped, or started.
+		if eng == nil || idle == ownsSupervision(reason) {
+			a.closeLocal()
 			a.openLocal()
 			a.emitBackendChanged()
 		}
@@ -355,6 +390,13 @@ func (a *App) emitBackendChanged() {
 	if a.ctx != nil {
 		runtime.EventsEmit(a.ctx, backendChanged)
 	}
+}
+
+// serviceReason says why the window does not drive the service, if it does not.
+func (a *App) serviceReason() string {
+	a.svc.mu.Lock()
+	defer a.svc.mu.Unlock()
+	return a.svc.reason
 }
 
 // drivingService reports whether the window drives the service.
@@ -393,6 +435,7 @@ func (a *App) SystemServiceStatus() SystemServiceLink {
 		link.ServiceVersion = c.Hello().Version
 	} else if link.Installed {
 		link.Reason, link.Detail = a.svc.reason, a.svc.detail
+		link.Idle = a.svc.idle && a.svc.eng != nil
 	}
 	a.svc.mu.Unlock()
 	if c != nil {
@@ -448,6 +491,9 @@ func (a *App) SystemServiceHandOver() (SystemServiceLink, error) {
 		return a.SystemServiceStatus(), err
 	}
 	res, err := a.runServiceCommand("install", "--bundle", bundle, "--db", db)
+	if err == nil && !res.KeptHistory {
+		a.stopHandedOverSessions()
+	}
 	a.dropService()
 	a.awaitService()
 	if err == nil && res.KeptHistory {
@@ -476,8 +522,11 @@ func (a *App) SystemServiceInstall() (SystemServiceLink, error) {
 	defer a.setBusy(false)
 
 	// A window driving the service updates it: there is nothing to hand over,
-	// the service's configuration is the one it edits.
-	if a.drivingService() {
+	// the service's configuration is the one it edits. So does a window the
+	// service refused for running another version — after a .deb upgraded
+	// under a running service, or an update that could not restart it: the
+	// service keeps its own supervision and is pointed at this copy.
+	if a.drivingService() || a.serviceReason() == reasonVersion {
 		_, err := a.runServiceCommand("install")
 		a.dropService()
 		a.awaitService()
@@ -515,13 +564,28 @@ func (a *App) SystemServiceInstall() (SystemServiceLink, error) {
 	// Stopped BEFORE the service starts: two supervisions would poll every
 	// session twice, send every alert twice, and fight for the trap port.
 	a.closeLocal()
-	if _, err := a.runServiceCommand(args...); err != nil {
+	res, err := a.runServiceCommand(args...)
+	if err != nil {
 		a.openLocal()
 		a.emitBackendChanged()
 		return a.SystemServiceStatus(), err
 	}
+	// Only what the service took: one that kept a history of its own did not
+	// take this window's sessions, which this window keeps running.
+	if !res.KeptHistory {
+		a.stopHandedOverSessions()
+	}
 	a.awaitService()
 	return a.SystemServiceStatus(), nil
+}
+
+// stopHandedOverSessions marks the sessions this window handed the service
+// stopped in its own directory (engine.StopSessionsAt). A failure is logged:
+// the service runs them either way, and this window starts none beside it.
+func (a *App) stopHandedOverSessions() {
+	if err := engine.StopSessionsAt(a.localDataDir()); err != nil {
+		log.Printf("WARNING: the sessions handed to the service stay marked running here: %v", err)
+	}
 }
 
 // SystemServiceUninstall removes the system service through the administrator

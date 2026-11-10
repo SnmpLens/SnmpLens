@@ -108,3 +108,21 @@ func TestTheServicesHistoryComesBack(t *testing.T) {
 		t.Errorf("the destination's token came back as %q", got)
 	}
 }
+
+// A window supervises by itself only with no service or a stopped one: beside a
+// service that runs and that it may not drive, it would poll every session
+// twice, send every alert twice and fight it for the trap port.
+func TestAWindowSupervisesOnlyWhereNoServiceDoes(t *testing.T) {
+	for reason, want := range map[string]bool{
+		"":                true,
+		reasonStopped:     true,
+		reasonDenied:      false,
+		reasonVersion:     false,
+		reasonNotService:  false,
+		reasonUnreachable: false,
+	} {
+		if got := ownsSupervision(reason); got != want {
+			t.Errorf("%q: the window supervises = %v", reason, got)
+		}
+	}
+}

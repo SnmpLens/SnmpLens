@@ -163,6 +163,29 @@ jobs:
           EOF
           sed -i 's/^          //' deb-pkg/DEBIAN/control
 
+          # The system service runs this binary. An upgrade replaces it under a
+          # running service, which goes on running the old one, and the window
+          # — the new version — refuses to drive a service of another: restart
+          # it. Removing the package removes what the service runs, so stop it
+          # and keep it from failing at every boot; its data stays until purged.
+          cat > deb-pkg/DEBIAN/postinst << 'EOF'
+          #!/bin/sh
+          set -e
+          if [ "$1" = configure ] && [ -d /run/systemd/system ]; then
+            systemctl try-restart snmplens.service >/dev/null 2>&1 || true
+          fi
+          exit 0
+          EOF
+          cat > deb-pkg/DEBIAN/prerm << 'EOF'
+          #!/bin/sh
+          set -e
+          if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
+            systemctl disable --now snmplens.service >/dev/null 2>&1 || true
+          fi
+          exit 0
+          EOF
+          chmod 755 deb-pkg/DEBIAN/postinst deb-pkg/DEBIAN/prerm
+
           cat > deb-pkg/usr/share/applications/snmplens.desktop << EOF
           [Desktop Entry]
           Name=SnmpLens

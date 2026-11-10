@@ -1,0 +1,117 @@
+name: Upgrade
+
+# Installs the latest published release on a fresh Windows machine and updates
+# it with this branch's installer, the way that release's own updater does. An
+# update is run by the copy being replaced, so what a change to the installer
+# or the updater meets is the old release's files, registry and choices — which
+# no other test sees. tools/upgradetest/upgrade.ps1 says what each scenario
+# installs and checks.
+
+on:
+  pull_request:
+    paths:
+      - build/windows/installer/**
+      - pkg/updater/**
+      - internal/sysvc/**
+      - internal/cli/**
+      - tools/upgradetest/**
+      - .github/workflows/upgrade.yml
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upgrade-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Above any real release, so the build never offers to "update" back to one.
+  NEXT_VERSION: 99.0.0
+
+jobs:
+  build:
+    name: Build this branch's installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+
+      - name: Install NSIS
+        # Only when the image lacks it: the Chocolatey feed answering 504 failed
+        # a run that needed nothing from it.
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { choco install nsis -y }
+        shell: pwsh
+
+      - name: Build
+        run: wails build -platform windows/amd64 -ldflags "-X SnmpLens/pkg/updater.Version=v${{ env.NEXT_VERSION }}"
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $env:PATH += ";${env:ProgramFiles(x86)}\NSIS"
+          makensis "/DINFO_PRODUCTVERSION=$env:NEXT_VERSION" build\windows\installer\project.nsi
+          New-Item -ItemType Directory next | Out-Null
+          Move-Item "SnmpLens-$env:NEXT_VERSION-setup.exe" next\SnmpLens-windows-amd64-setup.exe
+          Copy-Item build\bin\SnmpLens.exe next\SnmpLens.exe
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: next
+          path: next/
+          retention-days: 3
+
+  upgrade:
+    name: Upgrade (${{ matrix.scenario }})
+    needs: build
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [all-users-service, for-me, for-me-to-all-users, portable]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: next
+          path: next
+
+      - name: Install the latest release and update it
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCENARIO: ${{ matrix.scenario }}
+        run: ./tools/upgradetest/upgrade.ps1 -Scenario $env:SCENARIO -Next "$PWD\next" -NextVersion $env:NEXT_VERSION
+
+      - name: Keep the screens taken where an installer waited
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screens-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/upgrade-screens/
+          if-no-files-found: ignore
+          retention-days: 7

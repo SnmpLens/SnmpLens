@@ -1100,7 +1100,8 @@
       "handOverHint": "Der Dienst ist leer gestartet, wie ihn das Installationsprogramm einrichtet. Dieses Fenster hat zuvor selbst überwacht: Seine Sitzungen, Ziele und sein Verlauf können dem Dienst übergeben werden.",
       "handOver": "Überwachung dieses Fensters übergeben",
       "handedOver": "Der Dienst überwacht jetzt, was dieses Fenster überwacht hat.",
-      "locationLinux": "Diese Kopie kann den Dienst nicht installieren: Der Dienst führt nur eine Kopie aus, die allein root ändern kann, wie die eines installierten Pakets — installieren Sie das Paket von SnmpLens."
+      "locationLinux": "Diese Kopie kann den Dienst nicht installieren: Der Dienst führt nur eine Kopie aus, die allein root ändern kann, wie die eines installierten Pakets — installieren Sie das Paket von SnmpLens.",
+      "idle": "Bis dahin zeigt dieses Fenster seinen eigenen Verlauf und überwacht nichts: Der Dienst tut es bereits, und eine zweite Überwachung würde jede Sitzung doppelt abfragen und jede Warnung doppelt senden."
     }
   },
   "mibVerdict": {

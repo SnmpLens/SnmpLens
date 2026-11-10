@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"SnmpLens/internal/engine"
 	"SnmpLens/pkg/mib"
 	"SnmpLens/pkg/preset"
 	"SnmpLens/pkg/snmp"
@@ -458,7 +459,7 @@ func rankForDevice(list []preset.Info, sysObjectID string) ([]preset.Info, int) 
 // the expanded preset — which is the honest outcome. Binding a discovering
 // preset to a device that cannot answer the walk would otherwise produce a
 // dashboard of empty widgets polling nothing, and a session that looks bound.
-func (a *App) discoverFor(p preset.Preset, target, snmpVersion string, conn MonitorConnection) (preset.Preset, error) {
+func (a *App) discoverFor(p preset.Preset, target, snmpVersion string, conn engine.MonitorConnection) (preset.Preset, error) {
 	walks := preset.DiscoveryWalks(p)
 	if len(walks) == 0 {
 		return p, nil
@@ -466,17 +467,11 @@ func (a *App) discoverFor(p preset.Preset, target, snmpVersion string, conn Moni
 	if a.snmpClient == nil {
 		return p, fmt.Errorf("no SNMP client")
 	}
-	sessConn, creds := conn.split()
-	v3 := snmp.V3Params{
-		User: sessConn.V3User, AuthProto: sessConn.V3AuthProto, PrivProto: sessConn.V3PrivProto,
-		SecLevel: sessConn.V3SecLevel, ContextName: sessConn.V3ContextName,
-		AuthPass: creds.AuthPass, PrivPass: creds.PrivPass,
-	}
 
 	byColumn := map[string][]preset.Instance{}
 	for _, column := range walks {
 		results := a.snmpClient.Walk([]string{target}, column,
-			creds.Community, snmpVersion, sessConn.Port, sessConn.TimeoutSec, sessConn.Retries, v3)
+			conn.Community, snmpVersion, conn.Port, conn.TimeoutSec, conn.Retries, conn.V3)
 		if len(results) == 0 || results[0].Error != "" || results[0].Result == nil {
 			why := "no answer"
 			if len(results) > 0 && results[0].Error != "" {
@@ -528,8 +523,8 @@ func (a *App) discoverFor(p preset.Preset, target, snmpVersion string, conn Moni
 // that is what the error list is for — but binding is the step that puts
 // traffic on somebody's network, and doing that from a file this application
 // has already said it does not understand is not a thing to do quietly.
-func (a *App) PresetBind(fileName, target, snmpVersion string, conn MonitorConnection) (storage.Session, error) {
-	if a.storage == nil || a.scheduler == nil {
+func (a *App) PresetBind(fileName, target, snmpVersion string, conn engine.MonitorConnection) (storage.Session, error) {
+	if a.host == nil {
 		return storage.Session{}, fmt.Errorf("storage not initialized")
 	}
 	target = strings.TrimSpace(target)
@@ -578,44 +573,20 @@ func (a *App) PresetBind(fileName, target, snmpVersion string, conn MonitorConne
 	if name == "" {
 		name = filepath.Base(path)
 	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	sessConn, creds := conn.split()
-
-	id, err := a.storage.CreateSession(
-		name, strings.Join(oids, ","), []string{target},
-		p.IntervalSec*1000, snmpVersion, now,
-		// The bands the preset carries, materialised into the session's OWN
-		// threshold map — the same column MonitorCreateSession fills and the
-		// same one the evaluator reads. Nothing new evaluates anything, and the
-		// operator can edit them afterwards like any other session's.
-		//
-		// This used to be nil, with a comment saying what counts as too much is
-		// the operator's judgement about their own network. That is true of a
-		// percentage on a link the author has never seen and false of what a
-		// preset is mostly written for: a port that is not up(1), a UPS running
-		// on battery. Those are properties of the MIB, and the author knows
-		// them better than whoever binds the file.
-		presetThresholds(p), sessConn,
-		&storage.SessionPreset{
+	// The bands the preset carries are materialised into the session's OWN
+	// threshold map — the same one the evaluator reads, editable afterwards like
+	// any other session's. This used to be nil, with a comment saying what
+	// counts as too much is the operator's judgement about their own network:
+	// true of a percentage on a link the author has never seen, false of what a
+	// preset is mostly written for — a port that is not up(1), a UPS on battery.
+	return a.host.MonitorCreatePresetSession(name, oids, target, p.IntervalSec*1000, snmpVersion,
+		presetThresholds(p), conn, &storage.SessionPreset{
 			File:          filepath.Base(path),
 			Name:          p.Name,
 			FormatVersion: p.FormatVersion,
-			BoundAt:       now,
+			BoundAt:       time.Now().UTC().Format(time.RFC3339),
 			Widgets:       p.Widgets,
-		},
-	)
-	if err != nil {
-		return storage.Session{}, err
-	}
-	a.saveSessionCreds(id, creds)
-
-	if err := a.MonitorStart(id); err != nil {
-		// The session exists and is stored; it simply is not polling. Reported
-		// rather than rolled back, because deleting it would throw away the
-		// binding the operator just made and leave nothing to retry from.
-		log.Printf("PresetBind: %s created but not started: %v", id, err)
-	}
-	return a.findSession(id)
+		})
 }
 
 // DeletePreset removes one preset from the library.

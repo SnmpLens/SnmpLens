@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"errors"
@@ -21,8 +21,8 @@ import (
 // Shutdown never converged either: drain kept finding the events it had just
 // requeued, so stopping took the whole 5 s grace period. Measured at 5.49 s.
 func TestAFailingRouterBacksOffAndStillStops(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	var attempts int64
 	r.enqueue = func([]storage.RoutedGroup, int64) error {
@@ -77,8 +77,8 @@ func TestAFailingRouterBacksOffAndStillStops(t *testing.T) {
 // The backoff must let go once the write works again, or one transient failure
 // would slow routing for the rest of the session.
 func TestTheBackoffClearsOnTheFirstSuccessfulWrite(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	fail := true
 	r.enqueue = func([]storage.RoutedGroup, int64) error {

@@ -39,11 +39,7 @@ func (p *dpapiProtector) saveKey(key []byte) error {
 	if err != nil {
 		return err
 	}
-	tmp := p.path + ".tmp"
-	if err := os.WriteFile(tmp, sealed, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, p.path)
+	return writeKeyOnce(p.path, sealed)
 }
 
 // entropy ties the sealed blob to this application, so another program running

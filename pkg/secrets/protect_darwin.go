@@ -58,11 +58,13 @@ func (p *keychainProtector) loadKey() ([]byte, error) {
 
 func (p *keychainProtector) saveKey(key []byte) error {
 	encoded := base64.StdEncoding.EncodeToString(key)
-	// -U updates an existing item instead of failing. The secret is passed with
-	// -w on stdin-free form; `security` is exec'd directly, never through a
-	// shell, so it never reaches a shell history.
+	// No -U: an item that exists is another process's key, minted at the same
+	// moment, and updating it would leave that process sealing with a key
+	// nobody keeps. The add fails instead (errSecDuplicateItem) and resolveKey
+	// takes the key that was kept. The secret is passed with -w; `security` is
+	// exec'd directly, never through a shell, so it never reaches a history.
 	cmd := exec.Command(securityTool, "add-generic-password",
-		"-s", p.service, "-a", p.account, "-w", encoded, "-U")
+		"-s", p.service, "-a", p.account, "-w", encoded)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("keychain store: %w (%s)", err, strings.TrimSpace(string(out)))
 	}

@@ -14,7 +14,6 @@ import (
 	"SnmpLens/pkg/netaddr"
 
 	"github.com/gosnmp/gosnmp"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // TrapVariable represents a varbind to include in a sent trap.
@@ -146,7 +145,7 @@ func (c *Client) startTrapListener(port int, users []V3Params) (TrapListenerInfo
 		err := listener.Listen(netaddr.ListenAddress(port))
 		if err != nil && !strings.Contains(err.Error(), "closed") {
 			log.Printf("Error in trap listener: %v", err)
-			runtime.EventsEmit(c.ctx, "trapError", fmt.Sprintf("Error in listener: %v", err))
+			c.emit("trapError", fmt.Sprintf("Error in listener: %v", err))
 		}
 	}()
 	c.trapPort = port
@@ -415,12 +414,10 @@ func (c *Client) handleTrap(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
 		c.declineToAcknowledge(packet, source, err)
 	}
 
-	// Guarded, the same way recordEvent guards its own emit: the runtime refuses
-	// a context it did not issue and takes the process with it. A client built
-	// without one — a test, or a headless run — must still receive traps.
-	if c.ctx != nil {
-		runtime.EventsEmit(c.ctx, "newTrap", trapData)
-	}
+	// Through emit, never the runtime directly: the runtime refuses a context
+	// it did not issue and takes the process with it, and a client built
+	// without one — the engine's, a test's — must still receive traps.
+	c.emit("newTrap", trapData)
 }
 
 // snmpTrapOIDInstance is snmpTrapOID.0, the second varbind RFC 3416 requires in

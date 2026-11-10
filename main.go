@@ -2,8 +2,10 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"SnmpLens/internal/app"
+	"SnmpLens/internal/cli"
 )
 
 // Everything the binary carries is embedded here and only here: //go:embed
@@ -32,6 +34,11 @@ var iconPNG []byte
 var iconICO []byte
 
 func main() {
+	// The supervision with no window, and the help: before anything of the
+	// desktop application exists.
+	if handled, code := cli.Run(os.Args[1:]); handled {
+		os.Exit(code)
+	}
 	err := app.Run(app.Options{
 		Assets:  assets,
 		MIBs:    mibs,

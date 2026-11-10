@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"SnmpLens/internal/engine"
 	"SnmpLens/pkg/preset"
 	"SnmpLens/pkg/simulator"
 	"SnmpLens/pkg/simulator/simtest"
@@ -40,7 +41,7 @@ func TestBindingADiscoveringPresetToASilentDeviceIsRefused(t *testing.T) {
 
 	// A port nothing listens on, on the loopback: the answer is an ICMP
 	// unreachable rather than a timeout, so this costs milliseconds.
-	_, err := a.PresetBind("ports.json", "127.0.0.1", "v2c", MonitorConnection{
+	_, err := a.PresetBind("ports.json", "127.0.0.1", "v2c", engine.MonitorConnection{
 		Port: closedUDPPort(t), TimeoutSec: 1, Retries: 0, Community: "public",
 	})
 	if err == nil {
@@ -52,7 +53,7 @@ func TestBindingADiscoveringPresetToASilentDeviceIsRefused(t *testing.T) {
 		t.Errorf("the refusal does not say what could not be walked: %v", err)
 	}
 
-	if sessions, _ := a.storage.ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) left behind by a refused bind", len(sessions))
 	}
 }
@@ -72,7 +73,7 @@ func TestAPresetWithoutDiscoveryIsNeverWalked(t *testing.T) {
 			Kind: "value", Title: "Uptime", OIDs: []string{"1.3.6.1.2.1.1.3.0"},
 		}},
 	}
-	out, err := a.discoverFor(p, "10.0.0.1", "v2c", MonitorConnection{Port: 161})
+	out, err := a.discoverFor(p, "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161})
 	if err != nil {
 		t.Fatalf("discoverFor on a preset that discovers nothing: %v", err)
 	}
@@ -91,7 +92,7 @@ func TestPresetDiscoveryIntegration(t *testing.T) {
 	a, dir := newBindApp(t)
 	putPreset(t, dir, "ports.json", discoveringPreset)
 
-	sess, err := a.PresetBind("ports.json", host, "v2c", MonitorConnection{
+	sess, err := a.PresetBind("ports.json", host, "v2c", engine.MonitorConnection{
 		Port: port, TimeoutSec: 2, Retries: 1, Community: "public",
 	})
 	if err != nil {

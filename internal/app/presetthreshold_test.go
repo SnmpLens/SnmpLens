@@ -1,6 +1,7 @@
 package app
 
 import (
+	"SnmpLens/internal/engine"
 	"testing"
 )
 
@@ -27,7 +28,7 @@ func TestBindingMaterialisesThePresetsThresholds(t *testing.T) {
 	  ]
 	}`)
 
-	sess, err := a.PresetBind("ups.json", "10.0.0.1", "v2c", MonitorConnection{Port: 161, TimeoutSec: 2})
+	sess, err := a.PresetBind("ups.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161, TimeoutSec: 2})
 	if err != nil {
 		t.Fatalf("PresetBind: %v", err)
 	}
@@ -65,7 +66,7 @@ func TestBindingMaterialisesThePresetsThresholds(t *testing.T) {
 	}
 
 	// And the shape the evaluator is actually handed.
-	spec := a.specFor(sess)
+	spec := a.eng.SessionSpec(sess)
 	if len(spec.Thresholds) != 3 {
 		t.Fatalf("the poll clock would evaluate %d band(s)", len(spec.Thresholds))
 	}
@@ -80,7 +81,7 @@ func TestAPresetWithoutBandsWatchesNothing(t *testing.T) {
 	a, dir := newBindApp(t)
 	putPreset(t, dir, "ok.json", goodPreset)
 
-	sess, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", MonitorConnection{Port: 161})
+	sess, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161})
 	if err != nil {
 		t.Fatalf("PresetBind: %v", err)
 	}
@@ -103,10 +104,10 @@ func TestABrokenBandCannotBeBound(t *testing.T) {
 	  ]
 	}`)
 
-	if _, err := a.PresetBind("bad.json", "10.0.0.1", "v2c", MonitorConnection{Port: 161}); err == nil {
+	if _, err := a.PresetBind("bad.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161}); err == nil {
 		t.Fatal("a band on a counter was bound")
 	}
-	if sessions, _ := a.storage.ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) left behind", len(sessions))
 	}
 }

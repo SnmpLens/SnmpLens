@@ -28,9 +28,5 @@ func (p *fileProtector) loadKey() ([]byte, error) {
 }
 
 func (p *fileProtector) saveKey(key []byte) error {
-	tmp := p.path + ".tmp"
-	if err := os.WriteFile(tmp, key, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, p.path)
+	return writeKeyOnce(p.path, key)
 }

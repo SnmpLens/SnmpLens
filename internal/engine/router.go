@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"fmt"
@@ -92,7 +92,7 @@ const (
 
 // eventRouter carries journalled events from their producer to the outbox.
 type eventRouter struct {
-	app   *App
+	eng   *Engine
 	queue chan events.Event
 	done  chan struct{}
 	loop  sync.WaitGroup
@@ -136,12 +136,12 @@ func (r *eventRouter) enqueueRouted(groups []storage.RoutedGroup, mark int64) er
 	if r.enqueue != nil {
 		return r.enqueue(groups, mark)
 	}
-	return r.app.storage.EnqueueRouted(groups, mark)
+	return r.eng.storage.EnqueueRouted(groups, mark)
 }
 
-func newEventRouter(a *App) *eventRouter {
+func newEventRouter(eng *Engine) *eventRouter {
 	return &eventRouter{
-		app:      a,
+		eng:      eng,
 		queue:    make(chan events.Event, routeQueueDepth),
 		done:     make(chan struct{}),
 		inflight: map[int64]bool{},
@@ -347,7 +347,7 @@ func (r *eventRouter) flush(batch *[]events.Event) {
 	routed := make([]events.Event, 0, len(pending))
 	var failed int
 	for _, e := range pending {
-		g, err := r.app.routedGroupsFor(e)
+		g, err := r.eng.routedGroupsFor(e)
 		if err != nil {
 			// Not routed, so it must NOT be settled: leaving it in flight pins
 			// the watermark below it, and the next launch replays it. Claiming
@@ -388,8 +388,8 @@ func (r *eventRouter) flush(batch *[]events.Event) {
 	// A write got through, so whatever was wrong is not wrong any more.
 	r.backoff = 0
 	r.retryAt = time.Time{}
-	if r.app.dispatcher != nil {
-		r.app.dispatcher.Wake()
+	if r.eng.dispatcher != nil {
+		r.eng.dispatcher.Wake()
 	}
 }
 
@@ -407,7 +407,7 @@ func (r *eventRouter) flush(batch *[]events.Event) {
 // unacknowledged, which is worse than waiting. What was missing was not a fix
 // but a way to know.
 func (r *eventRouter) watchPool() {
-	if r.app.storage == nil {
+	if r.eng.storage == nil {
 		return
 	}
 	now := time.Now()
@@ -415,7 +415,7 @@ func (r *eventRouter) watchPool() {
 		return
 	}
 
-	count, waited := r.app.storage.PoolWaits()
+	count, waited := r.eng.storage.PoolWaits()
 	if r.lastPoolCheck.IsZero() {
 		r.lastPoolCheck, r.lastPoolCount, r.lastPoolWait = now, count, waited
 		return
@@ -437,7 +437,7 @@ func (r *eventRouter) watchPool() {
 	r.poolReported = true
 
 	share := float64(deltaWait) / float64(window) * 100
-	r.app.recordEvent(events.Event{
+	r.eng.recordEvent(events.Event{
 		Category: events.CategorySystem,
 		Kind:     events.KindSystemInfo,
 		Severity: events.SevWarning.String(),
@@ -476,11 +476,11 @@ func (r *eventRouter) stop() {
 // This is what makes async routing as durable as doing it inline: a crash
 // between the insert and the flush loses nothing, because the journal is the
 // record and the watermark says how far routing got.
-func (a *App) replayUnrouted() {
-	if a.storage == nil {
+func (eng *Engine) replayUnrouted() {
+	if eng.storage == nil {
 		return
 	}
-	mark, err := a.storage.RoutedThrough()
+	mark, err := eng.storage.RoutedThrough()
 	if err != nil {
 		log.Printf("notify: could not read how far routing got (%v); not replaying", err)
 		return
@@ -488,7 +488,7 @@ func (a *App) replayUnrouted() {
 
 	total := 0
 	for {
-		pending, err := a.storage.EventsAfter(mark, routeBatchSize)
+		pending, err := eng.storage.EventsAfter(mark, routeBatchSize)
 		if err != nil {
 			log.Printf("notify: replay stopped after %d events: %v", total, err)
 			return
@@ -499,7 +499,7 @@ func (a *App) replayUnrouted() {
 
 		groups := make([]storage.RoutedGroup, 0, len(pending))
 		for _, e := range pending {
-			g, err := a.routedGroupsFor(e)
+			g, err := eng.routedGroupsFor(e)
 			if err != nil {
 				// Stop rather than skip: advancing past an event that could not
 				// be routed would lose it for good, and replay is the last
@@ -511,7 +511,7 @@ func (a *App) replayUnrouted() {
 			groups = append(groups, g...)
 		}
 		mark = pending[len(pending)-1].Seq
-		if err := a.storage.EnqueueRouted(groups, mark); err != nil {
+		if err := eng.storage.EnqueueRouted(groups, mark); err != nil {
 			log.Printf("notify: replay stopped after %d events: %v", total, err)
 			return
 		}
@@ -520,8 +520,8 @@ func (a *App) replayUnrouted() {
 
 	if total > 0 {
 		log.Printf("notify: replayed %d events that were journalled but not routed", total)
-		if a.dispatcher != nil {
-			a.dispatcher.Wake()
+		if eng.dispatcher != nil {
+			eng.dispatcher.Wake()
 		}
 	}
 }

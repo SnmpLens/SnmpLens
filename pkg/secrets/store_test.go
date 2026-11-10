@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -308,5 +309,55 @@ func TestKeychainNotFoundIsAMissingKeyAndNothingElseIs(t *testing.T) {
 		if isMissingKey(err) {
 			t.Errorf("%v was treated as a missing key", err)
 		}
+	}
+}
+
+// raceProtector is a store another process minted a key in at the same moment:
+// it had none when asked, and refuses this process's save because the other's
+// is kept.
+type raceProtector struct {
+	asked  bool
+	winner []byte
+}
+
+func (p *raceProtector) name() string { return "race" }
+func (p *raceProtector) loadKey() ([]byte, error) {
+	if !p.asked {
+		p.asked = true
+		return nil, errNoKeyYet
+	}
+	return p.winner, nil
+}
+func (p *raceProtector) saveKey([]byte) error { return fs.ErrExist }
+
+// Two processes minting a key at once — the window and a headless supervision
+// on a first run — end with ONE key: the loser takes the key that was kept
+// rather than failing to open, or writing over a key the other already seals
+// with.
+func TestTheLoserOfAMintingRaceTakesTheKeptKey(t *testing.T) {
+	p := &raceProtector{winner: []byte("the-key-the-other-process-kept!!")}
+	key, err := resolveKey(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(key) != string(p.winner) {
+		t.Errorf("this process seals with %q while the store keeps %q", key, p.winner)
+	}
+}
+
+// A key written once is not written over.
+func TestAKeyFileIsWrittenOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sinks.key")
+	if err := writeKeyOnce(path, []byte("first")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeKeyOnce(path, []byte("second")); !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("a second write: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "first" {
+		t.Errorf("the key file holds %q", got)
+	}
+	if left, _ := filepath.Glob(path + ".*.tmp"); len(left) != 0 {
+		t.Errorf("temporary files left behind: %v", left)
 	}
 }

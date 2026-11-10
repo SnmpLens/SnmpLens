@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"strings"
@@ -24,10 +24,10 @@ import (
 
 // holdPool occupies every connection for a while, using READ transactions so
 // SQLite's write lock is not what is being measured.
-func holdPool(t *testing.T, a *App, conns int, for_ time.Duration) {
+func holdPool(t *testing.T, eng *Engine, conns int, for_ time.Duration) {
 	t.Helper()
 	for i := 0; i < conns; i++ {
-		tx, err := a.storage.Begin()
+		tx, err := eng.storage.Begin()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,22 +42,22 @@ func holdPool(t *testing.T, a *App, conns int, for_ time.Duration) {
 }
 
 func TestPoolWaitsAreVisible(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	before, beforeWait := a.storage.PoolWaits()
+	before, beforeWait := eng.storage.PoolWaits()
 	if before != 0 || beforeWait != 0 {
 		t.Fatalf("a fresh pool already reports %d waits totalling %v", before, beforeWait)
 	}
 
-	holdPool(t, a, 4, 400*time.Millisecond)
+	holdPool(t, eng, 4, 400*time.Millisecond)
 
 	start := time.Now()
-	if _, err := a.storage.InsertEvent(trapEvent(1), ""); err != nil {
+	if _, err := eng.storage.InsertEvent(trapEvent(1), ""); err != nil {
 		t.Fatal(err)
 	}
 	blocked := time.Since(start)
 
-	count, waited := a.storage.PoolWaits()
+	count, waited := eng.storage.PoolWaits()
 	t.Logf("InsertEvent blocked %v with no error; the pool reports %d waits "+
 		"totalling %v", blocked, count, waited)
 
@@ -74,11 +74,11 @@ func TestPoolWaitsAreVisible(t *testing.T) {
 // comes back clean. A busy hour must produce one event, not one every thirty
 // seconds.
 func TestContentionIsReportedOnceUntilItClears(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	countSystem := func() int {
-		all, err := a.storage.EventsAfter(0, 10000)
+		all, err := eng.storage.EventsAfter(0, 10000)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,14 +101,14 @@ func TestContentionIsReportedOnceUntilItClears(t *testing.T) {
 	r.lastPoolCheck = time.Now().Add(-poolWatchInterval - time.Second)
 	r.lastPoolWait = 0
 	r.lastPoolCount = 0
-	holdPool(t, a, 4, 600*time.Millisecond)
+	holdPool(t, eng, 4, 600*time.Millisecond)
 	for i := 0; i < 6; i++ {
-		go func() { _, _ = a.storage.InsertEvent(trapEvent(2), "") }()
+		go func() { _, _ = eng.storage.InsertEvent(trapEvent(2), "") }()
 	}
 	time.Sleep(900 * time.Millisecond)
 
 	// Force the threshold to be met by the accumulated waiting.
-	if _, waited := a.storage.PoolWaits(); waited < poolWaitThreshold {
+	if _, waited := eng.storage.PoolWaits(); waited < poolWaitThreshold {
 		// The machine was fast enough that the stall did not accumulate. Drive
 		// the decision directly instead of making the test depend on timing.
 		r.lastPoolWait = -poolWaitThreshold
@@ -130,7 +130,7 @@ func TestContentionIsReportedOnceUntilItClears(t *testing.T) {
 
 	// A clean window re-arms it.
 	r.lastPoolCheck = time.Now().Add(-poolWatchInterval - time.Second)
-	_, waited := a.storage.PoolWaits()
+	_, waited := eng.storage.PoolWaits()
 	r.lastPoolWait = waited
 	r.watchPool()
 	if r.poolReported {
@@ -140,15 +140,15 @@ func TestContentionIsReportedOnceUntilItClears(t *testing.T) {
 
 // The event has to say what an operator can act on.
 func TestTheContentionEventSaysWhatIsWrong(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	r.watchPool()
 	r.lastPoolCheck = time.Now().Add(-poolWatchInterval - time.Second)
 	r.lastPoolWait = -poolWaitThreshold
 	r.watchPool()
 
-	all, err := a.storage.EventsAfter(0, 100)
+	all, err := eng.storage.EventsAfter(0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,8 +176,8 @@ func TestTheContentionEventSaysWhatIsWrong(t *testing.T) {
 // Sampling must be cheap enough to sit on a 250 ms ticker, and must not sample
 // on every tick.
 func TestThePoolIsNotSampledOnEveryTick(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	r.watchPool()
 	first := r.lastPoolCheck

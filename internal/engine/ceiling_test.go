@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ import (
 
 // offerTraps sends n datagrams at a target rate and reports how many the
 // application journalled.
-func offerTraps(t *testing.T, a *App, port, n int, perSecond float64) int {
+func offerTraps(t *testing.T, eng *Engine, port, n int, perSecond float64) int {
 	t.Helper()
 
 	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -48,7 +48,7 @@ func offerTraps(t *testing.T, a *App, port, n int, perSecond float64) int {
 	packet := trapWireBytes(t)
 	gap := time.Duration(float64(time.Second) / perSecond)
 
-	before := countEvents(t, a)
+	before := countEvents(t, eng)
 	start := time.Now()
 	for i := 0; i < n; i++ {
 		if _, err := conn.Write(packet); err != nil {
@@ -64,20 +64,20 @@ func offerTraps(t *testing.T, a *App, port, n int, perSecond float64) int {
 	settled := before
 	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); {
 		time.Sleep(200 * time.Millisecond)
-		now := countEvents(t, a)
+		now := countEvents(t, eng)
 		if now == settled {
 			break
 		}
 		settled = now
 	}
-	return countEvents(t, a) - before
+	return countEvents(t, eng) - before
 }
 
 // countEvents counts the journal. NOT QueryEvents: its Limit is capped at 500,
 // which reads as a 17% loss on a 600-datagram run that lost nothing.
-func countEvents(t *testing.T, a *App) int {
+func countEvents(t *testing.T, eng *Engine) int {
 	t.Helper()
-	all, err := a.storage.EventsAfter(0, 1_000_000)
+	all, err := eng.storage.EventsAfter(0, 1_000_000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,37 +139,37 @@ func TestTrapsAreNotLostAtTheStatedRate(t *testing.T) {
 		t.Skip("the race detector changes the service time by an order of magnitude")
 	}
 
-	a := newTestApp(t)
-	sink, err := a.storage.SaveSink(notify.SinkConfig{
+	eng := newTestApp(t)
+	sink, err := eng.storage.SaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.storage.SaveRoute(notify.Route{
+	if _, err := eng.storage.SaveRoute(notify.Route{
 		Name: "all", Enabled: true, SinkIDs: []string{sink.ID},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	a.router = newEventRouter(a)
-	a.router.start()
-	defer a.router.stop()
+	eng.router = newEventRouter(eng)
+	eng.router.start()
+	defer eng.router.stop()
 
 	// nil, deliberately: it is how this client says "no webview attached".
 	// A context Wails did not issue is REFUSED by its runtime, which takes the
 	// process down — which is exactly why handleTrap now checks for nil before
 	// emitting. context.TODO() here would defeat the guard it is testing.
 	//lint:ignore SA1012 nil means "headless"; see handleTrap's emit guard
-	a.snmpClient = snmp.NewClient(nil)
-	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
+	eng.snmpClient = snmp.NewClient(nil)
+	eng.snmpClient.SetRecorder(events.RecorderFunc(eng.recordEvent))
 
 	port := freeUDPPort(t)
-	if _, err := a.snmpClient.StartTrapListener(port, nil); err != nil {
+	if _, err := eng.snmpClient.StartTrapListener(port, nil); err != nil {
 		t.Fatal(err)
 	}
-	defer a.snmpClient.StopTrapListener()
+	defer eng.snmpClient.StopTrapListener()
 	time.Sleep(400 * time.Millisecond) // bind, and raise the read buffer
 
 	// Asserted below what was measured — 100% at 2000/s — because the point is
@@ -177,7 +177,7 @@ func TestTrapsAreNotLostAtTheStatedRate(t *testing.T) {
 	const offered = 1000.0
 	const count = 1000
 
-	got := offerTraps(t, a, port, count, offered)
+	got := offerTraps(t, eng, port, count, offered)
 	kept := float64(got) / float64(count) * 100
 	t.Logf("%d of %d traps journalled at %.0f/s (%.1f%%)", got, count, offered, kept)
 
@@ -197,24 +197,24 @@ func TestMeasureWhereTrapLossBegins(t *testing.T) {
 		t.Skip("the race detector changes the service time by an order of magnitude")
 	}
 
-	a := newTestApp(t)
-	a.router = newEventRouter(a)
-	a.router.start()
-	defer a.router.stop()
+	eng := newTestApp(t)
+	eng.router = newEventRouter(eng)
+	eng.router.start()
+	defer eng.router.stop()
 
 	// nil, deliberately: it is how this client says "no webview attached".
 	// A context Wails did not issue is REFUSED by its runtime, which takes the
 	// process down — which is exactly why handleTrap now checks for nil before
 	// emitting. context.TODO() here would defeat the guard it is testing.
 	//lint:ignore SA1012 nil means "headless"; see handleTrap's emit guard
-	a.snmpClient = snmp.NewClient(nil)
-	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
+	eng.snmpClient = snmp.NewClient(nil)
+	eng.snmpClient.SetRecorder(events.RecorderFunc(eng.recordEvent))
 
 	port := freeUDPPort(t)
-	if _, err := a.snmpClient.StartTrapListener(port, nil); err != nil {
+	if _, err := eng.snmpClient.StartTrapListener(port, nil); err != nil {
 		t.Fatal(err)
 	}
-	defer a.snmpClient.StopTrapListener()
+	defer eng.snmpClient.StopTrapListener()
 	time.Sleep(400 * time.Millisecond)
 
 	// Rate alone no longer decides anything: with the read buffer raised, a
@@ -228,7 +228,7 @@ func TestMeasureWhereTrapLossBegins(t *testing.T) {
 		{200, 500}, {600, 500}, {900, 500},
 		{2000, 4000}, {5000, 10000},
 	} {
-		got := offerTraps(t, a, port, c.count, c.rate)
+		got := offerTraps(t, eng, port, c.count, c.rate)
 		t.Logf("offered %.0f/s for %d datagrams: %d journalled (%.0f%%)",
 			c.rate, c.count, got, float64(got)/float64(c.count)*100)
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -19,11 +20,6 @@ import (
 func newBackupApp(t *testing.T) *App {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := storage.Init(filepath.Join(dir, "monitoring.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
 	sec, err := secrets.Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -32,8 +28,9 @@ func newBackupApp(t *testing.T) *App {
 	if err := os.MkdirAll(mibDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	a := &App{storage: st, secrets: sec, configDir: dir, persistentMibDir: mibDir, sim: newSimulatorService(dir)}
+	a := &App{secrets: sec, configDir: dir, persistentMibDir: mibDir, sim: newSimulatorService(dir)}
 	t.Cleanup(func() { a.sim.fleet.StopAll() })
+	testEngine(t, a, dir, nil)
 	return a
 }
 
@@ -53,12 +50,14 @@ func fillForBackup(t *testing.T, a *App) (sinkID, sessionID, deviceID string) {
 	if _, err := a.NotifySaveRoute(notify.Route{Name: "everything", Enabled: true, SinkIDs: []string{sink.ID}}); err != nil {
 		t.Fatal(err)
 	}
-	sessionID, err = a.storage.CreateSession("uplinks", "1.3.6.1.2.1.1.3.0", []string{"10.0.0.1"}, 5000, "v2c",
+	sessionID, err = a.eng.Storage().CreateSession("uplinks", "1.3.6.1.2.1.1.3.0", []string{"10.0.0.1"}, 5000, "v2c",
 		"2026-11-01T00:00:00Z", nil, &storage.SessionConn{Port: 161, TimeoutSec: 2, Retries: 1}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.saveSessionCreds(sessionID, sessionCreds{Community: "SESSION-COMMUNITY"})
+	if err := a.secrets.Set(secrets.SessionRef(sessionID), `{"community":"SESSION-COMMUNITY"}`); err != nil {
+		t.Fatal(err)
+	}
 
 	dev, err := a.SimulatorSaveDevice(simDevice())
 	if err != nil {
@@ -79,7 +78,9 @@ func fillForBackup(t *testing.T, a *App) (sinkID, sessionID, deviceID string) {
 	// Not RunInBackground: restoring that starts a real tray icon, which macOS
 	// refuses to create anywhere but on the main thread of a real application.
 	a.serviceCfg = service.Config{AutoResumeMonitors: true, TrapPort: 1162}
-	a.trapEngineID = []byte{0x80, 0, 0, 0, 5, 1, 2, 3, 4, 5, 6, 7, 8}
+	if err := a.eng.SetTrapEngineID([]byte{0x80, 0, 0, 0, 5, 1, 2, 3, 4, 5, 6, 7, 8}); err != nil {
+		t.Fatal(err)
+	}
 	return sink.ID, sessionID, dev.ID
 }
 
@@ -131,18 +132,18 @@ func TestABackupRestoresEverythingItHoldsOnAnotherMachine(t *testing.T) {
 		t.Fatalf("renderer = %s %v", res.Renderer, res.RendererSecrets)
 	}
 
-	if got := dst.sinkSecret(sinkID); got != "WEBHOOK-TOKEN" {
+	if got := dst.storedSinkSecret(sinkID); got != "WEBHOOK-TOKEN" {
 		t.Errorf("the destination's token = %q", got)
 	}
-	if routes, _ := dst.storage.ListRoutes(); len(routes) != 1 || routes[0].SinkIDs[0] != sinkID {
+	if routes, _ := dst.eng.Storage().ListRoutes(); len(routes) != 1 || routes[0].SinkIDs[0] != sinkID {
 		t.Errorf("routes = %+v", routes)
 	}
-	sessions, _ := dst.storage.ListSessions()
+	sessions, _ := dst.eng.Storage().ListSessions()
 	if len(sessions) != 1 || sessions[0].ID != sessionID || sessions[0].Active {
 		t.Errorf("sessions = %+v", sessions)
 	}
-	if creds := dst.loadSessionCreds(sessionID); creds.Community != "SESSION-COMMUNITY" {
-		t.Errorf("the session's community = %q", creds.Community)
+	if got := sessionCommunity(t, dst, sessionID); got != "SESSION-COMMUNITY" {
+		t.Errorf("the session's community = %q", got)
 	}
 	if len(dst.sim.devices) != 1 || dst.sim.devices[0].ID != deviceID || dst.sim.devices[0].EngineID != src.sim.devices[0].EngineID {
 		t.Errorf("devices = %+v", dst.sim.devices)
@@ -164,7 +165,7 @@ func TestABackupRestoresEverythingItHoldsOnAnotherMachine(t *testing.T) {
 	if got := dst.TrapListenerEngineID(); got != src.TrapListenerEngineID() {
 		t.Errorf("engine ID = %s, want %s", got, src.TrapListenerEngineID())
 	}
-	if kept := loadTrapEngineID(dst.configDir); string(kept) != string(src.trapEngineID) {
+	if kept := reopenedEngineID(t, dst.configDir); string(kept) != string(src.eng.TrapEngineID()) {
 		t.Errorf("the engine ID kept on disk = %x", kept)
 	}
 }
@@ -208,7 +209,7 @@ func TestARestoreCanBeUndone(t *testing.T) {
 		!strings.Contains(string(undo.Renderer), "192.0.2.1") {
 		t.Fatalf("undo = %+v", undo)
 	}
-	if got := dst.sinkSecret(mine.ID); got != "MY-TOKEN" {
+	if got := dst.storedSinkSecret(mine.ID); got != "MY-TOKEN" {
 		t.Errorf("my own destination's token = %q", got)
 	}
 }
@@ -226,7 +227,7 @@ func TestAWrongPassphraseChangesNothing(t *testing.T) {
 	if !errors.Is(err, backup.ErrPassphrase) {
 		t.Fatalf("err = %v", err)
 	}
-	if sinks, _ := dst.storage.ListSinks(); len(sinks) != 0 {
+	if sinks, _ := dst.eng.Storage().ListSinks(); len(sinks) != 0 {
 		t.Errorf("a wrong passphrase restored %d destinations", len(sinks))
 	}
 	if points := dst.ListAutomaticBackups(); len(points) != 0 {
@@ -252,11 +253,11 @@ func TestWithoutThePassphraseEverythingButTheSecretsIsRestored(t *testing.T) {
 	if res.SecretsRestored || len(res.RendererSecrets) != 0 || res.Restored.Sinks != 1 || res.Restored.Sessions != 1 {
 		t.Fatalf("result = %+v", res)
 	}
-	if got := dst.sinkSecret(sinkID); got != "" {
+	if got := dst.storedSinkSecret(sinkID); got != "" {
 		t.Errorf("a token came back without the passphrase: %q", got)
 	}
-	if creds := dst.loadSessionCreds(sessionID); creds.Community != "" {
-		t.Errorf("a community came back without the passphrase: %q", creds.Community)
+	if got := sessionCommunity(t, dst, sessionID); got != "" {
+		t.Errorf("a community came back without the passphrase: %q", got)
 	}
 }
 
@@ -273,7 +274,7 @@ func TestASessionThatExistsKeepsItsHistory(t *testing.T) {
 	if res.Restored.Sessions != 0 {
 		t.Errorf("an existing session was restored over: %+v", res.Restored)
 	}
-	if sessions, _ := a.storage.ListSessions(); len(sessions) != 1 || sessions[0].ID != sessionID {
+	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 1 || sessions[0].ID != sessionID {
 		t.Errorf("sessions = %+v", sessions)
 	}
 }
@@ -302,4 +303,19 @@ func TestOnlyAnAutomaticBackupIsOpenedByName(t *testing.T) {
 			t.Errorf("%q was opened", name)
 		}
 	}
+}
+
+// reopenedEngineID is the trap listener's engine ID as kept on disk in dir,
+// not as held in memory.
+func reopenedEngineID(t *testing.T, dir string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(dir, "trap-engine-id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := hex.DecodeString(strings.TrimSpace(string(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

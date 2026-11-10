@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"context"
@@ -13,8 +13,6 @@ import (
 	"SnmpLens/pkg/secrets"
 	"SnmpLens/pkg/snmp"
 	"SnmpLens/pkg/storage"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // MonitorConnection is the connection half of a session, as the renderer sends
@@ -69,35 +67,35 @@ func (c MonitorConnection) split() (*storage.SessionConn, sessionCreds) {
 // The connection is persisted alongside it because the poll clock now runs in
 // Go: a session has to be resumable with no window open, and after a restart
 // there is no renderer left to ask for the settings.
-func (a *App) MonitorCreateSession(oid string, targets []string, intervalMs int, snmpVersion string, thresholds map[string]*storage.Thresholds, name string, conn MonitorConnection) (string, error) {
-	if a.storage == nil {
+func (eng *Engine) MonitorCreateSession(oid string, targets []string, intervalMs int, snmpVersion string, thresholds map[string]*storage.Thresholds, name string, conn MonitorConnection) (string, error) {
+	if eng.storage == nil {
 		return "", fmt.Errorf("storage not initialized")
 	}
 	sessConn, creds := conn.split()
 	// nil: a session built by hand carries no preset snapshot. PresetBind is
 	// the one caller that passes one.
-	id, err := a.storage.CreateSession(name, oid, targets, intervalMs, snmpVersion, time.Now().UTC().Format(time.RFC3339), thresholds, sessConn, nil)
+	id, err := eng.storage.CreateSession(name, oid, targets, intervalMs, snmpVersion, time.Now().UTC().Format(time.RFC3339), thresholds, sessConn, nil)
 	if err != nil {
 		return "", err
 	}
-	a.saveSessionCreds(id, creds)
+	eng.saveSessionCreds(id, creds)
 	return id, nil
 }
 
 // saveSessionCreds stores the credentials outside the database.
-func (a *App) saveSessionCreds(sessionID string, creds sessionCreds) {
-	if a.secrets == nil {
+func (eng *Engine) saveSessionCreds(sessionID string, creds sessionCreds) {
+	if eng.secrets == nil {
 		return
 	}
 	if creds.Community == "" && creds.AuthPass == "" && creds.PrivPass == "" {
-		_ = a.secrets.Delete(secrets.SessionRef(sessionID))
+		_ = eng.secrets.Delete(secrets.SessionRef(sessionID))
 		return
 	}
 	raw, err := json.Marshal(creds)
 	if err != nil {
 		return
 	}
-	if err := a.secrets.Set(secrets.SessionRef(sessionID), string(raw)); err != nil {
+	if err := eng.secrets.Set(secrets.SessionRef(sessionID), string(raw)); err != nil {
 		log.Printf("WARNING: could not store the credentials of session %s: %v", sessionID, err)
 	}
 }
@@ -105,12 +103,12 @@ func (a *App) saveSessionCreds(sessionID string, creds sessionCreds) {
 // loadSessionCreds reads them back. A session with none simply polls with what
 // the profile alone provides, which is correct for a v2c agent that accepts an
 // empty community.
-func (a *App) loadSessionCreds(sessionID string) sessionCreds {
+func (eng *Engine) loadSessionCreds(sessionID string) sessionCreds {
 	var creds sessionCreds
-	if a.secrets == nil {
+	if eng.secrets == nil {
 		return creds
 	}
-	raw, err := a.secrets.Get(secrets.SessionRef(sessionID))
+	raw, err := eng.secrets.Get(secrets.SessionRef(sessionID))
 	if err != nil {
 		return creds
 	}
@@ -120,11 +118,11 @@ func (a *App) loadSessionCreds(sessionID string) sessionCreds {
 
 // initScheduler wires the poll clock to storage, the threshold engine and the
 // renderer.
-func (a *App) initScheduler() {
+func (eng *Engine) initScheduler() {
 	s := monitor.NewScheduler()
 
 	s.Persist = func(points []monitor.Point) {
-		if a.storage == nil {
+		if eng.storage == nil {
 			return
 		}
 		dps := make([]storage.DataPoint, 0, len(points))
@@ -136,23 +134,20 @@ func (a *App) initScheduler() {
 				SnmpType: p.SnmpType, OID: p.OID,
 			})
 		}
-		a.storage.QueueDataPoints(dps)
+		eng.storage.QueueDataPoints(dps)
 	}
 
 	s.Evaluate = func(sessionID, name string, samples []monitor.Sample, th map[string]*monitor.Threshold) error {
-		if a.evaluator == nil {
+		if eng.evaluator == nil {
 			return nil
 		}
-		return a.evaluator.Ingest(sessionID, name, samples, th)
+		return eng.evaluator.Ingest(sessionID, name, samples, th)
 	}
 
 	// With no window open this does nothing, and nothing else changes: by the
 	// time it runs the samples are already stored and already evaluated.
 	s.Emit = func(sessionID string, points []monitor.Point) {
-		if a.ctx == nil {
-			return
-		}
-		runtime.EventsEmit(a.ctx, "monitor:samples", map[string]interface{}{
+		eng.emit("monitor:samples", map[string]interface{}{
 			"sessionId": sessionID,
 			"points":    points,
 		})
@@ -164,7 +159,7 @@ func (a *App) initScheduler() {
 	// answering — the one explanation that is wrong.
 	s.OnPanic = func(sessionID, name, recovered, stack string) {
 		detail := fmt.Sprintf("the poll of %q panicked and was recovered: %s", name, recovered)
-		_ = a.recordEvent(events.Event{
+		_ = eng.recordEvent(events.Event{
 			Category: events.CategorySystem,
 			Kind:     events.KindSystemPollFailed,
 			Severity: events.SevMajor.String(),
@@ -174,7 +169,7 @@ func (a *App) initScheduler() {
 		}, stack)
 	}
 
-	s.OnStateChange = a.refreshTrayStatus
+	s.OnStateChange = eng.sessionsChanged
 
 	// The guardrail's report. Two destinations, because the two questions are
 	// different: the journal answers "what happened while I was away" for an
@@ -196,7 +191,7 @@ func (a *App) initScheduler() {
 				"%q asks for a reading every %s but a round costs %s; the slowdown has been "+
 					"accepted, so the cadence is unchanged", o.Name, msText(o.IntervalMs), msText(o.CycleMs))
 		}
-		_ = a.recordEvent(events.Event{
+		_ = eng.recordEvent(events.Event{
 			Category: events.CategorySystem,
 			Kind:     events.KindSystemInfo,
 			Severity: sev.String(),
@@ -204,12 +199,10 @@ func (a *App) initScheduler() {
 			Params:   map[string]any{"detail": detail},
 			Summary:  detail,
 		}, "")
-		if a.ctx != nil {
-			runtime.EventsEmit(a.ctx, "monitor:overrun", o)
-		}
+		eng.emit("monitor:overrun", o)
 	}
 
-	a.scheduler = s
+	eng.scheduler = s
 }
 
 // msText renders a millisecond count the way an operator reads a cadence.
@@ -223,21 +216,21 @@ func msText(ms int) string {
 // It applies to the running session only. Nothing persists it, on purpose — a
 // decision about how hard to work THIS machine is not one to inherit silently
 // after a restart on another one.
-func (a *App) MonitorAcceptSlow(sessionID string) {
-	if a.scheduler == nil {
+func (eng *Engine) MonitorAcceptSlow(sessionID string) {
+	if eng.scheduler == nil {
 		return
 	}
-	a.scheduler.AcceptSlow(sessionID)
+	eng.scheduler.AcceptSlow(sessionID)
 }
 
 // buildFetch closes over the connection so the scheduler never sees a
 // credential.
-func (a *App) buildFetch(sess storage.Session) monitor.FetchFunc {
+func (eng *Engine) buildFetch(sess storage.Session) monitor.FetchFunc {
 	conn := sess.Conn
 	if conn == nil {
 		conn = &storage.SessionConn{}
 	}
-	creds := a.loadSessionCreds(sess.ID)
+	creds := eng.loadSessionCreds(sess.ID)
 
 	v3 := snmp.V3Params{
 		User:        conn.V3User,
@@ -263,7 +256,7 @@ func (a *App) buildFetch(sess storage.Session) monitor.FetchFunc {
 		// panics inside newGoSNMP — on the poll goroutine, which used to end the
 		// process. Reported as a failed reading per pair instead, which is the
 		// shape every other failure on this path takes.
-		if a.snmpClient == nil {
+		if eng.snmpClient == nil {
 			readings := make([]monitor.Reading, 0, len(targets)*len(oids))
 			for _, t := range targets {
 				for _, oid := range oids {
@@ -277,7 +270,7 @@ func (a *App) buildFetch(sess storage.Session) monitor.FetchFunc {
 		// The poll's context reaches the wire. Chunking is serial within a
 		// target, so without it a stop waited for every remaining chunk's
 		// timeout — measured at 12.0 s for 90 OIDs against a silent device.
-		results := a.snmpClient.GetMany(ctx, targets, oids, community, version, port, timeout, retries, v3)
+		results := eng.snmpClient.GetMany(ctx, targets, oids, community, version, port, timeout, retries, v3)
 		readings := make([]monitor.Reading, 0, len(results)*len(oids))
 		for _, m := range results {
 			for _, oid := range oids {
@@ -384,7 +377,7 @@ func toMonitorThresholds(in map[string]*storage.Thresholds) map[string]*monitor.
 }
 
 // specFor turns a stored session into something the scheduler can run.
-func (a *App) specFor(sess storage.Session) monitor.SessionSpec {
+func (eng *Engine) specFor(sess storage.Session) monitor.SessionSpec {
 	oids := []string{}
 	for _, o := range strings.Split(sess.OID, ",") {
 		if o = strings.TrimSpace(o); o != "" {
@@ -398,42 +391,42 @@ func (a *App) specFor(sess storage.Session) monitor.SessionSpec {
 		Targets:    sess.Targets,
 		Interval:   time.Duration(sess.IntervalMs) * time.Millisecond,
 		Thresholds: toMonitorThresholds(sess.Thresholds),
-		Fetch:      a.buildFetch(sess),
+		Fetch:      eng.buildFetch(sess),
 	}
 }
 
 // MonitorStart begins polling a stored session in Go.
-func (a *App) MonitorStart(sessionID string) error {
-	if a.storage == nil || a.scheduler == nil {
+func (eng *Engine) MonitorStart(sessionID string) error {
+	if eng.storage == nil || eng.scheduler == nil {
 		return fmt.Errorf("storage not initialized")
 	}
-	sess, err := a.findSession(sessionID)
+	sess, err := eng.findSession(sessionID)
 	if err != nil {
 		return err
 	}
-	a.scheduler.Start(a.specFor(sess))
-	return a.storage.UpdateSession(sessionID, true, "")
+	eng.scheduler.Start(eng.specFor(sess))
+	return eng.storage.UpdateSession(sessionID, true, "")
 }
 
 // MonitorStop ends the Go-side poll loop for a session.
-func (a *App) MonitorStop(sessionID string) error {
-	if a.scheduler == nil {
+func (eng *Engine) MonitorStop(sessionID string) error {
+	if eng.scheduler == nil {
 		return nil
 	}
-	a.scheduler.Stop(sessionID)
-	if a.storage == nil {
+	eng.scheduler.Stop(sessionID)
+	if eng.storage == nil {
 		return nil
 	}
-	return a.storage.UpdateSession(sessionID, false, time.Now().UTC().Format(time.RFC3339))
+	return eng.storage.UpdateSession(sessionID, false, time.Now().UTC().Format(time.RFC3339))
 }
 
 // MonitorRunning lists the sessions the Go scheduler is polling, so a window
 // that has just opened can reconcile with what happened without it.
-func (a *App) MonitorRunning() []string {
-	if a.scheduler == nil {
+func (eng *Engine) MonitorRunning() []string {
+	if eng.scheduler == nil {
 		return []string{}
 	}
-	return a.scheduler.Running()
+	return eng.scheduler.Running()
 }
 
 // MonitorUpdateConnection replaces a session's connection settings, for when a
@@ -442,8 +435,8 @@ func (a *App) MonitorRunning() []string {
 // The version travels with it because a credential profile carries one: a
 // profile moved from v2c to v3 changes how its sessions must speak, not only
 // what they say. Empty keeps the session's own.
-func (a *App) MonitorUpdateConnection(sessionID, snmpVersion string, conn MonitorConnection) error {
-	if a.storage == nil {
+func (eng *Engine) MonitorUpdateConnection(sessionID, snmpVersion string, conn MonitorConnection) error {
+	if eng.storage == nil {
 		return fmt.Errorf("storage not initialized")
 	}
 	switch snmpVersion {
@@ -452,23 +445,23 @@ func (a *App) MonitorUpdateConnection(sessionID, snmpVersion string, conn Monito
 		return fmt.Errorf("unsupported SNMP version %q", snmpVersion)
 	}
 	sessConn, creds := conn.split()
-	if err := a.storage.UpdateSessionConn(sessionID, snmpVersion, sessConn); err != nil {
+	if err := eng.storage.UpdateSessionConn(sessionID, snmpVersion, sessConn); err != nil {
 		return err
 	}
-	a.saveSessionCreds(sessionID, creds)
+	eng.saveSessionCreds(sessionID, creds)
 	// A running session holds its old closure, so restart it here rather than
 	// letting the change appear to have been ignored.
-	if a.scheduler != nil && a.scheduler.IsRunning(sessionID) {
-		a.scheduler.Stop(sessionID)
-		if sess, err := a.findSession(sessionID); err == nil {
-			a.scheduler.Start(a.specFor(sess))
+	if eng.scheduler != nil && eng.scheduler.IsRunning(sessionID) {
+		eng.scheduler.Stop(sessionID)
+		if sess, err := eng.findSession(sessionID); err == nil {
+			eng.scheduler.Start(eng.specFor(sess))
 		}
 	}
 	return nil
 }
 
-func (a *App) findSession(sessionID string) (storage.Session, error) {
-	sessions, err := a.storage.ListSessions()
+func (eng *Engine) findSession(sessionID string) (storage.Session, error) {
+	sessions, err := eng.storage.ListSessions()
 	if err != nil {
 		return storage.Session{}, err
 	}
@@ -485,11 +478,11 @@ func (a *App) findSession(sessionID string) (storage.Session, error) {
 // This is the other half of service mode: without it a machine that reboots
 // overnight comes back with every monitoring silently stopped, and the first
 // anyone hears of it is the alert that never arrived.
-func (a *App) resumeActiveSessions() {
-	if a.storage == nil || a.scheduler == nil || !a.serviceCfg.AutoResumeMonitors {
+func (eng *Engine) resumeActiveSessions() {
+	if eng.storage == nil || eng.scheduler == nil || !eng.cfg.AutoResumeMonitors {
 		return
 	}
-	sessions, err := a.storage.ListSessions()
+	sessions, err := eng.storage.ListSessions()
 	if err != nil {
 		log.Printf("WARNING: could not list sessions to resume: %v", err)
 		return
@@ -501,12 +494,43 @@ func (a *App) resumeActiveSessions() {
 		if !sess.Active || sess.Conn == nil {
 			continue
 		}
-		a.scheduler.Start(a.specFor(sess))
+		eng.scheduler.Start(eng.specFor(sess))
 		resumed++
 	}
 	if resumed > 0 {
 		log.Printf("resumed %d monitoring session(s)", resumed)
-		a.recordSystemEvent(events.KindSystemInfo, "info",
+		eng.RecordSystemEvent(events.KindSystemInfo, "info",
 			fmt.Sprintf("Resumed %d monitoring session(s) after startup.", resumed))
 	}
 }
+
+// MonitorCreatePresetSession creates the session a preset is bound as and
+// starts it. The bands the preset carries are materialised into the session's
+// OWN threshold map — the same column MonitorCreateSession fills and the same
+// one the evaluator reads — and the preset is kept as a snapshot, never a
+// reference.
+//
+// A session that cannot start is reported rather than rolled back: it exists
+// and is stored, and deleting it would throw away the binding the operator just
+// made and leave nothing to retry from.
+func (eng *Engine) MonitorCreatePresetSession(name string, oids []string, target string, intervalMs int, snmpVersion string,
+	thresholds map[string]*storage.Thresholds, conn MonitorConnection, snapshot *storage.SessionPreset) (storage.Session, error) {
+	if eng.storage == nil || eng.scheduler == nil {
+		return storage.Session{}, fmt.Errorf("storage not initialized")
+	}
+	sessConn, creds := conn.split()
+	id, err := eng.storage.CreateSession(name, strings.Join(oids, ","), []string{target}, intervalMs, snmpVersion,
+		time.Now().UTC().Format(time.RFC3339), thresholds, sessConn, snapshot)
+	if err != nil {
+		return storage.Session{}, err
+	}
+	eng.saveSessionCreds(id, creds)
+	if err := eng.MonitorStart(id); err != nil {
+		log.Printf("preset session %s created but not started: %v", id, err)
+	}
+	return eng.findSession(id)
+}
+
+// SessionSpec is what the poll clock is handed for sess: its OIDs and interval,
+// and the bands the evaluator applies.
+func (eng *Engine) SessionSpec(sess storage.Session) monitor.SessionSpec { return eng.specFor(sess) }

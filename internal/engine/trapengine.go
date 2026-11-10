@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"crypto/rand"
@@ -58,6 +58,26 @@ func newTrapEngineID() []byte {
 // TrapListenerEngineID is the trap listener's snmpEngineID, in hex: what a
 // device sending this machine SNMPv3 INFORMs is configured with, and what a
 // simulated device sending to SnmpLens is filled in with.
-func (a *App) TrapListenerEngineID() string {
-	return hex.EncodeToString(a.trapEngineID)
+func (eng *Engine) TrapListenerEngineID() string {
+	return hex.EncodeToString(eng.trapEngineID)
+}
+
+// TrapEngineID is the trap listener's snmpEngineID.
+func (eng *Engine) TrapEngineID() []byte { return eng.trapEngineID }
+
+// SetTrapEngineID makes id the trap listener's snmpEngineID, here and for every
+// later start: what a backup restores, since the devices sending SNMPv3
+// INFORMs were configured with it. The listener uses it from its next start.
+func (eng *Engine) SetTrapEngineID(id []byte) error {
+	if len(id) < 5 || len(id) > 32 {
+		return errors.New("an snmpEngineID is 5 to 32 octets")
+	}
+	if err := os.WriteFile(filepath.Join(eng.dataDir, trapEngineFile), []byte(hex.EncodeToString(id)+"\n"), 0o600); err != nil {
+		return err
+	}
+	eng.trapEngineID = id
+	if eng.snmpClient != nil {
+		eng.snmpClient.SetTrapEngineID(id)
+	}
+	return nil
 }

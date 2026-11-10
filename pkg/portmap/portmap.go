@@ -54,6 +54,7 @@ const (
 	arpPhysical     = "1.3.6.1.2.1.4.35.1.4"
 	lldpLocPort     = "1.0.8802.1.1.2.1.3.7.1"
 	lldpRem         = "1.0.8802.1.1.2.1.4.1.1"
+	lldpRemManAddr  = "1.0.8802.1.1.2.1.4.2.1"
 	cdpCache        = "1.3.6.1.4.1.9.9.23.1.2.1.1"
 	sysObjectID     = "1.3.6.1.2.1.1.2"
 
@@ -68,7 +69,7 @@ const (
 var Roots = []string{
 	sysObjectID, basePortIfIndex, fdbPort, fdbStatus, qFdbPort, qFdbStatus, qPvid,
 	ifDescr, ifOperStatus, ifName, ifHighSpeed, ifAlias, arpMedia, arpPhysical,
-	lldpLocPort, lldpRem, cdpCache, VTPVlanState,
+	lldpLocPort, lldpRem, lldpRemManAddr, cdpCache, VTPVlanState,
 }
 
 // VLANRoots are what to walk on a Cisco switch in one VLAN's context.
@@ -128,10 +129,13 @@ type Station struct {
 
 // Neighbour is what LLDP or CDP says is at the other end of a port.
 type Neighbour struct {
-	Name     string `json:"name"`
-	Port     string `json:"port,omitempty"`
-	Chassis  string `json:"chassis,omitempty"`
-	Address  string `json:"address,omitempty"`
+	Name    string `json:"name"`
+	Port    string `json:"port,omitempty"`
+	Chassis string `json:"chassis,omitempty"`
+	Address string `json:"address,omitempty"`
+	// Descr is the neighbour's own description: LLDP's system description or
+	// CDP's platform.
+	Descr    string `json:"descr,omitempty"`
 	Protocol string `json:"protocol"`
 	// Kind is what the neighbour says it is: "switch", "router", "ap", "phone",
 	// "host", or "" when it says nothing.
@@ -415,11 +419,70 @@ type located struct {
 	Neighbour
 }
 
+// Located is a neighbour and the local interface it was heard on.
+type Located struct {
+	IfIndex int
+	// Port is the interface's name, ifName or else ifDescr.
+	Port string
+	Neighbour
+}
+
+// Neighbours are the LLDP and CDP neighbours a device's walk names, on any of its
+// interfaces, bridged or not: a router's neighbours are on routed ports.
+func Neighbours(w Walk) []Located {
+	ifs := map[int]*Port{}
+	ifByName := map[string]int{}
+	byBridge := map[int]*Port{}
+	ensure := func(i int) *Port {
+		if ifs[i] == nil {
+			ifs[i] = &Port{IfIndex: i}
+		}
+		return ifs[i]
+	}
+	for _, p := range w {
+		name := trim(p.Name)
+		switch {
+		case under(name, ifName):
+			if a := arcsAfter(name, ifName); len(a) == 1 {
+				ensure(a[0]).Name = asString(p.Value)
+				ifByName[asString(p.Value)] = a[0]
+			}
+		case under(name, ifDescr):
+			if a := arcsAfter(name, ifDescr); len(a) == 1 {
+				ensure(a[0]).Descr = asString(p.Value)
+				if _, taken := ifByName[asString(p.Value)]; !taken {
+					ifByName[asString(p.Value)] = a[0]
+				}
+			}
+		}
+	}
+	for _, p := range w {
+		if a := arcsAfter(trim(p.Name), basePortIfIndex); len(a) == 1 {
+			port := ensure(asInt(p.Value))
+			port.BridgePort = a[0]
+			byBridge[a[0]] = port
+		}
+	}
+	var out []Located
+	for _, n := range neighbours(w, ifByName, ifs, byBridge) {
+		name := ""
+		if p := ifs[n.ifIndex]; p != nil {
+			name = p.Name
+			if name == "" {
+				name = p.Descr
+			}
+		}
+		out = append(out, Located{IfIndex: n.ifIndex, Port: name, Neighbour: n.Neighbour})
+	}
+	return out
+}
+
 // neighbours are LLDP's, then CDP's for a port LLDP says nothing of.
 func neighbours(sw Walk, ifByName map[string]int, ifs map[int]*Port, byBridge map[int]*Port) []located {
 	locSubtype, locID := map[int]int{}, map[int]string{}
 	rem := map[string]map[int]gosnmp.SnmpPDU{} // timeMark.localPort.index → column → value
 	cdp := map[string]map[int]gosnmp.SnmpPDU{} // ifIndex.deviceIndex → column → value
+	manAddr := map[string]string{}             // timeMark.localPort.index → an address
 	for _, p := range sw {
 		name := trim(p.Name)
 		switch {
@@ -439,6 +502,19 @@ func neighbours(sw Walk, ifByName map[string]int, ifs map[int]*Port, byBridge ma
 					rem[key] = map[int]gosnmp.SnmpPDU{}
 				}
 				rem[key][a[0]] = p
+			}
+		case under(name, lldpRemManAddr):
+			// lldpRemManAddrEntry.<col>.<timeMark>.<localPort>.<index>.<subtype>.<length>.<address>
+			a := arcsAfter(name, lldpRemManAddr)
+			if len(a) < 6 || len(a) != 6+a[5] {
+				continue
+			}
+			raw, ok := octets(a[6:])
+			if ok && ((a[4] == 1 && a[5] == 4) || (a[4] == 2 && a[5] == 16)) {
+				key := fmt.Sprintf("%d.%d.%d", a[1], a[2], a[3])
+				if _, have := manAddr[key]; !have || a[4] == 1 {
+					manAddr[key] = net.IP(raw).String() // IPv4 preferred: what an SNMP target usually is
+				}
 			}
 		case under(name, cdpCache):
 			if a := arcsAfter(name, cdpCache); len(a) == 3 {
@@ -492,13 +568,15 @@ func neighbours(sw Walk, ifByName map[string]int, ifs map[int]*Port, byBridge ma
 			n.Name = n.Chassis
 		}
 		n.Kind = lldpKind(cols[12].Value)
+		n.Descr = asString(cols[10].Value)
+		n.Address = manAddr[key]
 		out = append(out, located{ifIndex, n})
 	}
 	for _, key := range sortedKeys(cdp) {
 		cols := cdp[key]
 		ifIndex, _ := strconv.Atoi(strings.Split(key, ".")[0])
 		n := Neighbour{Protocol: "cdp", Name: asString(cols[6].Value), Port: asString(cols[7].Value),
-			Kind: cdpKind(cols[9].Value)}
+			Kind: cdpKind(cols[9].Value), Descr: asString(cols[8].Value)}
 		// cdpCacheAddress is a raw IPv4 address when cdpCacheAddressType is ip(1).
 		if asInt(cols[3].Value) == 1 {
 			if b, ok := cols[4].Value.([]byte); ok && len(b) == 4 {

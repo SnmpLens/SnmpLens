@@ -805,7 +805,8 @@
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
     "hopRtt3": "RTT 3",
-    "ports": "Carte des ports"
+    "ports": "Carte des ports",
+    "topology": "Topologie"
   },
   "debug": {
     "title": "Debug SNMP",
@@ -1899,6 +1900,32 @@
       "mac": "Adresse MAC",
       "ip": "Adresse IP",
       "name": "Nom"
+    }
+  },
+  "topology": {
+    "noTargets": "Ajoutez d'abord les équipements comme cibles.",
+    "devices": "Équipements de départ : {count}",
+    "depth": "Suivre les voisins",
+    "depthNone": "Non — seulement ces équipements",
+    "depthHops": "{count} saut(s) plus loin",
+    "depthHint": "Un voisin est suivi à l'adresse de gestion que donne LLDP ou CDP, et interrogé avec ses propres identifiants s'il est une cible, sinon avec ceux par défaut. 64 équipements au plus.",
+    "draw": "Dessiner la carte",
+    "cancel": "Arrêter",
+    "walking": "Parcours des équipements…",
+    "progress": "{walked} équipement(s) parcouru(s), {pending} restant(s)…",
+    "summary": "{nodes} équipements, {links} liens",
+    "relayout": "Réorganiser",
+    "nothing": "Aucun équipement n'a répondu.",
+    "help": "Glissez pour déplacer la carte ou un équipement, faites défiler pour zoomer, cliquez un équipement pour voir ses liens. Un trait pointillé n'a été signalé que par une extrémité ; un cercle pointillé est un équipement que seuls ses voisins nomment.",
+    "managed": "parcouru",
+    "heard": "nommé par un voisin",
+    "kind": {
+      "switch": "Switch",
+      "router": "Routeur",
+      "ap": "Point d'accès",
+      "phone": "Téléphone",
+      "host": "Hôte",
+      "unknown": "Équipement"
     }
   }
 }

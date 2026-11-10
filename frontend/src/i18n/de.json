@@ -805,7 +805,8 @@
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
     "hopRtt3": "RTT 3",
-    "ports": "Port-Karte"
+    "ports": "Port-Karte",
+    "topology": "Topologie"
   },
   "debug": {
     "title": "SNMP Debug",
@@ -1899,6 +1900,32 @@
       "mac": "MAC-Adresse",
       "ip": "IP-Adresse",
       "name": "Name"
+    }
+  },
+  "topology": {
+    "noTargets": "Fügen Sie die Geräte zuerst als Ziele hinzu.",
+    "devices": "Startgeräte: {count}",
+    "depth": "Nachbarn folgen",
+    "depthNone": "Nein — nur diese Geräte",
+    "depthHops": "{count} Hop(s) weiter",
+    "depthHint": "Einem Nachbarn wird an der Management-Adresse gefolgt, die LLDP oder CDP angibt; ist er ein Ziel, mit seinen eigenen Anmeldedaten, sonst mit den Standardwerten. Höchstens 64 Geräte.",
+    "draw": "Karte zeichnen",
+    "cancel": "Abbrechen",
+    "walking": "Geräte werden abgefragt…",
+    "progress": "{walked} Gerät(e) abgefragt, {pending} ausstehend…",
+    "summary": "{nodes} Geräte, {links} Verbindungen",
+    "relayout": "Neu anordnen",
+    "nothing": "Kein Gerät hat geantwortet.",
+    "help": "Ziehen, um die Karte oder ein Gerät zu verschieben, scrollen zum Zoomen, ein Gerät anklicken für seine Verbindungen. Eine gestrichelte Linie wurde nur von einer Seite gemeldet; ein gestrichelter Kreis ist ein Gerät, das nur seine Nachbarn nennen.",
+    "managed": "abgefragt",
+    "heard": "von einem Nachbarn genannt",
+    "kind": {
+      "switch": "Switch",
+      "router": "Router",
+      "ap": "Access Point",
+      "phone": "Telefon",
+      "host": "Host",
+      "unknown": "Gerät"
     }
   }
 }

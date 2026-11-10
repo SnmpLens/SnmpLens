@@ -805,7 +805,8 @@
     "hopRtt1": "RTT 1",
     "hopRtt2": "RTT 2",
     "hopRtt3": "RTT 3",
-    "ports": "Port map"
+    "ports": "Port map",
+    "topology": "Topology"
   },
   "debug": {
     "title": "SNMP Debug",
@@ -1899,6 +1900,32 @@
       "mac": "MAC address",
       "ip": "IP address",
       "name": "Name"
+    }
+  },
+  "topology": {
+    "noTargets": "Add the devices as targets first.",
+    "devices": "Devices to start from: {count}",
+    "depth": "Follow neighbours",
+    "depthNone": "No — only these devices",
+    "depthHops": "{count} hop(s) further",
+    "depthHint": "A neighbour is followed at the management address LLDP or CDP gives, and asked with its own identifiers if it is a target, the default ones otherwise. At most 64 devices.",
+    "draw": "Draw the map",
+    "cancel": "Stop",
+    "walking": "Walking the devices…",
+    "progress": "{walked} device(s) walked, {pending} to go…",
+    "summary": "{nodes} devices, {links} links",
+    "relayout": "Lay out again",
+    "nothing": "No device answered.",
+    "help": "Drag to move the map or a device, scroll to zoom, click a device for its links. A dashed line was reported by one end only; a dashed circle is a device only its neighbours name.",
+    "managed": "walked",
+    "heard": "named by a neighbour",
+    "kind": {
+      "switch": "Switch",
+      "router": "Router",
+      "ap": "Access point",
+      "phone": "Phone",
+      "host": "Host",
+      "unknown": "Device"
     }
   }
 }

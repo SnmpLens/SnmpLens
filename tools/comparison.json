@@ -139,7 +139,7 @@
       "label": "Monitoring that continues with the window closed",
       "cells": {
         "snmplens": {
-          "text": "Yes — a tray icon, an optional login entry, and history in SQLite",
+          "text": "Yes — a tray icon or a login entry, or a system service (Windows service, systemd unit) running from boot with nobody signed in, and history in SQLite",
           "short": "Yes",
           "kind": "yes"
         },
@@ -201,7 +201,7 @@
   "strengths": [
     {
       "product": "ireasoning",
-      "text": "The widest feature list of the four, and the only one of them sold with support: a switch port mapper, a rule engine, device snapshots, a web client and a service mode, none of which SnmpLens has. If you need one of those, this is where it is."
+      "text": "The widest feature list of the four, and the only one of them sold with support: a rule engine, device snapshots and a web client, none of which SnmpLens has. If you need one of those, this is where it is."
     },
     {
       "product": "manageengine",

@@ -184,6 +184,7 @@ try {
     <a href="#dashboards">Dashboards and presets</a>
     <a href="#preset-format">Writing a preset</a>
     <a href="#background">Running in the background</a>
+    <a href="#system-service">The system service</a>
 
     <strong>Alerting</strong>
     <a href="#events">The event journal</a>
@@ -1166,6 +1167,47 @@ try {
         back rather than returning an error, so the decision about whether closing the window
         should quit is taken after the tray has answered, not before. An application that
         refuses to close with no tray to quit from is unusable.
+      </p>
+    </section>
+
+    <hr />
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="system-service">
+      <h2>The system service</h2>
+      <p>
+        A tray icon still needs somebody signed in. To supervise from the moment the computer
+        starts, SnmpLens runs as a <strong>system service</strong>: a Windows service under a
+        virtual account of its own, or on Linux a systemd unit whose user has the right to bind
+        port 162 and nothing else. It polls the monitoring sessions, evaluates their
+        thresholds, receives traps and sends the notifications — everything a window would,
+        with nobody there.
+      </p>
+      <p>
+        Install it from <em>Settings → Background</em>, after installing SnmpLens for all users
+        (in Program Files on Windows; from the package on Linux): the window hands it its
+        sessions, notification destinations and routes, SNMPv3 trap users, the trap listener's
+        engine ID and its history, and the system asks for administrator rights once. The
+        Windows installer can also set it up — it then starts empty, and the window offers to
+        hand it what it supervised before. While the service runs, the window <em>drives</em>
+        it: the sessions you edit and the journal you read are the service's, and the window's
+        own supervision stops, so nothing is polled or alerted twice. When the service stops,
+        the window supervises again by itself. Removing it can bring its history and settings
+        back to the window.
+      </p>
+      <p>
+        <code>SnmpLens --headless [--data-dir DIR]</code> runs the same supervision in the
+        foreground — in a terminal, or under launchd or any other service manager — on the
+        window's own directory by default.
+      </p>
+      <p class="muted small">
+        Its data lives apart from any user's — <code>%ProgramData%\SnmpLens</code>, open to the
+        service, SYSTEM and administrators only, its credentials sealed for this computer; or
+        <code>/var/lib/snmplens</code> — and a window reaches it over a channel that admits the
+        accounts allowed to drive it, after checking that what answers is the service's own
+        process. Only a copy that ordinary users cannot replace may be installed as a service,
+        since the service runs it with an account of its own. An update stops the service,
+        replaces the program and starts it again.
       </p>
     </section>
 

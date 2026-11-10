@@ -276,8 +276,8 @@ try {
           identifiers; a walk of <code>ifTable</code> then answers what a real server would.</li>
       </ol>
       <p>
-        Fourteen models are built in — servers, switches, a router, a firewall, an access point,
-        a NAS, UPSs, a PDU, a printer, a probe — and you can write your own or record a real
+        Seventeen models are built in — servers, switches, a router, a firewall, an access point,
+        a desk phone, a NAS, UPSs, a PDU, a printer, a probe — and you can write your own or record a real
         device. The <a href="#simulator">simulated devices</a> section has the rest. On macOS,
         which answers on <code>127.0.0.1</code> alone unless aliases are added, devices are told
         apart by port: <code>127.0.0.1:1161</code> is a target of its own.
@@ -1379,7 +1379,7 @@ try {
       <p>
         The <strong>Simulator</strong> in the header runs SNMP agents on your own machine:
         devices answering v1, v2c and v3 — the whole USM, discovery, reports and time windows
-        included — from a catalogue of fourteen models or from models of your own. Each answers a
+        included — from a catalogue of seventeen models or from models of your own. Each answers a
         whole agent's walk — IF-MIB, IP, TCP, UDP, ENTITY, BRIDGE, LLDP, HOST-RESOURCES, UCD and
         the vendor's own MIBs — built from one description of the device, so that they agree with
         each other the way a real agent's do, with counters that move and wrap.
@@ -1390,6 +1390,18 @@ try {
         device is saved and again on the socket it actually binds — not a default of the form,
         since a bench file is JSON somebody else may have written. Where it <em>sends</em>
         notifications may be anywhere.
+      </p>
+      <p>
+        Devices can be <strong>cabled to each other</strong>, port to port, under the list.
+        Each then names the other in LLDP — and in CDP between two Ciscos — at the address it
+        answers on, a switch learns what is behind each cable in its VLAN, and the Catalyst 9300
+        core routes the bench's VLANs, so its ARP cache holds every station's address. The
+        <a href="#network-map">network map</a> following the neighbours from the core reaches
+        every device on the bench, and the <a href="#port-map">port map</a> of an access switch
+        gives its stations their addresses from the core. A running device is recabled without
+        restarting. A simulated Catalyst answers its MAC address table one VLAN at a time, as IOS
+        does — <code>public@10</code>, or the SNMPv3 context <code>vlan-10</code> — and the Aruba
+        in Q-BRIDGE-MIB. Cables travel in a bench file and in a backup.
       </p>
       <p>
         The list groups the devices by category. A device is started and stopped,
@@ -1686,6 +1698,27 @@ try {
       <p class="muted small">
         On macOS, an IPv6 traceroute runs <code>traceroute6</code>, because the system
         <code>traceroute</code> there is IPv4-only.
+      </p>
+      <h3 id="port-map">Port map</h3>
+      <p>
+        <strong>Network → Port map</strong> says what is plugged into which port of a switch: the
+        MAC addresses it learnt on each port, in their VLAN, from Q-BRIDGE-MIB or BRIDGE-MIB — a
+        Cisco is read one VLAN at a time, with <code>public@10</code> or the SNMPv3 context
+        <code>vlan-10</code> —, the IP addresses the ARP caches of the routers you pick give them,
+        their names by reverse DNS, and the neighbour LLDP or CDP names on a port. A port towards
+        a switch or a router is an uplink; one with an access point or a desk phone on it is not,
+        however many stations are behind it. Filter by port, MAC in any notation, IP or name, and
+        export to CSV.
+      </p>
+      <h3 id="network-map">Network map</h3>
+      <p>
+        <strong>Network → Topology</strong> draws the devices you list and the neighbours their
+        LLDP and CDP name: a node for each, a line for each cable with the ports at both ends, dashed
+        when only one end reported it. It can follow the neighbours to theirs, at the management
+        address they give, up to three hops and 64 devices — a neighbour that is one of your
+        targets is asked with its own identifiers, any other with the defaults. Drag, zoom, click a
+        device for its links, export to SVG. Both tools can be tried end to end on a
+        <a href="#simulator">cabled bench of simulated devices</a>.
       </p>
           <figure class="shot" style="margin-top:1.5rem">
         <img class="shot-light" src="assets/img/network-discovery-light-1200.webp"

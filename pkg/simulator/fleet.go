@@ -92,6 +92,23 @@ func (f *Fleet) Notify(id, name string) ([]Delivery, error) {
 	return a.Notify(name)
 }
 
+// Rewire has a running device answer as d describes it now — recabled on the
+// bench — without restarting it (Agent.Rewire). A device that is not running
+// has nothing to rewire: it is built as it is cabled when it starts.
+func (f *Fleet) Rewire(d Device) error {
+	f.mu.Lock()
+	a := f.agents[d.ID]
+	f.mu.Unlock()
+	if a == nil {
+		return ErrNotRunning
+	}
+	objs, contexts, err := d.views()
+	if err != nil {
+		return err
+	}
+	return a.Rewire(objs, contexts)
+}
+
 // SetFaults changes what a running device does wrong, without restarting it;
 // see Agent.SetFaults.
 func (f *Fleet) SetFaults(id string, faults Faults) error {

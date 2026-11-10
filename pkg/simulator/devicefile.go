@@ -43,6 +43,22 @@ type DeviceFile struct {
 	// a file on believing it holds none when it does.
 	Secrets string       `json:"secrets"`
 	Devices []FileDevice `json:"devices"`
+	// Cables are the cables between the devices of the file, each end naming
+	// its device by its place in Devices: a device imported is given a new ID.
+	Cables []FileCable `json:"cables,omitempty"`
+}
+
+// FileCable is a cable between two devices of a file.
+type FileCable struct {
+	A FileCableEnd `json:"a"`
+	B FileCableEnd `json:"b"`
+}
+
+// FileCableEnd is one end of a cable: a device, by its place in the file from 0,
+// and its port.
+type FileCableEnd struct {
+	Device int    `json:"device"`
+	Port   string `json:"port"`
 }
 
 // FileDevice is a device as a file holds it: what makes it the device it is,
@@ -65,8 +81,10 @@ type FileDevice struct {
 	Overrides      []Override     `json:"overrides,omitempty"`
 }
 
-// ExportDevices is the file holding devices, their secrets in it or not.
-func ExportDevices(devices []Device, withSecrets bool) ([]byte, error) {
+// ExportDevices is the file holding devices, their secrets in it or not, and
+// the cables among them — a cable to a device left out of the file is left out
+// with it.
+func ExportDevices(devices []Device, links []Link, withSecrets bool) ([]byte, error) {
 	f := DeviceFile{Kind: DeviceFileKind, FormatVersion: DeviceFileFormat, Secrets: SecretsOmitted,
 		Devices: make([]FileDevice, len(devices))}
 	if withSecrets {
@@ -87,6 +105,17 @@ func ExportDevices(devices []Device, withSecrets bool) ([]byte, error) {
 			Versions: slices.Clone(d.Versions), Community: d.Community, WriteCommunity: d.WriteCommunity,
 			Users: slices.Clone(d.Users), Traps: traps,
 			Location: d.Location, Contact: d.Contact, Params: maps.Clone(d.Params), Overrides: slices.Clone(d.Overrides)}
+	}
+	place := make(map[string]int, len(devices))
+	for i, d := range devices {
+		place[d.ID] = i
+	}
+	for _, l := range links {
+		a, okA := place[l.A.Device]
+		b, okB := place[l.B.Device]
+		if okA && okB {
+			f.Cables = append(f.Cables, FileCable{A: FileCableEnd{a, l.A.Port}, B: FileCableEnd{b, l.B.Port}})
+		}
 	}
 	raw, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -130,6 +159,16 @@ func ParseDeviceFile(raw []byte) (DeviceFile, error) {
 		return DeviceFile{}, errors.New("the file holds no device")
 	case len(f.Devices) > MaxFileDevices:
 		return DeviceFile{}, fmt.Errorf("the file holds %d devices, and one is read with at most %d", len(f.Devices), MaxFileDevices)
+	}
+	for i, c := range f.Cables {
+		for _, end := range []FileCableEnd{c.A, c.B} {
+			if end.Device < 0 || end.Device >= len(f.Devices) || strings.TrimSpace(end.Port) == "" {
+				return DeviceFile{}, fmt.Errorf("cable %d names a device the file does not hold, or no port", i+1)
+			}
+		}
+		if c.A.Device == c.B.Device {
+			return DeviceFile{}, fmt.Errorf("cable %d joins a device to itself", i+1)
+		}
 	}
 	return f, nil
 }

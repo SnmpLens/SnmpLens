@@ -317,12 +317,12 @@ func kindOf(caps []byte, services int) string {
 	switch {
 	case bit(3):
 		return "ap"
+	case bit(5): // before the bridge a desk phone also is, for its PC port
+		return "phone"
 	case bit(2):
 		return "switch"
 	case bit(4):
 		return "router"
-	case bit(5):
-		return "phone"
 	case bit(7):
 		return "host"
 	case services&4 != 0 && services&8 != 0:

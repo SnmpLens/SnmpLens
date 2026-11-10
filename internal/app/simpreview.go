@@ -39,6 +39,8 @@ type SimulatorPreviewPage struct {
 // take.
 func (a *App) SimulatorPreview(d simulator.Device, q SimulatorPreviewQuery) (SimulatorPreviewPage, error) {
 	out := SimulatorPreviewPage{Rows: []SimulatorPreviewRow{}}
+	// What a walk would find, cabled as the device is on the bench.
+	d.Wiring = a.previewWiring(d)
 	rows, err := simulator.PreviewRows(d.WithoutSecrets(), time.Duration(max(q.SinceSeconds, 0)*float64(time.Second)))
 	if err != nil {
 		return out, err

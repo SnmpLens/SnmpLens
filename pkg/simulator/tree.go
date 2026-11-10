@@ -21,6 +21,12 @@ type Object struct {
 	// name of what it is about. A GET answers it noSuchObject and a walk passes
 	// it by, as a real agent's do.
 	NotifyOnly bool
+	// VLAN is the VLAN an object belongs to on a switch whose agent answers
+	// BRIDGE-MIB one VLAN at a time, as a Cisco does (model.vlanContexts): the
+	// default context is VLAN 1's view, and VLAN 20's is answered to the
+	// community indexed by it (public@20) or the SNMPv3 context vlan-20. 0 is
+	// every view; on any other model it is ignored.
+	VLAN int
 }
 
 // Reading is what an object answers when it is asked.

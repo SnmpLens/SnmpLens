@@ -1677,7 +1677,8 @@
       "environment": "Environment",
       "security": "Security",
       "wireless": "Wireless",
-      "other": "Other"
+      "other": "Other",
+      "telephony": "Telephony"
     },
     "model": {
       "windows-server": {
@@ -1686,11 +1687,11 @@
       },
       "cisco-catalyst-24": {
         "name": "Cisco Catalyst 2960, 24 ports",
-        "description": "An access switch: 24 Fast Ethernet ports, two gigabit uplinks and VLAN 1, with its MAC address table, spanning tree, VLANs (Q-BRIDGE and VTP), LLDP and CDP neighbours, ENTITY-MIB hardware, and Cisco’s CPU, memory and environment. Recognised as a Cisco, so the “Cisco (IF-MIB)” preset comes first; also fits “Switch ports” and “Switch drawing (24 ports)”."
+        "description": "An access switch: 24 Fast Ethernet ports, two gigabit uplinks and VLAN 1, with its MAC address table, spanning tree, VLANs (Q-BRIDGE and VTP), LLDP and CDP neighbours, ENTITY-MIB hardware, and Cisco’s CPU, memory and environment. Recognised as a Cisco, so the “Cisco (IF-MIB)” preset comes first; also fits “Switch ports” and “Switch drawing (24 ports)”. Its MAC address table is answered VLAN by VLAN, as IOS answers it (public@10), and a desk phone sits on port 3."
       },
       "cisco-catalyst-48": {
         "name": "Cisco Catalyst 2960, 48 ports",
-        "description": "The same access switch with 48 ports, and everything that goes with them. Recognised as a Cisco, so the “Cisco (IF-MIB)” preset comes first; also fits “Switch ports”."
+        "description": "The same access switch with 48 ports, and everything that goes with them. Recognised as a Cisco, so the “Cisco (IF-MIB)” preset comes first; also fits “Switch ports”. Its MAC address table is answered VLAN by VLAN, as IOS answers it (public@10), and a desk phone sits on port 3."
       },
       "cisco-isr-4331": {
         "name": "Cisco ISR 4331 router",
@@ -1735,6 +1736,18 @@
       "apc-rack-pdu": {
         "name": "APC switched rack PDU",
         "description": "An AP7921B: eight outlets, one of them switched off, the phase load in amps and the power drawn (PowerNet-MIB), beside the card’s address and services. Sends rPDUOutletOff and rPDUNearOverload."
+      },
+      "cisco-catalyst-9300": {
+        "name": "Cisco Catalyst 9300-24T (core)",
+        "description": "A layer-3 core switch: 24 gigabit ports, four 10 G uplinks, and VLAN interfaces routing the bench’s subnets in IPv4 and IPv6, so that its ARP cache — in both IP-MIB tables — holds every station of the switches cabled to it. Its MAC address table is answered VLAN by VLAN, as IOS answers it; LLDP, CDP, VTP and ENTITY-MIB; its ports do not start at ifIndex 1. Fits the “Cisco (IF-MIB)”, “Interfaces (IF-MIB)” and “Switch ports” presets."
+      },
+      "aruba-2930f-24": {
+        "name": "Aruba 2930F-24G-4SFP+",
+        "description": "An access switch that is not a Cisco: 24 ports named by their number, four SFP+ trunks, a users’ VLAN and a voice VLAN with a desk phone on it. Q-BRIDGE-MIB gives the VLAN of every station; LLDP and no CDP. Fits the “Interfaces (IF-MIB)” and “Switch ports” presets."
+      },
+      "ip-phone": {
+        "name": "IP desk phone",
+        "description": "A SIP desk phone with a computer behind its PC port. LLDP-MED says it is a telephone, so the switch port it is plugged into is neither an uplink nor a switch. A generic net-snmp agent; fits the “Interfaces (IF-MIB)” preset."
       }
     },
     "userN": "User {n}",
@@ -1814,10 +1827,25 @@
         "iconMissing": "{name}: the archive holds no “{detail}”, so the model has no icon",
         "iconRefused": "{name}: its icon was refused ({detail})",
         "restartFailed": "{name}: a device did not restart — {detail}",
+        "cableUnplugged": "{name}: a cable was unplugged — {detail}",
         "walkSkipped": "{name}: recorded values that could not be read were left out ({detail})",
         "walkAgentOwned": "{name}: {detail} recorded objects belong to the agent itself — its SNMP counters, engine, users, groups and communities — and were left out",
         "packageIgnored": "{name}: “{detail}” is not a file a package reads, and was left out"
       }
+    },
+    "cabling": {
+      "title": "Cabling",
+      "hint": "Plug the devices into each other, port to port. Each then names the other in LLDP and CDP, at the address it answers on, and learns what is behind it, and a core’s ARP cache holds the stations’ addresses: the network map and the port map see one network. A running device is recabled without restarting.",
+      "none": "No cable yet.",
+      "chooseDevice": "Device…",
+      "choosePort": "Port…",
+      "aDevice": "First device",
+      "aPort": "Port of the first device",
+      "bDevice": "Second device",
+      "bPort": "Port of the second device",
+      "connect": "Plug in",
+      "disconnect": "Unplug",
+      "connected": "{a} {aPort} is cabled to {b} {bPort}."
     }
   },
   "backup": {
@@ -1873,7 +1901,7 @@
     "scan": "Map the ports",
     "cancel": "Stop",
     "noTargets": "Add the switch as a target first.",
-    "gateways": "IP addresses from other devices' ARP caches ({count} chosen)",
+    "arp": "ARP caches",
     "gatewaysHint": "A switch knows MAC addresses; the routers and layer-3 switches that route for its stations know their IP addresses. The switch's own ARP cache is always read.",
     "progress": {
       "switch": "Reading the switch…",
@@ -1904,7 +1932,7 @@
   },
   "topology": {
     "noTargets": "Add the devices as targets first.",
-    "devices": "Devices to start from: {count}",
+    "devices": "Start from",
     "depth": "Follow neighbours",
     "depthNone": "No — only these devices",
     "depthHops": "{count} hop(s) further",
@@ -1916,7 +1944,7 @@
     "summary": "{nodes} devices, {links} links",
     "relayout": "Lay out again",
     "nothing": "No device answered.",
-    "help": "Drag to move the map or a device, scroll to zoom, click a device for its links. A dashed line was reported by one end only; a dashed circle is a device only its neighbours name.",
+    "help": "Drag to move the map or a device, scroll to zoom, click a device for its links.",
     "managed": "walked",
     "heard": "named by a neighbour",
     "kind": {
@@ -1926,6 +1954,7 @@
       "phone": "Phone",
       "host": "Host",
       "unknown": "Device"
-    }
+    },
+    "oneSided": "reported by one end only"
   }
 }

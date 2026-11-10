@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
@@ -45,6 +47,15 @@ type stack struct {
 	lldp     *lldpInfo
 	// modules are the MIB modules sysORTable lists besides the standard ones.
 	modules []sysOR
+	// physicalARP is an agent answering IP-MIB's ipNetToPhysicalTable beside
+	// ipNetToMediaTable: the ARP cache in the table that replaced it, which
+	// holds the IPv6 neighbours as well.
+	physicalARP bool
+	// addrs6 are the device's IPv6 addresses.
+	addrs6 []ifAddr
+	// wiring is where the device sits on the bench (bench.go); nil, it answers
+	// as its model does.
+	wiring *Wiring
 }
 
 // ifAddr is one of the device's addresses, on an interface.
@@ -175,8 +186,12 @@ func (s stack) ifIndexFor(a netip.Addr) int {
 	return 0
 }
 
-// addStack adds the standard MIBs s describes.
-func addStack(o *objects, s stack) {
+// addStack adds the standard MIBs s describes, for the device id is — as it is
+// cabled on the bench, when it is.
+func addStack(o *objects, id Identity, s stack) {
+	if id.Wiring != nil {
+		s = s.cabled(id, *o)
+	}
 	addInterfaces(o, s.seed, s.ifs)
 	addIP(o, s)
 	addICMP(o, s.seed)
@@ -197,6 +212,53 @@ func addStack(o *objects, s stack) {
 		modules = append(modules, moduleLLDP)
 	}
 	addSysOR(o, modules)
+}
+
+// cabled is s as the bench has it: every port with a cable in it up and named
+// after what is at its far end; a device with one address given the bench's,
+// the sessions to its old subnet moved with it; and an LLDP agent where the
+// model has none, since every device on the bench is heard by its neighbours
+// and says whom it hears.
+func (s stack) cabled(id Identity, built []Object) stack {
+	w := id.Wiring
+	s.wiring = w
+	s.ifs = slices.Clone(s.ifs)
+	for i := range s.ifs {
+		f := &s.ifs[i]
+		wire, ok := w.Ports[f.ifName()]
+		if !ok {
+			continue
+		}
+		f.up, f.adminDown, f.alias = true, false, wire.Peer.Name
+		if f.inRate == 0 {
+			n := uint64(f.index)
+			f.inRate = 20_000 + 200_000*unit(s.seed+7700+n)
+			f.outRate = 20_000 + 200_000*unit(s.seed+7800+n)
+		}
+	}
+	if w.Mgmt.IsValid() && len(s.addrs) == 1 && len(s.routes) == 0 && !s.router {
+		old := s.addrs[0].prefix.Masked()
+		s.addrs = slices.Clone(s.addrs)
+		s.addrs[0].prefix = w.Mgmt
+		s.gateway = w.Gateway
+		s.sessions = slices.Clone(s.sessions)
+		for i, se := range s.sessions {
+			if a := se.peer.Addr(); a.Is4() && old.Contains(a) {
+				off := binary.BigEndian.Uint32(a.AsSlice()) - binary.BigEndian.Uint32(old.Addr().AsSlice())
+				s.sessions[i].peer = netip.AddrPortFrom(hostIn(w.Mgmt, int(off)), se.peer.Port())
+			}
+		}
+	}
+	if s.lldp == nil {
+		descr := ""
+		for _, o := range built {
+			if o.OID == oidSysDescr {
+				descr = textOf(valueAtStart(o))
+			}
+		}
+		s.lldp = &lldpInfo{name: id.Name, descr: descr, caps: capsFor(s.router, s.bridge != nil)}
+	}
+	return s
 }
 
 // addSysOR adds sysORTable, every module there since the agent started.
@@ -283,13 +345,54 @@ func addIP(o *objects, s stack) {
 	}
 
 	// ipNetToMediaTable: the ARP cache, indexed by interface and address.
-	for _, n := range s.neighbours() {
+	arp := s.neighbours()
+	for _, n := range arp {
 		inst := fmt.Sprintf("%d.%s", n.ifIndex, n.addr)
 		col := func(c int) string { return fmt.Sprintf(ip+"22.1.%d.%s", c, inst) }
 		o.add(col(1), gosnmp.Integer, Const(n.ifIndex))
 		o.add(col(2), gosnmp.OctetString, Const([]byte(n.mac)))
 		o.add(col(3), gosnmp.IPAddress, Const(n.addr.String()))
 		o.add(col(4), gosnmp.Integer, Const(3)) // dynamic
+	}
+
+	// The IPv6 addresses, in the two tables that carry them.
+	for _, a := range s.addrs6 {
+		subnet := a.prefix.Masked()
+		pfx := fmt.Sprintf("%d.2.16.%s.%d", a.ifIndex, addrArcs(subnet.Addr()), subnet.Bits())
+		pcol := func(c int) string { return fmt.Sprintf(ip+"32.1.%d.%s", c, pfx) }
+		o.add(pcol(5), gosnmp.Integer, Const(2))
+		o.add(pcol(6), gosnmp.Integer, Const(1))
+		o.add(pcol(7), gosnmp.Integer, Const(1)) // autonomous: SLAAC may use it
+		o.add(pcol(8), gosnmp.Gauge32, Const(uint32(math.MaxUint32)))
+		o.add(pcol(9), gosnmp.Gauge32, Const(uint32(math.MaxUint32)))
+		acol := func(c int) string { return fmt.Sprintf(ip+"34.1.%d.2.16.%s", c, addrArcs(a.prefix.Addr())) }
+		o.add(acol(3), gosnmp.Integer, Const(a.ifIndex))
+		o.add(acol(4), gosnmp.Integer, Const(1))
+		o.add(acol(5), gosnmp.ObjectIdentifier, Const(".1.3.6.1.2.1.4.32.1.5."+pfx))
+		o.add(acol(6), gosnmp.Integer, Const(2))
+		o.add(acol(7), gosnmp.Integer, Const(1))
+		o.add(acol(8), gosnmp.TimeTicks, Const(uint32(0)))
+		o.add(acol(9), gosnmp.TimeTicks, Const(uint32(0)))
+		o.add(acol(10), gosnmp.Integer, Const(1))
+		o.add(acol(11), gosnmp.Integer, Const(2))
+	}
+
+	// ipNetToPhysicalTable: the same cache, and the IPv6 neighbours, indexed by
+	// interface, address type and the address with its length first.
+	if s.physicalARP {
+		for _, n := range slices.Concat(arp, s.neighbours6()) {
+			kind, size := 1, 4
+			if n.addr.Is6() {
+				kind, size = 2, 16
+			}
+			inst := fmt.Sprintf("%d.%d.%d.%s", n.ifIndex, kind, size, addrArcs(n.addr))
+			col := func(c int) string { return fmt.Sprintf(ip+"35.1.%d.%s", c, inst) }
+			o.add(col(4), gosnmp.OctetString, Const([]byte(n.mac)))
+			o.add(col(5), gosnmp.TimeTicks, Const(uint32(0)))
+			o.add(col(6), gosnmp.Integer, Const(3)) // dynamic
+			o.add(col(7), gosnmp.Integer, Const(1)) // reachable
+			o.add(col(8), gosnmp.Integer, Const(1)) // active
+		}
 	}
 
 	// IP-FORWARD-MIB's ipCidrRouteTable, indexed by destination, mask, TOS and
@@ -333,11 +436,17 @@ type arpEntry struct {
 }
 
 // neighbours are the ARP cache: the gateway where it is on a subnet of the
-// device, and the other hosts each subnet says it has.
+// device, and the other hosts each subnet says it has. On the bench, a device
+// that routes one of its subnets holds every station there, and any other
+// device its gateway alone.
 func (s stack) neighbours() []arpEntry {
 	var out []arpEntry
 	for i, a := range s.addrs {
 		subnet := a.prefix.Masked()
+		if w := s.wiring; w != nil && (s.router && isBench(subnet) || w.Mgmt.IsValid() && a.prefix == w.Mgmt) {
+			out = append(out, s.benchNeighbours(a)...)
+			continue
+		}
 		if s.gateway.IsValid() && subnet.Contains(s.gateway) {
 			out = append(out, arpEntry{a.ifIndex, s.gateway, peerMAC(s.seed, 0)})
 		}
@@ -355,6 +464,67 @@ func (s stack) neighbours() []arpEntry {
 		}
 	}
 	return out
+}
+
+// benchNeighbours are the ARP cache of a, a subnet of the bench.
+func (s stack) benchNeighbours(a ifAddr) []arpEntry {
+	w := s.wiring
+	if !s.router {
+		if !w.Gateway.IsValid() {
+			return nil
+		}
+		mac := w.GatewayMAC
+		if mac == nil {
+			mac = peerMAC(s.seed, 0)
+		}
+		return []arpEntry{{a.ifIndex, w.Gateway, mac}}
+	}
+	var out []arpEntry
+	subnet := a.prefix.Masked()
+	for _, h := range w.Hosts {
+		if h.IP.IsValid() && subnet.Contains(h.IP) && h.IP != a.prefix.Addr() {
+			out = append(out, arpEntry{a.ifIndex, h.IP, h.MAC})
+		}
+	}
+	return out
+}
+
+// neighbours6 are the IPv6 neighbours of a device that routes the bench's
+// subnets: every station with an address in one of them.
+func (s stack) neighbours6() []arpEntry {
+	w := s.wiring
+	if w == nil || !s.router {
+		return nil
+	}
+	var out []arpEntry
+	for _, a := range s.addrs6 {
+		subnet := a.prefix.Masked()
+		for _, h := range w.Hosts {
+			if h.IP6.IsValid() && subnet.Contains(h.IP6) && h.IP6 != a.prefix.Addr() {
+				out = append(out, arpEntry{a.ifIndex, h.IP6, h.MAC})
+			}
+		}
+	}
+	return out
+}
+
+// addrArcs is an address as the sub-identifiers of an index, one an octet.
+func addrArcs(a netip.Addr) string {
+	b := a.AsSlice()
+	parts := make([]string, len(b))
+	for i, x := range b {
+		parts[i] = strconv.Itoa(int(x))
+	}
+	return strings.Join(parts, ".")
+}
+
+// inetIndex is an address as an index of type InetAddressType then InetAddress
+// with its length first: "1.4.10.0.0.1", "2.16.…".
+func inetIndex(a netip.Addr) string {
+	if a.Is4() {
+		return "1.4." + addrArcs(a)
+	}
+	return "2.16." + addrArcs(a)
 }
 
 // allRoutes are the routes to the device's own subnets, the default one, and

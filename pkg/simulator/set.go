@@ -51,8 +51,11 @@ type change struct {
 
 // set answers a SET from a manager allowed to write. Requests are handled on
 // the receive goroutine alone, so no other SET comes between the Load and the
-// Store: notifications only read the tree.
+// Store, and notifications only read the tree; a rewire (Agent.Rewire) replaces
+// it from another goroutine, which swap keeps out of that window.
 func (a *Agent) set(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket) answer {
+	a.swap.Lock()
+	defer a.swap.Unlock()
 	t := a.tree.Load()
 	fail := func(i int, status gosnmp.SNMPError) answer {
 		if ver == gosnmp.Version1 {

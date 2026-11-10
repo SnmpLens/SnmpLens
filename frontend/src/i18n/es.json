@@ -1677,7 +1677,8 @@
       "environment": "Entorno",
       "security": "Seguridad",
       "wireless": "Inalámbrico",
-      "other": "Otros"
+      "other": "Otros",
+      "telephony": "Telefonía"
     },
     "model": {
       "windows-server": {
@@ -1686,11 +1687,11 @@
       },
       "cisco-catalyst-24": {
         "name": "Cisco Catalyst 2960, 24 puertos",
-        "description": "Un switch de acceso: 24 puertos Fast Ethernet, dos enlaces ascendentes gigabit y la VLAN 1, con su tabla de direcciones MAC, su spanning tree, sus VLAN (Q-BRIDGE y VTP), sus vecinos LLDP y CDP, su hardware en la ENTITY-MIB y la CPU, la memoria y el entorno de Cisco. Se reconoce como Cisco, así que el preset «Cisco (IF-MIB)» aparece primero; también encaja con «Switch ports» y «Switch drawing (24 ports)»."
+        "description": "Un switch de acceso: 24 puertos Fast Ethernet, dos enlaces ascendentes gigabit y la VLAN 1, con su tabla de direcciones MAC, su spanning tree, sus VLAN (Q-BRIDGE y VTP), sus vecinos LLDP y CDP, su hardware en la ENTITY-MIB y la CPU, la memoria y el entorno de Cisco. Se reconoce como Cisco, así que el preset «Cisco (IF-MIB)» aparece primero; también encaja con «Switch ports» y «Switch drawing (24 ports)». Su tabla de direcciones MAC se da VLAN por VLAN, como la da IOS (public@10), y en el puerto 3 hay un teléfono."
       },
       "cisco-catalyst-48": {
         "name": "Cisco Catalyst 2960, 48 puertos",
-        "description": "El mismo switch de acceso con 48 puertos, y todo lo que conlleva. Se reconoce como Cisco, así que el preset «Cisco (IF-MIB)» aparece primero; también encaja con «Switch ports»."
+        "description": "El mismo switch de acceso con 48 puertos, y todo lo que conlleva. Se reconoce como Cisco, así que el preset «Cisco (IF-MIB)» aparece primero; también encaja con «Switch ports». Su tabla de direcciones MAC se da VLAN por VLAN, como la da IOS (public@10), y en el puerto 3 hay un teléfono."
       },
       "cisco-isr-4331": {
         "name": "Router Cisco ISR 4331",
@@ -1735,6 +1736,18 @@
       "apc-rack-pdu": {
         "name": "PDU de rack conmutable APC",
         "description": "Una AP7921B: ocho tomas, una de ellas apagada, la carga de la fase en amperios y la potencia consumida (PowerNet-MIB), además de la dirección y los servicios de la tarjeta. Envía rPDUOutletOff y rPDUNearOverload."
+      },
+      "cisco-catalyst-9300": {
+        "name": "Cisco Catalyst 9300-24T (núcleo)",
+        "description": "Un switch de núcleo de capa 3: 24 puertos gigabit, cuatro enlaces ascendentes de 10 G e interfaces VLAN que enrutan las subredes del banco en IPv4 e IPv6, de modo que su caché ARP — en las dos tablas de IP-MIB — contiene cada estación de los switches cableados a él. Su tabla de direcciones MAC se da VLAN por VLAN, como la da IOS; LLDP, CDP, VTP y ENTITY-MIB; sus puertos no empiezan en el ifIndex 1. Encaja con los presets «Cisco (IF-MIB)», «Interfaces (IF-MIB)» y «Switch ports»."
+      },
+      "aruba-2930f-24": {
+        "name": "Aruba 2930F-24G-4SFP+",
+        "description": "Un switch de acceso que no es un Cisco: 24 puertos nombrados por su número, cuatro trunks SFP+, una VLAN de usuarios y una VLAN de voz con un teléfono conectado. Q-BRIDGE-MIB da la VLAN de cada estación; LLDP y sin CDP. Encaja con los presets «Interfaces (IF-MIB)» y «Switch ports»."
+      },
+      "ip-phone": {
+        "name": "Teléfono IP de escritorio",
+        "description": "Un teléfono SIP de escritorio con un ordenador detrás de su puerto PC. LLDP-MED dice que es un teléfono, así que el puerto del switch donde está conectado no es ni un enlace ascendente ni un switch. Un agente net-snmp genérico; encaja con el preset «Interfaces (IF-MIB)»."
       }
     },
     "userN": "Usuario {n}",
@@ -1814,10 +1827,25 @@
         "iconMissing": "{name}: el archivo no contiene «{detail}», así que el modelo no tiene icono",
         "iconRefused": "{name}: su icono fue rechazado ({detail})",
         "restartFailed": "{name}: un dispositivo no se reinició — {detail}",
+        "cableUnplugged": "{name}: se desconectó un cable — {detail}",
         "walkSkipped": "{name}: se omitieron valores grabados que no se pudieron leer ({detail})",
         "walkAgentOwned": "{name}: {detail} objetos grabados pertenecen al propio agente — sus contadores SNMP, su motor, sus usuarios, grupos y comunidades — y se omitieron",
         "packageIgnored": "{name}: «{detail}» no es un archivo que lea un paquete, y se omitió"
       }
+    },
+    "cabling": {
+      "title": "Cableado",
+      "hint": "Conecte los equipos entre sí, puerto a puerto. Cada uno nombra entonces al otro en LLDP y CDP, en la dirección donde responde, y aprende lo que hay detrás; la caché ARP de un núcleo contiene las direcciones de las estaciones: el mapa de red y el mapa de puertos ven una sola red. Un equipo en marcha se recablea sin reiniciarse.",
+      "none": "Todavía no hay ningún cable.",
+      "chooseDevice": "Equipo…",
+      "choosePort": "Puerto…",
+      "aDevice": "Primer equipo",
+      "aPort": "Puerto del primer equipo",
+      "bDevice": "Segundo equipo",
+      "bPort": "Puerto del segundo equipo",
+      "connect": "Conectar",
+      "disconnect": "Desconectar",
+      "connected": "{a} {aPort} está cableado a {b} {bPort}."
     }
   },
   "backup": {
@@ -1873,7 +1901,7 @@
     "scan": "Mapear los puertos",
     "cancel": "Detener",
     "noTargets": "Añada primero el switch como destino.",
-    "gateways": "Direcciones IP de la caché ARP de otros equipos ({count} elegido(s))",
+    "arp": "Cachés ARP",
     "gatewaysHint": "Un switch conoce las direcciones MAC; los routers y switches de capa 3 que enrutan para sus estaciones conocen sus direcciones IP. La caché ARP del propio switch se lee siempre.",
     "progress": {
       "switch": "Leyendo el switch…",
@@ -1904,7 +1932,7 @@
   },
   "topology": {
     "noTargets": "Añada primero los equipos como destinos.",
-    "devices": "Equipos de partida: {count}",
+    "devices": "Empezar por",
     "depth": "Seguir a los vecinos",
     "depthNone": "No — solo estos equipos",
     "depthHops": "{count} salto(s) más allá",
@@ -1916,7 +1944,7 @@
     "summary": "{nodes} equipos, {links} enlaces",
     "relayout": "Reorganizar",
     "nothing": "Ningún equipo respondió.",
-    "help": "Arrastre para mover el mapa o un equipo, desplace para hacer zoom, haga clic en un equipo para ver sus enlaces. Una línea discontinua solo la informó un extremo; un círculo discontinuo es un equipo que solo nombran sus vecinos.",
+    "help": "Arrastre para mover el mapa o un equipo, desplace para hacer zoom, haga clic en un equipo para ver sus enlaces.",
     "managed": "recorrido",
     "heard": "nombrado por un vecino",
     "kind": {
@@ -1926,6 +1954,7 @@
       "phone": "Teléfono",
       "host": "Host",
       "unknown": "Equipo"
-    }
+    },
+    "oneSided": "informado por un solo extremo"
   }
 }

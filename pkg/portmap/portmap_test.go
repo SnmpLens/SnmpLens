@@ -115,6 +115,28 @@ func TestARPCachesGiveTheAddresses(t *testing.T) {
 	}
 }
 
+// An index arc above 255 is no octet. Truncated, 341 is 0x55 and 266 is 10, and the
+// entry would be read as another station's MAC and another station's address.
+func TestAnIndexArcThatIsNoOctetIsRefused(t *testing.T) {
+	sw := append(smallSwitch(),
+		pdu(fdbPort+".0.17.34.51.68.341", 1),
+		pdu(qFdbPort+".30.0.17.34.51.68.341", 1),
+		pdu(fdbPort+"."+macArcs("00:11:22:33:44:66"), 2),
+	)
+	gateway := Walk{
+		pdu(arpPhysical+".3.1.4.192.0.2.266", mac("00:11:22:33:44:66")),
+		pdu(arpMedia+".3.192.0.2.20", mac("00:11:22:33:44:66")),
+	}
+	m := Build(Input{Switch: sw, ARP: []Walk{gateway}})
+	if m.Stations != 1 || len(m.Ports[0].Stations) != 0 {
+		t.Fatalf("%d stations, port 1 has %+v", m.Stations, m.Ports[0].Stations)
+	}
+	got := m.Ports[1].Stations[0]
+	if got.MAC != "00:11:22:33:44:66" || strings.Join(got.IPs, ",") != "192.0.2.20" {
+		t.Errorf("station = %+v", got)
+	}
+}
+
 // What LLDP numbers a port is the agent's choice; each way is resolved.
 func TestLLDPNeighboursFindTheirPort(t *testing.T) {
 	sw := append(smallSwitch(),

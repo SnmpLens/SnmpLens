@@ -27,6 +27,7 @@ package portmap
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"slices"
 	"sort"
@@ -228,11 +229,15 @@ func Build(in Input) Map {
 				}
 			case under(name, fdbPort):
 				if a := arcsAfter(name, fdbPort); len(a) == 6 {
-					fdb = append(fdb, fdbEntry{mac: macOf(a), vlan: vlan, port: asInt(p.Value)})
+					if mac, ok := macOf(a); ok {
+						fdb = append(fdb, fdbEntry{mac: mac, vlan: vlan, port: asInt(p.Value)})
+					}
 				}
 			case under(name, fdbStatus):
 				if a := arcsAfter(name, fdbStatus); len(a) == 6 {
-					status[fmt.Sprintf("%d/%s", vlan, macOf(a))] = asInt(p.Value)
+					if mac, ok := macOf(a); ok {
+						status[fmt.Sprintf("%d/%s", vlan, mac)] = asInt(p.Value)
+					}
 				}
 			}
 		}
@@ -247,11 +252,15 @@ func Build(in Input) Map {
 		switch {
 		case under(name, qFdbPort):
 			if a := arcsAfter(name, qFdbPort); len(a) == 7 {
-				qfdb = append(qfdb, fdbEntry{mac: macOf(a[1:]), vlan: a[0], port: asInt(p.Value)})
+				if mac, ok := macOf(a[1:]); ok {
+					qfdb = append(qfdb, fdbEntry{mac: mac, vlan: a[0], port: asInt(p.Value)})
+				}
 			}
 		case under(name, qFdbStatus):
 			if a := arcsAfter(name, qFdbStatus); len(a) == 7 {
-				qStatus[fmt.Sprintf("%d/%s", a[0], macOf(a[1:]))] = asInt(p.Value)
+				if mac, ok := macOf(a[1:]); ok {
+					qStatus[fmt.Sprintf("%d/%s", a[0], mac)] = asInt(p.Value)
+				}
 			}
 		case under(name, qPvid):
 			if a := arcsAfter(name, qPvid); len(a) == 1 {
@@ -388,12 +397,9 @@ func arpTable(walks []Walk) map[string][]string {
 				if len(a) < 3 || len(a) != 3+a[2] {
 					continue
 				}
-				raw := make(net.IP, a[2])
-				for i := range raw {
-					raw[i] = byte(a[3+i])
-				}
-				if (a[1] == 1 && a[2] == 4) || (a[1] == 2 && a[2] == 16) {
-					add(macValue(p.Value), raw.String())
+				raw, ok := octets(a[3:])
+				if ok && ((a[1] == 1 && a[2] == 4) || (a[1] == 2 && a[2] == 16)) {
+					add(macValue(p.Value), net.IP(raw).String())
 				}
 			}
 		}
@@ -580,12 +586,27 @@ func printable(b []byte) bool {
 	return true
 }
 
-func macOf(arcs []int) string {
-	b := make(net.HardwareAddr, len(arcs))
+// macOf reads a MAC address an index carries as six arcs.
+func macOf(arcs []int) (string, bool) {
+	b, ok := octets(arcs)
+	if !ok {
+		return "", false
+	}
+	return net.HardwareAddr(b).String(), true
+}
+
+// octets reads index arcs that stand for an OCTET STRING, one octet per arc.
+// An arc above 255 is no octet, and the index is refused rather than truncated:
+// 256 read as a byte is 0, and would name another address.
+func octets(arcs []int) ([]byte, bool) {
+	b := make([]byte, len(arcs))
 	for i, a := range arcs {
+		if a < 0 || a > math.MaxUint8 {
+			return nil, false
+		}
 		b[i] = byte(a)
 	}
-	return b.String()
+	return b, true
 }
 
 func macValue(v any) string {

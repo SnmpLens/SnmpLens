@@ -218,25 +218,25 @@ func (a *App) buildBackup(req BackupExportRequest) ([]byte, BackupContents, erro
 		c.Settings = true
 	}
 
-	if a.storage != nil {
-		sinks, err := a.storage.ListSinks()
+	if a.engineStorage() != nil {
+		sinks, err := a.engineStorage().ListSinks()
 		if err != nil {
 			return nil, c, fmt.Errorf("reading the alert destinations: %w", err)
 		}
-		routes, err := a.storage.ListRoutes()
+		routes, err := a.engineStorage().ListRoutes()
 		if err != nil {
 			return nil, c, fmt.Errorf("reading the alert routes: %w", err)
 		}
 		for i := range sinks {
 			sinks[i].Secret = ""
-			if s := a.sinkSecret(sinks[i].ID); s != "" {
+			if s := a.storedSinkSecret(sinks[i].ID); s != "" {
 				sec.Sinks[sinks[i].ID] = s
 			}
 		}
 		sections[sectionNotify] = notifySection{Sinks: nonNil(sinks), Routes: nonNil(routes)}
 		c.Sinks, c.Routes = len(sinks), len(routes)
 
-		sessions, err := a.storage.ListSessions()
+		sessions, err := a.engineStorage().ListSessions()
 		if err != nil {
 			return nil, c, fmt.Errorf("reading the monitoring sessions: %w", err)
 		}
@@ -294,8 +294,8 @@ func (a *App) buildBackup(req BackupExportRequest) ([]byte, BackupContents, erro
 		sections[sectionService] = a.serviceCfg
 		c.Service = true
 	}
-	if len(a.trapEngineID) > 0 {
-		sections[sectionTraps] = trapsSection{EngineID: hex.EncodeToString(a.trapEngineID)}
+	if a.eng != nil && len(a.eng.TrapEngineID()) > 0 {
+		sections[sectionTraps] = trapsSection{EngineID: hex.EncodeToString(a.eng.TrapEngineID())}
 		c.TrapEngine = true
 	}
 
@@ -667,8 +667,8 @@ func (a *App) restoreArchive(ar *backup.Archive, sec backupSecrets) BackupRestor
 	var sessions []storage.Session
 	if ok, err := ar.Section(sectionSessions, &sessions); err != nil {
 		problem("%v", err)
-	} else if ok && a.storage != nil {
-		existing, _ := a.storage.ListSessions()
+	} else if ok && a.engineStorage() != nil {
+		existing, _ := a.engineStorage().ListSessions()
 		have := map[string]bool{}
 		for _, s := range existing {
 			have[s.ID] = true
@@ -677,7 +677,7 @@ func (a *App) restoreArchive(ar *backup.Archive, sec backupSecrets) BackupRestor
 			if s.ID == "" || have[s.ID] {
 				continue // already here, with its history
 			}
-			if err := a.storage.InsertSession(s); err != nil {
+			if err := a.engineStorage().InsertSession(s); err != nil {
 				problem("monitoring session %q: %v", s.Name, err)
 				continue
 			}
@@ -822,17 +822,10 @@ func (a *App) restoreTrapEngineID(engineID string) error {
 	if err != nil || len(id) < 5 || len(id) > 32 {
 		return errors.New("the backup's engine ID is not one")
 	}
-	if a.configDir == "" {
+	if a.eng == nil {
 		return errors.New("the configuration directory is not ready")
 	}
-	if err := os.WriteFile(filepath.Join(a.configDir, trapEngineFile), []byte(hex.EncodeToString(id)+"\n"), 0o600); err != nil {
-		return err
-	}
-	a.trapEngineID = id
-	if a.snmpClient != nil {
-		a.snmpClient.SetTrapEngineID(id)
-	}
-	return nil
+	return a.eng.SetTrapEngineID(id)
 }
 
 func sortedNames(m map[string][]byte) []string {
@@ -842,4 +835,25 @@ func sortedNames(m map[string][]byte) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// engineStorage is the database of the engine this window runs, nil when there
+// is none: what a backup reads its sessions, destinations and routes from.
+func (a *App) engineStorage() *storage.Storage {
+	if a.eng == nil {
+		return nil
+	}
+	return a.eng.Storage()
+}
+
+// storedSinkSecret is the credential kept for a destination, "" when none is.
+func (a *App) storedSinkSecret(sinkID string) string {
+	if a.secrets == nil {
+		return ""
+	}
+	v, err := a.secrets.Get(secrets.SinkRef(sinkID))
+	if err != nil {
+		return ""
+	}
+	return v
 }

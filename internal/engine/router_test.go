@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"fmt"
@@ -10,27 +10,27 @@ import (
 )
 
 // routerApp is a test app with a live router and one catch-all rule.
-func routerApp(t *testing.T) (*App, string) {
+func routerApp(t *testing.T) (*Engine, string) {
 	t.Helper()
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	sink, err := a.storage.SaveSink(notify.SinkConfig{
+	sink, err := eng.storage.SaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.storage.SaveRoute(notify.Route{
+	if _, err := eng.storage.SaveRoute(notify.Route{
 		Name: "everything", Enabled: true, SinkIDs: []string{sink.ID},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	a.router = newEventRouter(a)
-	a.router.start()
-	t.Cleanup(a.router.stop)
-	return a, sink.ID
+	eng.router = newEventRouter(eng)
+	eng.router.start()
+	t.Cleanup(eng.router.stop)
+	return eng, sink.ID
 }
 
 func trapEvent(n int) events.Event {
@@ -44,11 +44,11 @@ func trapEvent(n int) events.Event {
 }
 
 // waitForDeliveries polls until n deliveries exist, or gives up.
-func waitForDeliveries(t *testing.T, a *App, n int, within time.Duration) int {
+func waitForDeliveries(t *testing.T, eng *Engine, n int, within time.Duration) int {
 	t.Helper()
 	deadline := time.Now().Add(within)
 	for time.Now().Before(deadline) {
-		rows, err := a.storage.ListDeliveries("", n*2+10)
+		rows, err := eng.storage.ListDeliveries("", n*2+10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,23 +57,23 @@ func waitForDeliveries(t *testing.T, a *App, n int, within time.Duration) int {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	rows, _ := a.storage.ListDeliveries("", n*2+10)
+	rows, _ := eng.storage.ListDeliveries("", n*2+10)
 	return len(rows)
 }
 
 // The point of the whole thing: an event journalled on a producer's goroutine
 // still reaches the outbox, without that goroutine paying for it.
 func TestAnEventRoutedAsynchronouslyStillReachesTheOutbox(t *testing.T) {
-	a, _ := routerApp(t)
+	eng, _ := routerApp(t)
 
 	const n = 30
 	for i := 0; i < n; i++ {
-		if err := a.recordEvent(trapEvent(i), ""); err != nil {
+		if err := eng.recordEvent(trapEvent(i), ""); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	if got := waitForDeliveries(t, a, n, 10*time.Second); got != n {
+	if got := waitForDeliveries(t, eng, n, 10*time.Second); got != n {
 		t.Errorf("%d of %d events reached the outbox", got, n)
 	}
 }
@@ -83,8 +83,8 @@ func TestAnEventRoutedAsynchronouslyStillReachesTheOutbox(t *testing.T) {
 // hand-over happens later. A watermark taken as "the highest seq in this batch"
 // would strand a lower-seq event still in flight.
 func TestTheWatermarkNeverPassesAnEventStillInFlight(t *testing.T) {
-	a, _ := routerApp(t)
-	r := a.router
+	eng, _ := routerApp(t)
+	r := eng.router
 
 	// Three events accepted, so all three are owed.
 	for _, seq := range []int64{10, 11, 12} {
@@ -107,8 +107,8 @@ func TestTheWatermarkNeverPassesAnEventStillInFlight(t *testing.T) {
 
 // It must not go backwards either, whatever order batches finish in.
 func TestTheRoutersWatermarkNeverRetreats(t *testing.T) {
-	a, _ := routerApp(t)
-	r := a.router
+	eng, _ := routerApp(t)
+	r := eng.router
 
 	r.accept(events.Event{Seq: 100})
 	high := r.settle([]int64{100}, 0)
@@ -123,28 +123,28 @@ func TestTheRoutersWatermarkNeverRetreats(t *testing.T) {
 // exactly what the application did before the router existed, so the worst case
 // of the whole design is the behaviour we already had.
 func TestAFullQueueFallsBackInsteadOfDropping(t *testing.T) {
-	a, _ := routerApp(t)
+	eng, _ := routerApp(t)
 
 	// A router that is NOT running, so nothing drains the queue while it is
 	// filled. With the loop live this is a race: the router empties the queue as
 	// fast as the test fills it, and accept succeeds.
-	a.router.stop()
-	a.router = newEventRouter(a)
+	eng.router.stop()
+	eng.router = newEventRouter(eng)
 
 	for i := 0; i < routeQueueDepth; i++ {
-		a.router.queue <- events.Event{Seq: int64(1_000_000 + i)}
+		eng.router.queue <- events.Event{Seq: int64(1_000_000 + i)}
 	}
-	if a.router.accept(events.Event{Seq: 2_000_000}) {
+	if eng.router.accept(events.Event{Seq: 2_000_000}) {
 		t.Fatal("accept succeeded on a full queue; the fallback is never exercised")
 	}
 
 	e := trapEvent(999)
-	if err := a.recordEvent(e, ""); err != nil {
+	if err := eng.recordEvent(e, ""); err != nil {
 		t.Fatal(err)
 	}
 
 	// Routed inline, so it is in the outbox already — no waiting.
-	rows, err := a.storage.ListDeliveries("", 50)
+	rows, err := eng.storage.ListDeliveries("", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,18 +155,18 @@ func TestAFullQueueFallsBackInsteadOfDropping(t *testing.T) {
 
 // Shutdown must write what is queued, not abandon it silently.
 func TestStoppingTheRouterFlushesWhatIsQueued(t *testing.T) {
-	a, _ := routerApp(t)
+	eng, _ := routerApp(t)
 
 	const n = 20
 	for i := 0; i < n; i++ {
-		if err := a.recordEvent(trapEvent(i), ""); err != nil {
+		if err := eng.recordEvent(trapEvent(i), ""); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	a.router.stop()
+	eng.router.stop()
 
-	rows, err := a.storage.ListDeliveries("", 100)
+	rows, err := eng.storage.ListDeliveries("", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,27 +177,27 @@ func TestStoppingTheRouterFlushesWhatIsQueued(t *testing.T) {
 
 // And what a crash leaves behind is replayed.
 func TestEventsJournalledButNotRoutedAreReplayed(t *testing.T) {
-	a, _ := routerApp(t)
+	eng, _ := routerApp(t)
 
 	// Stop the router, then journal directly: the events exist, nothing routed
 	// them, and the watermark has not moved. That is what a crash between the
 	// insert and the flush leaves on disk.
-	a.router.stop()
-	a.router = nil
+	eng.router.stop()
+	eng.router = nil
 
 	const n = 12
 	for i := 0; i < n; i++ {
-		if _, err := a.storage.InsertEvent(trapEvent(i), ""); err != nil {
+		if _, err := eng.storage.InsertEvent(trapEvent(i), ""); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if rows, _ := a.storage.ListDeliveries("", 50); len(rows) != 0 {
+	if rows, _ := eng.storage.ListDeliveries("", 50); len(rows) != 0 {
 		t.Fatalf("%d deliveries exist before the replay", len(rows))
 	}
 
-	a.replayUnrouted()
+	eng.replayUnrouted()
 
-	rows, err := a.storage.ListDeliveries("", 50)
+	rows, err := eng.storage.ListDeliveries("", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,8 +207,8 @@ func TestEventsJournalledButNotRoutedAreReplayed(t *testing.T) {
 
 	// And replaying again queues nothing more: the outbox's UNIQUE constraint
 	// is what makes a crash mid-flush harmless.
-	a.replayUnrouted()
-	again, _ := a.storage.ListDeliveries("", 50)
+	eng.replayUnrouted()
+	again, _ := eng.storage.ListDeliveries("", 50)
 	if len(again) != n {
 		t.Errorf("a second replay took the outbox from %d to %d", n, len(again))
 	}
@@ -216,21 +216,21 @@ func TestEventsJournalledButNotRoutedAreReplayed(t *testing.T) {
 
 // A clean run must leave nothing to replay, or every restart re-delivers.
 func TestACleanRunLeavesNothingToReplay(t *testing.T) {
-	a, _ := routerApp(t)
+	eng, _ := routerApp(t)
 
 	for i := 0; i < 15; i++ {
-		if err := a.recordEvent(trapEvent(i), ""); err != nil {
+		if err := eng.recordEvent(trapEvent(i), ""); err != nil {
 			t.Fatal(err)
 		}
 	}
-	waitForDeliveries(t, a, 15, 10*time.Second)
-	a.router.stop()
+	waitForDeliveries(t, eng, 15, 10*time.Second)
+	eng.router.stop()
 
-	mark, err := a.storage.RoutedThrough()
+	mark, err := eng.storage.RoutedThrough()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pending, err := a.storage.EventsAfter(mark, 100)
+	pending, err := eng.storage.EventsAfter(mark, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,17 +250,17 @@ func TestAFlushIsBoundedRegardlessOfHowMuchIsQueued(t *testing.T) {
 			"lock long enough to lose a trap", routeBatchSize)
 	}
 
-	a, _ := routerApp(t)
+	eng, _ := routerApp(t)
 
 	// Well past the batch size, so the flush loop has to run several times.
 	n := routeBatchSize * 3
 	for i := 0; i < n; i++ {
-		if err := a.recordEvent(trapEvent(i), ""); err != nil {
+		if err := eng.recordEvent(trapEvent(i), ""); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	if got := waitForDeliveries(t, a, n, 20*time.Second); got != n {
+	if got := waitForDeliveries(t, eng, n, 20*time.Second); got != n {
 		t.Errorf("%d of %d events routed across several bounded flushes", got, n)
 	}
 }

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"SnmpLens/internal/engine"
 	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/monitor"
 	"SnmpLens/pkg/notify"
@@ -52,36 +53,28 @@ type liveApp struct {
 
 func newLiveApp(t *testing.T) *liveApp {
 	t.Helper()
-	a, presetDir := newBindApp(t)
-	l := &liveApp{App: a, presets: presetDir}
-
-	// Headless: a client whose context the Wails runtime did not issue ends the
-	// process the first time it emits, which a received trap does.
-	//lint:ignore SA1012 a nil context is how pkg/snmp tells a headless client
-	a.snmpClient = snmp.NewClient(nil)
-	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
-	a.trapEngineID = loadTrapEngineID(t.TempDir())
-	a.snmpClient.SetTrapEngineID(a.trapEngineID)
-
-	a.scheduler.StopAll()
-	a.initScheduler()
-	persist := a.scheduler.Persist
-	a.scheduler.Persist = func(p []monitor.Point) {
-		l.mu.Lock()
-		l.points = append(l.points, p...)
-		l.mu.Unlock()
-		persist(p)
-	}
-	t.Cleanup(a.scheduler.StopAll)
-	a.initEvaluator()
-	a.router = newEventRouter(a)
-	a.router.start()
-	t.Cleanup(a.router.stop)
-	a.initDispatcher()
-	t.Cleanup(a.dispatcher.Stop)
+	l := &liveApp{}
+	// The engine tells l what it polled, as it tells a window.
+	a, presetDir := newBindAppWith(t, l)
+	l.App, l.presets = a, presetDir
 	a.sim = newSimulatorService(t.TempDir())
 	t.Cleanup(a.sim.fleet.StopAll)
 	return l
+}
+
+// Emit keeps what the engine polled.
+func (l *liveApp) Emit(name string, data ...interface{}) {
+	if name != "monitor:samples" || len(data) == 0 {
+		return
+	}
+	m, ok := data[0].(map[string]interface{})
+	if !ok {
+		return
+	}
+	points, _ := m["points"].([]monitor.Point)
+	l.mu.Lock()
+	l.points = append(l.points, points...)
+	l.mu.Unlock()
 }
 
 // await waits until done holds over what session has polled so far.
@@ -113,7 +106,7 @@ func (l *liveApp) awaitEvents(t *testing.T, f events.Filter, within time.Duratio
 	f.Limit = 500
 	deadline := time.Now().Add(within)
 	for {
-		page, err := l.storage.QueryEvents(f)
+		page, err := l.eng.Storage().QueryEvents(f)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,10 +135,12 @@ func some(n int) func([]events.Event) bool {
 func (l *liveApp) listen(t *testing.T, users []snmp.V3Params) int {
 	t.Helper()
 	port := freeUDPPort(t)
-	if _, err := l.snmpClient.StartTrapListener(port, users); err != nil {
+	// The engine's listener, as the Traps tab starts it: the window's own
+	// client sends, and journals nothing.
+	if _, err := l.StartTrapListener(snmp.TrapListenerRequest{Port: port, Users: users}); err != nil {
 		t.Fatalf("cannot bind a trap listener: %v", err)
 	}
-	t.Cleanup(l.snmpClient.StopTrapListener)
+	t.Cleanup(l.StopTrapListener)
 	time.Sleep(400 * time.Millisecond)
 	return port
 }
@@ -218,7 +213,7 @@ func (l *liveApp) route(t *testing.T, match notify.RouteMatch) *hookServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.storage.SaveRoute(notify.Route{Name: "test", Enabled: true, Priority: 1,
+	if _, err := l.eng.Storage().SaveRoute(notify.Route{Name: "test", Enabled: true, Priority: 1,
 		Match: match, SinkIDs: []string{sink.ID}}); err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +269,7 @@ func TestSnmpLensIdentifiesBindsAndPollsEachSimulatedModel(t *testing.T) {
 			}
 
 			for _, file := range c.presets {
-				sess, err := l.PresetBind(file, d.Target(), "v2c", MonitorConnection{TimeoutSec: 2, Retries: 1, Community: "public"})
+				sess, err := l.PresetBind(file, d.Target(), "v2c", engine.MonitorConnection{TimeoutSec: 2, Retries: 1, Community: "public"})
 				if err != nil {
 					t.Fatalf("%s: %v", file, err)
 				}
@@ -285,7 +280,7 @@ func TestSnmpLensIdentifiesBindsAndPollsEachSimulatedModel(t *testing.T) {
 						t.Errorf("%s: %s answered %q", file, p.OID, p.Error)
 					}
 				}
-				opened, err := l.storage.QueryEvents(events.Filter{Kinds: []string{events.KindThresholdOpened}, SessionID: sess.ID})
+				opened, err := l.eng.Storage().QueryEvents(events.Filter{Kinds: []string{events.KindThresholdOpened}, SessionID: sess.ID})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -308,7 +303,7 @@ func TestAThresholdOnASimulatedDeviceReachesAWebhook(t *testing.T) {
 	limit := 1.0
 	id, err := l.MonitorCreateSession(load, []string{d.Target()}, 300, "v2c",
 		map[string]*storage.Thresholds{load: {Max: &limit, AlertEnabled: true}},
-		"CPU", MonitorConnection{TimeoutSec: 2, Community: "public"})
+		"CPU", engine.MonitorConnection{TimeoutSec: 2, Community: "public"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +324,7 @@ func TestASimulatedDeviceGoingDownAndComingBackIsJournalled(t *testing.T) {
 	l := newLiveApp(t)
 	d := simtest.Start(t, simulator.Device{})
 	id, err := l.MonitorCreateSession(liveUptime, []string{d.Target()}, 300, "v2c", nil, "uptime",
-		MonitorConnection{TimeoutSec: 1, Community: "public"})
+		engine.MonitorConnection{TimeoutSec: 1, Community: "public"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,7 +451,7 @@ func TestAV3SessionOutlivesTheDevicesRestart(t *testing.T) {
 			{ID: "nms", Host: "127.0.0.1", Port: port, Version: "v2c", Community: "public"}}}})
 
 	id, err := l.MonitorCreateSession(liveUptime, []string{d.Target()}, 300, "v3", nil, "v3 uptime",
-		MonitorConnection{TimeoutSec: 1, Retries: 1, V3: liveUser})
+		engine.MonitorConnection{TimeoutSec: 1, Retries: 1, V3: liveUser})
 	if err != nil {
 		t.Fatal(err)
 	}

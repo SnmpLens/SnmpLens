@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ import (
 
 // newTestApp wires just enough of App to exercise the notification bindings:
 // the storage and the secret store, with no GUI and no Wails context.
-func newTestApp(t *testing.T) *App {
+func newTestApp(t *testing.T) *Engine {
 	t.Helper()
 	dir := t.TempDir()
 
@@ -31,15 +31,15 @@ func newTestApp(t *testing.T) *App {
 		t.Fatalf("secrets.Open: %v", err)
 	}
 
-	return &App{storage: st, secrets: sec}
+	return &Engine{storage: st, secrets: sec}
 }
 
 // Saving a sink must move the credential out of the configuration and into the
 // secret store, and never hand it back.
 func TestNotifySaveSinkMovesTheCredentialOut(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 		Secret:  "TOP-SECRET-TOKEN",
@@ -53,11 +53,11 @@ func TestNotifySaveSinkMovesTheCredentialOut(t *testing.T) {
 	if !saved.HasSecret {
 		t.Error("HasSecret is false, so the UI would show the sink as unconfigured")
 	}
-	if got := a.sinkSecret(saved.ID); got != "TOP-SECRET-TOKEN" {
+	if got := eng.sinkSecret(saved.ID); got != "TOP-SECRET-TOKEN" {
 		t.Errorf("the credential did not reach the secret store: %q", got)
 	}
 
-	list, err := a.NotifyListSinks()
+	list, err := eng.NotifyListSinks()
 	if err != nil {
 		t.Fatalf("NotifyListSinks: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestNotifySaveSinkMovesTheCredentialOut(t *testing.T) {
 // after the sink had already been built with an empty one. The symptom was the
 // confusing kind — the Test button failed while the real alerts arrived.
 func TestNotifyTestSinkUsesTheStoredCredential(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
 	var gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +87,7 @@ func TestNotifyTestSinkUsesTheStoredCredential(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: srv.URL},
 		Secret:  "STORED-TOKEN",
@@ -101,7 +101,7 @@ func TestNotifyTestSinkUsesTheStoredCredential(t *testing.T) {
 	if saved.Secret != "" {
 		t.Fatal("this test is meaningless if the caller still holds the secret")
 	}
-	if err := a.NotifyTestSink(saved); err != nil {
+	if err := eng.NotifyTestSink(saved); err != nil {
 		t.Fatalf("NotifyTestSink: %v", err)
 	}
 	if gotAuth != "Bearer STORED-TOKEN" {
@@ -112,7 +112,7 @@ func TestNotifyTestSinkUsesTheStoredCredential(t *testing.T) {
 // A credential typed into the form but not yet saved must be used as-is, so
 // the button can validate a new sink before it is created.
 func TestNotifyTestSinkUsesAnUnsavedCredential(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
 	var gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -121,7 +121,7 @@ func TestNotifyTestSinkUsesAnUnsavedCredential(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := a.NotifyTestSink(notify.SinkConfig{
+	err := eng.NotifyTestSink(notify.SinkConfig{
 		Kind:    notify.SinkWebhook,
 		Webhook: notify.WebhookConfig{URL: srv.URL},
 		Secret:  "TYPED-TOKEN",
@@ -136,9 +136,9 @@ func TestNotifyTestSinkUsesAnUnsavedCredential(t *testing.T) {
 
 // Clearing a credential must remove it, not leave the old one usable.
 func TestNotifyClearSinkSecret(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 		Secret:  "STORED-TOKEN",
@@ -146,13 +146,13 @@ func TestNotifyClearSinkSecret(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NotifySaveSink: %v", err)
 	}
-	if err := a.NotifyClearSinkSecret(saved.ID); err != nil {
+	if err := eng.NotifyClearSinkSecret(saved.ID); err != nil {
 		t.Fatalf("NotifyClearSinkSecret: %v", err)
 	}
-	if got := a.sinkSecret(saved.ID); got != "" {
+	if got := eng.sinkSecret(saved.ID); got != "" {
 		t.Errorf("the credential survived being cleared: %q", got)
 	}
-	list, _ := a.NotifyListSinks()
+	list, _ := eng.NotifyListSinks()
 	if len(list) == 1 && list[0].HasSecret {
 		t.Error("the UI would still show a credential on file")
 	}
@@ -161,9 +161,9 @@ func TestNotifyClearSinkSecret(t *testing.T) {
 // Saving a sink again without supplying a credential must keep the stored one,
 // or every edit to an unrelated field would silently disarm the sink.
 func TestNotifySaveSinkKeepsTheCredentialOnEdit(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 		Secret:  "STORED-TOKEN",
@@ -174,14 +174,14 @@ func TestNotifySaveSinkKeepsTheCredentialOnEdit(t *testing.T) {
 
 	saved.Name = "NOC renamed"
 	saved.Secret = "" // the renderer never has the credential to send back
-	again, err := a.NotifySaveSink(saved)
+	again, err := eng.NotifySaveSink(saved)
 	if err != nil {
 		t.Fatalf("second NotifySaveSink: %v", err)
 	}
 	if !again.HasSecret {
 		t.Error("HasSecret went false after an unrelated edit")
 	}
-	if got := a.sinkSecret(saved.ID); got != "STORED-TOKEN" {
+	if got := eng.sinkSecret(saved.ID); got != "STORED-TOKEN" {
 		t.Errorf("the credential was lost on edit: %q", got)
 	}
 }
@@ -190,10 +190,10 @@ func TestNotifySaveSinkKeepsTheCredentialOnEdit(t *testing.T) {
 // key wrong is not a performance bug: it would deliver a plain rendering to a
 // sink whose whole purpose is to mask addresses.
 func TestRouteEventKeepsRedactedAndTemplatedRenderingsApart(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
 	mk := func(name string, redact bool, tpl notify.MessageTemplate) string {
-		s, err := a.NotifySaveSink(notify.SinkConfig{
+		s, err := eng.NotifySaveSink(notify.SinkConfig{
 			Name: name, Kind: notify.SinkWebhook, Enabled: true, Redact: redact,
 			Webhook:  notify.WebhookConfig{URL: "https://hooks.example.com/" + name},
 			Template: tpl,
@@ -211,14 +211,14 @@ func TestRouteEventKeepsRedactedAndTemplatedRenderingsApart(t *testing.T) {
 
 	// One route per sink, matching everything.
 	for _, id := range []string{plainDefault, maskedDefault, plainCustom, maskedCustom} {
-		if _, err := a.NotifySaveRoute(notify.Route{
+		if _, err := eng.NotifySaveRoute(notify.Route{
 			Name: "all-" + id, Enabled: true, SinkIDs: []string{id},
 		}); err != nil {
 			t.Fatalf("save route: %v", err)
 		}
 	}
 
-	saved, err := a.storage.InsertEvent(events.Event{
+	saved, err := eng.storage.InsertEvent(events.Event{
 		Category: events.CategoryThreshold, Kind: events.KindThresholdOpened,
 		Severity: "major", Source: "10.0.0.1",
 		TitleKey: "events.kind." + events.KindThresholdOpened,
@@ -228,9 +228,9 @@ func TestRouteEventKeepsRedactedAndTemplatedRenderingsApart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InsertEvent: %v", err)
 	}
-	a.routeEvent(saved)
+	eng.routeEvent(saved)
 
-	deliveries, err := a.storage.ListDeliveries("pending", 50)
+	deliveries, err := eng.storage.ListDeliveries("pending", 50)
 	if err != nil {
 		t.Fatalf("ListDeliveries: %v", err)
 	}
@@ -274,8 +274,8 @@ func TestRouteEventKeepsRedactedAndTemplatedRenderingsApart(t *testing.T) {
 
 // A template that cannot be saved cannot be routed with.
 func TestNotifySaveSinkRefusesABrokenTemplate(t *testing.T) {
-	a := newTestApp(t)
-	_, err := a.NotifySaveSink(notify.SinkConfig{
+	eng := newTestApp(t)
+	_, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook,
 		Webhook:  notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 		Template: notify.MessageTemplate{Body: "{{nope}}"},
@@ -291,9 +291,9 @@ func TestNotifySaveSinkRefusesABrokenTemplate(t *testing.T) {
 // The preview is what tells an operator their template works before an
 // incident does. It must render against an event with real params.
 func TestNotifyPreviewTemplate(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	p := a.NotifyPreviewTemplate(notify.SinkConfig{
+	p := eng.NotifyPreviewTemplate(notify.SinkConfig{
 		Kind: notify.SinkEmail, Name: "NOC mail",
 		Template: notify.MessageTemplate{
 			Subject: "[{{severityUpper}}] {{source}}",
@@ -311,7 +311,7 @@ func TestNotifyPreviewTemplate(t *testing.T) {
 		t.Errorf("the sample has no usable params: %q", p.Body)
 	}
 
-	masked := a.NotifyPreviewTemplate(notify.SinkConfig{
+	masked := eng.NotifyPreviewTemplate(notify.SinkConfig{
 		Kind: notify.SinkEmail, Name: "s", Redact: true,
 		Template: notify.MessageTemplate{Body: "{{source}}"},
 	}, "threshold")
@@ -319,7 +319,7 @@ func TestNotifyPreviewTemplate(t *testing.T) {
 		t.Errorf("the masked preview shows a real address: %q", masked.Body)
 	}
 
-	broken := a.NotifyPreviewTemplate(notify.SinkConfig{
+	broken := eng.NotifyPreviewTemplate(notify.SinkConfig{
 		Kind: notify.SinkEmail, Name: "s",
 		Template: notify.MessageTemplate{Body: "{{#severity}}x"},
 	}, "threshold")
@@ -331,9 +331,9 @@ func TestNotifyPreviewTemplate(t *testing.T) {
 // The preview must show what will actually be POSTed, because the plain and
 // JSON renderings differ exactly where the mistakes live: escaping.
 func TestPreviewShowsTheRealJSONPayload(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	p := a.NotifyPreviewTemplate(jsonSink(`{"text":"{{summary}}","sev":"{{severity}}"}`), "threshold")
+	p := eng.NotifyPreviewTemplate(jsonSink(`{"text":"{{summary}}","sev":"{{severity}}"}`), "threshold")
 
 	if !p.Json {
 		t.Error("the preview does not know it is a JSON payload")
@@ -355,8 +355,8 @@ func TestPreviewShowsTheRealJSONPayload(t *testing.T) {
 
 // A broken payload must say so in the preview rather than at 03:00.
 func TestPreviewReportsInvalidJSON(t *testing.T) {
-	a := newTestApp(t)
-	p := a.NotifyPreviewTemplate(jsonSink(`{"unclosed": `), "threshold")
+	eng := newTestApp(t)
+	p := eng.NotifyPreviewTemplate(jsonSink(`{"unclosed": `), "threshold")
 	if p.JsonValid {
 		t.Fatal("invalid JSON previewed as valid")
 	}
@@ -368,8 +368,8 @@ func TestPreviewReportsInvalidJSON(t *testing.T) {
 // The mode has to be stable: with nothing written yet it must still produce
 // JSON, not the plain-text default posted to an endpoint expecting an object.
 func TestEmptyTemplateInJSONModeStillProducesJSON(t *testing.T) {
-	a := newTestApp(t)
-	p := a.NotifyPreviewTemplate(jsonSink(""), "threshold")
+	eng := newTestApp(t)
+	p := eng.NotifyPreviewTemplate(jsonSink(""), "threshold")
 	if !p.JsonValid {
 		t.Fatalf("an empty template produced non-JSON: %s\n%s", p.JsonError, p.Body)
 	}
@@ -383,8 +383,8 @@ func TestEmptyTemplateInJSONModeStillProducesJSON(t *testing.T) {
 // Hostile content from a trap must not be able to break the payload, and the
 // preview must show that it does not.
 func TestPreviewEscapesHostileContent(t *testing.T) {
-	a := newTestApp(t)
-	p := a.NotifyPreviewTemplate(jsonSink(`{"oid":"{{oid}}"}`), "trap")
+	eng := newTestApp(t)
+	p := eng.NotifyPreviewTemplate(jsonSink(`{"oid":"{{oid}}"}`), "trap")
 	if !p.JsonValid {
 		t.Errorf("a trap sample broke the payload: %s", p.JsonError)
 	}
@@ -392,8 +392,8 @@ func TestPreviewEscapesHostileContent(t *testing.T) {
 
 // Plain mode must be untouched by any of this.
 func TestPreviewPlainModeIsUnchanged(t *testing.T) {
-	a := newTestApp(t)
-	p := a.NotifyPreviewTemplate(notify.SinkConfig{
+	eng := newTestApp(t)
+	p := eng.NotifyPreviewTemplate(notify.SinkConfig{
 		Kind: notify.SinkEmail, Name: "s",
 		Template: notify.MessageTemplate{Body: "{{summary}}"},
 	}, "threshold")
@@ -417,8 +417,8 @@ func jsonSink(body string) notify.SinkConfig {
 // In envelope mode the preview must show the OBJECT the receiver gets, not the
 // text inside one of its fields: the shape is what is being configured.
 func TestPreviewShowsTheEnvelopeForAWebhook(t *testing.T) {
-	a := newTestApp(t)
-	p := a.NotifyPreviewTemplate(notify.SinkConfig{
+	eng := newTestApp(t)
+	p := eng.NotifyPreviewTemplate(notify.SinkConfig{
 		Kind: notify.SinkWebhook, Name: "NOC",
 		Webhook:  notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 		Template: notify.MessageTemplate{Body: "just some text"},
@@ -441,8 +441,8 @@ func TestPreviewShowsTheEnvelopeForAWebhook(t *testing.T) {
 
 // An email preview stays plain text: there is no envelope to show.
 func TestPreviewStaysPlainForEmail(t *testing.T) {
-	a := newTestApp(t)
-	p := a.NotifyPreviewTemplate(notify.SinkConfig{
+	eng := newTestApp(t)
+	p := eng.NotifyPreviewTemplate(notify.SinkConfig{
 		Kind: notify.SinkEmail, Name: "s",
 		Template: notify.MessageTemplate{Body: "{{summary}}"},
 	}, "threshold")

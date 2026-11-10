@@ -7,8 +7,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // DiscoveryResult represents the outcome of scanning a single IP.
@@ -118,8 +116,8 @@ func (c *Client) Discover(cidr, community, version string, port, timeoutSec int,
 // client without one — a test, a headless run — scans without saying so, as
 // handleTrap receives without emitting.
 func (c *Client) discoveryProgress(current, total int, ip string) {
-	if c.ctx != nil {
-		runtime.EventsEmit(c.ctx, "discoveryProgress", map[string]interface{}{"current": current, "total": total, "ip": ip})
+	if c.ctx != nil || c.emitter != nil {
+		c.emit("discoveryProgress", map[string]interface{}{"current": current, "total": total, "ip": ip})
 	}
 }
 

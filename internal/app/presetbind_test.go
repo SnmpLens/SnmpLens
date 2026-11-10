@@ -1,29 +1,28 @@
 package app
 
 import (
-	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
-	"SnmpLens/pkg/monitor"
+	"SnmpLens/internal/engine"
 	"SnmpLens/pkg/secrets"
 	"SnmpLens/pkg/snmp"
-	"SnmpLens/pkg/storage"
 )
 
 // An app with everything binding needs: storage, a secret store, a preset
 // directory and a scheduler.
 func newBindApp(t *testing.T) (*App, string) {
 	t.Helper()
-	dir := t.TempDir()
+	return newBindAppWith(t, nil)
+}
 
-	st, err := storage.Init(filepath.Join(dir, "monitoring.db"))
-	if err != nil {
-		t.Fatalf("storage.Init: %v", err)
-	}
-	t.Cleanup(func() { st.Close() })
+// newBindAppWith is newBindApp with its engine telling emitter what it does.
+func newBindAppWith(t *testing.T, emitter engine.Emitter) (*App, string) {
+	t.Helper()
+	dir := t.TempDir()
 
 	sec, err := secrets.Open(dir)
 	if err != nil {
@@ -35,18 +34,13 @@ func newBindApp(t *testing.T) (*App, string) {
 		t.Fatal(err)
 	}
 
-	a := &App{storage: st, secrets: sec, persistentMibDir: mibDir}
-	// A real client, because PresetBind STARTS the session: without one the
-	// poll goroutine dereferenced nil inside newGoSNMP and killed the test
-	// binary — on macOS only, because the other platforms finished before the
-	// first tick landed. The targets below are addresses nothing answers on, so
-	// no packet ever reaches anything.
-	a.snmpClient = snmp.NewClient(context.Background())
-	a.scheduler = monitor.NewScheduler()
-	// The clock must not actually reach a network in a unit test, and Persist
-	// is required by the scheduler.
-	a.scheduler.Persist = func([]monitor.Point) {}
-	t.Cleanup(func() { a.scheduler.StopAll() })
+	a := &App{secrets: sec, persistentMibDir: mibDir}
+	// A real client, because discovery walks through it. The targets below are
+	// addresses nothing answers on, so no packet ever reaches anything.
+	//lint:ignore SA1012 a nil context is how pkg/snmp tells a client no runtime is behind it
+	a.snmpClient = snmp.NewClient(nil)
+	// The engine PresetBind starts the session in, on a client of its own.
+	testEngine(t, a, dir, emitter)
 
 	presetDir, err := a.presetDir()
 	if err != nil {
@@ -82,7 +76,7 @@ func TestPresetBindMaterialisesTheOidsAndTheInterval(t *testing.T) {
 	  ]
 	}`)
 
-	sess, err := a.PresetBind("cisco.json", "10.0.0.1", "v2c", MonitorConnection{Port: 161, TimeoutSec: 2, Retries: 1})
+	sess, err := a.PresetBind("cisco.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161, TimeoutSec: 2, Retries: 1})
 	if err != nil {
 		t.Fatalf("PresetBind: %v", err)
 	}
@@ -109,11 +103,11 @@ func TestPresetBindMaterialisesTheOidsAndTheInterval(t *testing.T) {
 	}
 
 	// And the specification the poll clock would build reads the columns.
-	spec := a.specFor(sess)
+	spec := a.eng.SessionSpec(sess)
 	if len(spec.OIDs) != 3 || spec.Interval.Seconds() != 45 {
 		t.Errorf("the poll clock would use %d OID(s) every %v", len(spec.OIDs), spec.Interval)
 	}
-	if !a.scheduler.IsRunning(sess.ID) {
+	if !slices.Contains(a.MonitorRunning(), sess.ID) {
 		t.Error("binding did not start the session")
 	}
 }
@@ -126,7 +120,7 @@ func TestAPresetWithProblemsCannotBeBound(t *testing.T) {
 	putPreset(t, dir, "broken.json", `{"formatVersion": 1, "name": "", "intervalSec": 0,
 	  "widgets": [{"kind": "iframe", "title": "x", "oids": ["sysUpTime.0"]}]}`)
 
-	_, err := a.PresetBind("broken.json", "10.0.0.1", "v2c", MonitorConnection{Port: 161})
+	_, err := a.PresetBind("broken.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161})
 	if err == nil {
 		t.Fatal("a preset with problems was bound")
 	}
@@ -134,7 +128,7 @@ func TestAPresetWithProblemsCannotBeBound(t *testing.T) {
 		t.Errorf("the refusal does not say why: %v", err)
 	}
 	// And nothing was created on the way to refusing.
-	if sessions, _ := a.storage.ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) left behind by a refused bind", len(sessions))
 	}
 }
@@ -145,13 +139,13 @@ func TestBindingRefusesWithoutATarget(t *testing.T) {
 	a, dir := newBindApp(t)
 	putPreset(t, dir, "ok.json", goodPreset)
 
-	if _, err := a.PresetBind("ok.json", "   ", "v2c", MonitorConnection{Port: 161}); err == nil {
+	if _, err := a.PresetBind("ok.json", "   ", "v2c", engine.MonitorConnection{Port: 161}); err == nil {
 		t.Error("a preset was bound to no equipment")
 	}
-	if _, err := a.PresetBind("../monitoring.db", "10.0.0.1", "v2c", MonitorConnection{Port: 161}); err == nil {
+	if _, err := a.PresetBind("../monitoring.db", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161}); err == nil {
 		t.Error("a path outside the library was bound")
 	}
-	if sessions, _ := a.storage.ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) created by refused binds", len(sessions))
 	}
 }
@@ -162,7 +156,7 @@ func TestBindingStoresTheCredentialsOutsideTheDatabase(t *testing.T) {
 	a, dir := newBindApp(t)
 	putPreset(t, dir, "ok.json", goodPreset)
 
-	sess, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", MonitorConnection{
+	sess, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", engine.MonitorConnection{
 		Port: 161, TimeoutSec: 2, Community: "s3cret-community",
 	})
 	if err != nil {
@@ -178,7 +172,7 @@ func TestBindingStoresTheCredentialsOutsideTheDatabase(t *testing.T) {
 	}
 
 	// Nothing secret in the row itself.
-	sessions, _ := a.storage.ListSessions()
+	sessions, _ := a.eng.Storage().ListSessions()
 	for _, s := range sessions {
 		if s.Conn != nil && strings.Contains(strings.ToLower(s.Name+s.OID), "s3cret") {
 			t.Error("the community reached the session row")
@@ -193,21 +187,21 @@ func TestBindingTheSamePresetTwiceGivesTwoSessions(t *testing.T) {
 	a, dir := newBindApp(t)
 	putPreset(t, dir, "ok.json", goodPreset)
 
-	first, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", MonitorConnection{Port: 161})
+	first, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := a.PresetBind("ok.json", "10.0.0.2", "v2c", MonitorConnection{Port: 161})
+	second, err := a.PresetBind("ok.json", "10.0.0.2", "v2c", engine.MonitorConnection{Port: 161})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.ID == second.ID {
 		t.Fatal("the second bind reused the first session")
 	}
-	if !a.scheduler.IsRunning(first.ID) || !a.scheduler.IsRunning(second.ID) {
+	if !slices.Contains(a.MonitorRunning(), first.ID) || !slices.Contains(a.MonitorRunning(), second.ID) {
 		t.Error("both sessions should be polling independently")
 	}
-	if sessions, _ := a.storage.ListSessions(); len(sessions) != 2 {
+	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 2 {
 		t.Errorf("%d session(s) for two equipments", len(sessions))
 	}
 }
@@ -219,7 +213,7 @@ func TestEditingOrDeletingThePresetDoesNotChangeABoundSession(t *testing.T) {
 	a, dir := newBindApp(t)
 	putPreset(t, dir, "ok.json", goodPreset)
 
-	sess, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", MonitorConnection{Port: 161})
+	sess, err := a.PresetBind("ok.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +227,7 @@ func TestEditingOrDeletingThePresetDoesNotChangeABoundSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sessions, _ := a.storage.ListSessions()
+	sessions, _ := a.eng.Storage().ListSessions()
 	if len(sessions) != 1 {
 		t.Fatalf("%d session(s) after deleting the file", len(sessions))
 	}
@@ -243,7 +237,7 @@ func TestEditingOrDeletingThePresetDoesNotChangeABoundSession(t *testing.T) {
 	if sessions[0].Preset == nil || len(sessions[0].Preset.Widgets) != widgets {
 		t.Error("the layout followed the file instead of staying put")
 	}
-	if !a.scheduler.IsRunning(sessions[0].ID) {
+	if !slices.Contains(a.MonitorRunning(), sessions[0].ID) {
 		t.Error("deleting the preset stopped the monitoring")
 	}
 }

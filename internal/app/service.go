@@ -54,27 +54,6 @@ func (a *App) initBackgroundMode() {
 		log.Printf("started hidden but no tray is available; showing the window")
 		a.RevealWindow()
 	}
-
-	if a.serviceCfg.AutoStartTrapListener {
-		port := a.serviceCfg.TrapPort
-		// The users last applied from the renderer. This runs before any
-		// window exists, and without them a background start used to hear v1
-		// and v2c and drop every v3 notification.
-		info, err := a.snmpClient.StartTrapListener(port, a.loadTrapUsers())
-		if err != nil {
-			log.Printf("WARNING: could not auto-start the trap listener on port %d: %v", port, err)
-			a.recordSystemEvent(events.KindSystemInfo, "major",
-				"The trap listener could not bind its port at startup: "+err.Error())
-		} else {
-			a.trapsOn = true
-			log.Printf("trap listener auto-started on port %d with %d SNMPv3 users", port, info.Users)
-			for _, r := range info.Refused {
-				log.Printf("WARNING: the trap listener did not take SNMPv3 user %q: %s", r.User, r.Reason)
-			}
-		}
-	}
-
-	a.refreshTrayStatus()
 }
 
 // hideInsteadOfClosing answers the window's close button.
@@ -111,11 +90,10 @@ func (a *App) refreshTrayStatus() {
 	if a.tray == nil {
 		return
 	}
-	running := 0
-	if a.scheduler != nil {
-		running = len(a.scheduler.Running())
+	if a.host == nil {
+		return
 	}
-	a.tray.SetStatus(tray.StatusLine(running, a.trapsOn))
+	a.tray.SetStatus(tray.StatusLine(len(a.MonitorRunning()), a.host.TrapListenerRunning()))
 }
 
 // TraySetLabels lets the renderer translate the tray menu once svelte-i18n has
@@ -163,7 +141,7 @@ func (a *App) ServiceGetStatus() ServiceStatus {
 	return ServiceStatus{
 		Config:              a.serviceCfg,
 		TrayAvailable:       a.trayLive,
-		TrapListenerRunning: a.trapsOn,
+		TrapListenerRunning: a.host != nil && a.host.TrapListenerRunning(),
 		Platform:            goruntime.GOOS,
 	}
 }
@@ -183,6 +161,9 @@ func (a *App) ServiceSetConfig(cfg service.Config) (ServiceStatus, error) {
 		return a.ServiceGetStatus(), err
 	}
 	a.serviceCfg = saved
+	if a.eng != nil {
+		a.eng.SetConfig(saved)
+	}
 
 	// Turning background mode on is worth honouring immediately: it is the one
 	// setting whose whole point is that the window may be closed at any moment.
@@ -214,14 +195,7 @@ func (a *App) initBackgroundModeTrayOnly() {
 // recordSystemEvent writes a system-category entry, ignoring the error: this is
 // used on paths that are already reporting a problem.
 func (a *App) recordSystemEvent(kind, severity, summary string) {
-	if a.storage == nil {
-		return
+	if a.host != nil {
+		a.host.RecordSystemEvent(kind, severity, summary)
 	}
-	_ = a.recordEvent(events.Event{
-		Category: events.CategorySystem,
-		Kind:     kind,
-		Severity: severity,
-		Summary:  summary,
-		TitleKey: "events.kind." + kind,
-	}, "")
 }

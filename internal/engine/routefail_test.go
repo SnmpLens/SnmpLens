@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"strings"
@@ -17,10 +17,10 @@ import (
 // prevent.
 
 func TestRoutingFailureIsDistinguishableFromNoDestinations(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
 	// No rules at all: legitimately nothing to do, and not an error.
-	groups, err := a.routedGroupsFor(trapEvent(1))
+	groups, err := eng.routedGroupsFor(trapEvent(1))
 	if err != nil {
 		t.Errorf("an event with no rules reported an error: %v", err)
 	}
@@ -29,19 +29,19 @@ func TestRoutingFailureIsDistinguishableFromNoDestinations(t *testing.T) {
 	}
 
 	// A rule exists and matches: groups, no error.
-	sink, err := a.storage.SaveSink(notify.SinkConfig{
+	sink, err := eng.storage.SaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.storage.SaveRoute(notify.Route{
+	if _, err := eng.storage.SaveRoute(notify.Route{
 		Name: "all", Enabled: true, SinkIDs: []string{sink.ID},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	groups, err = a.routedGroupsFor(trapEvent(2))
+	groups, err = eng.routedGroupsFor(trapEvent(2))
 	if err != nil {
 		t.Fatalf("routing a matching event failed: %v", err)
 	}
@@ -50,8 +50,8 @@ func TestRoutingFailureIsDistinguishableFromNoDestinations(t *testing.T) {
 	}
 
 	// And a configuration that cannot be READ is an error, not silence.
-	a.storage.Close()
-	if _, err := a.routedGroupsFor(trapEvent(3)); err == nil {
+	eng.storage.Close()
+	if _, err := eng.routedGroupsFor(trapEvent(3)); err == nil {
 		t.Error("routing against an unreadable configuration reported success with " +
 			"no destinations; the event would be marked routed and never delivered")
 	}
@@ -59,8 +59,8 @@ func TestRoutingFailureIsDistinguishableFromNoDestinations(t *testing.T) {
 
 // The watermark must not pass an event whose routing failed.
 func TestAFailedRoutingKeepsTheEventAboveTheWatermark(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	e := trapEvent(1)
 	e.Seq = 42
@@ -71,7 +71,7 @@ func TestAFailedRoutingKeepsTheEventAboveTheWatermark(t *testing.T) {
 	<-r.queue
 
 	// Break the configuration read, then flush it.
-	a.storage.Close()
+	eng.storage.Close()
 	batch := []events.Event{e}
 	r.flush(&batch)
 
@@ -92,8 +92,8 @@ func TestAFailedRoutingKeepsTheEventAboveTheWatermark(t *testing.T) {
 // A batch where only SOME events fail must still record the ones that worked,
 // and must not claim the ones that did not.
 func TestAPartlyFailedBatchSettlesOnlyWhatItRouted(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	// Two events, both accepted.
 	for _, seq := range []int64{7, 9} {
@@ -124,10 +124,10 @@ func TestAPartlyFailedBatchSettlesOnlyWhatItRouted(t *testing.T) {
 // The error must say what went wrong, not just that something did — this ends
 // up in a log an operator reads when alerts stopped arriving.
 func TestARoutingErrorNamesTheProblem(t *testing.T) {
-	a := newTestApp(t)
-	a.storage.Close()
+	eng := newTestApp(t)
+	eng.storage.Close()
 
-	_, err := a.routedGroupsFor(trapEvent(1))
+	_, err := eng.routedGroupsFor(trapEvent(1))
 	if err == nil {
 		t.Fatal("no error")
 	}

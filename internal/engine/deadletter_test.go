@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"SnmpLens/pkg/snmp"
@@ -21,7 +21,7 @@ import (
 // collector grows the event journal and the outbox without bound, six attempts
 // at a time against a machine that is not answering.
 func TestDeadLetterIsNotRoutedBackToItsOwnSink(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
 	for _, s := range []notify.SinkConfig{
 		{ID: "sink-uuid-mail", Name: "Ops mailbox", Kind: notify.SinkEmail, Enabled: true,
@@ -29,24 +29,24 @@ func TestDeadLetterIsNotRoutedBackToItsOwnSink(t *testing.T) {
 		{ID: "sink-uuid-log", Name: "Central syslog", Kind: notify.SinkSyslog, Enabled: true,
 			Syslog: notify.SyslogConfig{Address: "127.0.0.1:1", Protocol: "udp"}},
 	} {
-		if _, err := a.storage.SaveSink(s); err != nil {
+		if _, err := eng.storage.SaveSink(s); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// The catch-all somebody would actually write.
-	if _, err := a.storage.SaveRoute(notify.Route{
+	if _, err := eng.storage.SaveRoute(notify.Route{
 		ID: "all", Name: "everything", Enabled: true, Priority: 1,
 		SinkIDs: []string{"sink-uuid-mail", "sink-uuid-log"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	before, err := a.storage.ListDeliveries("", 200)
+	before, err := eng.storage.ListDeliveries("", 200)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a.routeEvent(events.Event{
+	eng.routeEvent(events.Event{
 		ID:       "evt-dead-1",
 		Category: events.CategorySystem,
 		Kind:     events.KindSystemSinkDeadLetter,
@@ -55,7 +55,7 @@ func TestDeadLetterIsNotRoutedBackToItsOwnSink(t *testing.T) {
 		Params:   map[string]any{"sink": "sink-uuid-mail"},
 	})
 
-	after, err := a.storage.ListDeliveries("", 200)
+	after, err := eng.storage.ListDeliveries("", 200)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,25 +82,25 @@ func TestDeadLetterIsNotRoutedBackToItsOwnSink(t *testing.T) {
 
 // An ordinary event is unaffected: the exclusion applies to dead letters only.
 func TestAnOrdinaryEventStillReachesEverySink(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
 	for _, id := range []string{"sink-uuid-mail", "sink-uuid-log"} {
-		if _, err := a.storage.SaveSink(notify.SinkConfig{
+		if _, err := eng.storage.SaveSink(notify.SinkConfig{
 			ID: id, Name: id, Kind: notify.SinkSyslog, Enabled: true,
 			Syslog: notify.SyslogConfig{Address: "127.0.0.1:1", Protocol: "udp"},
 		}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := a.storage.SaveRoute(notify.Route{
+	if _, err := eng.storage.SaveRoute(notify.Route{
 		ID: "all", Name: "everything", Enabled: true, Priority: 1,
 		SinkIDs: []string{"sink-uuid-mail", "sink-uuid-log"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	before, _ := a.storage.ListDeliveries("", 200)
-	a.routeEvent(events.Event{
+	before, _ := eng.storage.ListDeliveries("", 200)
+	eng.routeEvent(events.Event{
 		ID:       "evt-ordinary-1",
 		Category: events.CategoryThreshold,
 		Kind:     events.KindThresholdOpened,
@@ -110,7 +110,7 @@ func TestAnOrdinaryEventStillReachesEverySink(t *testing.T) {
 		// dead-letter kind does.
 		Params: map[string]any{"sink": "Ops mailbox", "sinkId": "sink-uuid-mail"},
 	})
-	after, _ := a.storage.ListDeliveries("", 200)
+	after, _ := eng.storage.ListDeliveries("", 200)
 
 	if got := len(after) - len(before); got != 2 {
 		t.Errorf("%d deliveries for an ordinary event, want 2", got)
@@ -153,9 +153,9 @@ func TestDeadLetterSink(t *testing.T) {
 // broken, and its fixture used ID: "mail", Name: "mail" — two fields a test
 // cannot tell apart once it makes them equal.
 func TestTheDeadLetterGuardReadsTheIdNotTheName(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	saved, err := a.storage.SaveSink(notify.SinkConfig{
+	saved, err := eng.storage.SaveSink(notify.SinkConfig{
 		ID: "sink-uuid-noc", Name: "NOC webhook", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 	})
@@ -163,7 +163,7 @@ func TestTheDeadLetterGuardReadsTheIdNotTheName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ev := a.deadLetterEvent(
+	ev := eng.deadLetterEvent(
 		notify.Queued{ID: 1, SinkID: saved.ID, Attempts: 5},
 		errors.New("webhook returned 503 Service Unavailable"),
 	)
@@ -202,31 +202,31 @@ func TestTheDeadLetterGuardStillReadsOlderEvents(t *testing.T) {
 // that shutdown is in the middle of closing. Stopping every producer before any
 // consumer is the only ordering in which the rest of shutdown's reasoning holds.
 func TestShutdownStopsTheTrapListener(t *testing.T) {
-	a := newTestApp(t)
-	a.snmpClient = snmp.NewClient(context.TODO())
-	a.snmpClient.SetRecorder(events.RecorderFunc(a.recordEvent))
+	eng := newTestApp(t)
+	eng.snmpClient = snmp.NewClient(context.TODO())
+	eng.snmpClient.SetRecorder(events.RecorderFunc(eng.recordEvent))
 
 	port := freeUDPPort(t)
-	if _, err := a.snmpClient.StartTrapListener(port, nil); err != nil {
+	if _, err := eng.snmpClient.StartTrapListener(port, nil); err != nil {
 		t.Fatalf("could not start a listener: %v", err)
 	}
 	// Let it bind, so this tests the running case.
 	deadline := time.Now().Add(3 * time.Second)
-	for !a.snmpClient.TrapListenerRunning() && time.Now().Before(deadline) {
+	for !eng.snmpClient.TrapListenerRunning() && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
-	if !a.snmpClient.TrapListenerRunning() {
+	if !eng.snmpClient.TrapListenerRunning() {
 		t.Fatal("the listener never started")
 	}
 
-	a.shutdown(context.Background())
+	eng.Close()
 
 	// Close is asynchronous; the field clears when the listen goroutine unwinds.
 	deadline = time.Now().Add(5 * time.Second)
-	for a.snmpClient.TrapListenerRunning() && time.Now().Before(deadline) {
+	for eng.snmpClient.TrapListenerRunning() && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
-	if a.snmpClient.TrapListenerRunning() {
+	if eng.snmpClient.TrapListenerRunning() {
 		t.Error("the trap listener is still running after shutdown; it keeps " +
 			"journalling into storage that shutdown has closed")
 	}
@@ -235,8 +235,8 @@ func TestShutdownStopsTheTrapListener(t *testing.T) {
 // And shutdown with no listener, no scheduler and no dispatcher must not panic:
 // that is what a failed startup looks like on the way out.
 func TestShutdownWithNothingRunning(t *testing.T) {
-	a := newTestApp(t)
-	a.shutdown(context.Background())
+	eng := newTestApp(t)
+	eng.Close()
 }
 
 func freeUDPPort(t *testing.T) int {

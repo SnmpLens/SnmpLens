@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"net/http"
@@ -60,11 +60,11 @@ func (c *collector) requests() int {
 const stolen = "TOP-SECRET-TOKEN"
 
 func TestTestSinkWillNotSendAStoredCredentialElsewhere(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 	own := newCollector(t)
 	attacker := newCollector(t)
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: own.URL},
 		Secret:  stolen,
@@ -76,7 +76,7 @@ func TestTestSinkWillNotSendAStoredCredentialElsewhere(t *testing.T) {
 	// The attack: the sink's own id, somebody else's URL, no credential
 	// supplied — exactly what the renderer can construct without ever being
 	// able to READ the credential.
-	err = a.NotifyTestSink(notify.SinkConfig{
+	err = eng.NotifyTestSink(notify.SinkConfig{
 		ID: saved.ID, Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: attacker.URL},
 	})
@@ -100,10 +100,10 @@ func TestTestSinkWillNotSendAStoredCredentialElsewhere(t *testing.T) {
 // authenticates. Without this, the fix could be "never resolve anything",
 // which would break the one button an operator presses to check a sink.
 func TestTestSinkStillAuthenticatesToItsOwnDestination(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 	own := newCollector(t)
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: own.URL},
 		Secret:  stolen,
@@ -112,7 +112,7 @@ func TestTestSinkStillAuthenticatesToItsOwnDestination(t *testing.T) {
 		t.Fatalf("NotifySaveSink: %v", err)
 	}
 
-	if err := a.NotifyTestSink(notify.SinkConfig{
+	if err := eng.NotifyTestSink(notify.SinkConfig{
 		ID: saved.ID, Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: own.URL},
 	}); err != nil {
@@ -126,10 +126,10 @@ func TestTestSinkStillAuthenticatesToItsOwnDestination(t *testing.T) {
 // A sink that has not been saved yet has no stored credential to hand out, and
 // must still be testable with one the operator just typed.
 func TestTestSinkWorksForAnUnsavedSink(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 	dest := newCollector(t)
 
-	if err := a.NotifyTestSink(notify.SinkConfig{
+	if err := eng.NotifyTestSink(notify.SinkConfig{
 		Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: dest.URL},
 		Secret:  "typed-in-the-form",
@@ -146,9 +146,9 @@ func TestTestSinkWorksForAnUnsavedSink(t *testing.T) {
 // renderer that cannot read a credential could still aim it. Pointing a sink
 // somewhere new unbinds the credential.
 func TestSavingANewDestinationUnbindsTheStoredCredential(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x"},
 		Secret:  stolen,
@@ -160,7 +160,7 @@ func TestSavingANewDestinationUnbindsTheStoredCredential(t *testing.T) {
 		t.Fatal("the credential was not stored in the first place")
 	}
 
-	moved, err := a.NotifySaveSink(notify.SinkConfig{
+	moved, err := eng.NotifySaveSink(notify.SinkConfig{
 		ID: saved.ID, Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://attacker.example/collect"},
 	})
@@ -170,7 +170,7 @@ func TestSavingANewDestinationUnbindsTheStoredCredential(t *testing.T) {
 	if moved.HasSecret {
 		t.Fatal("the credential followed the destination to a new address")
 	}
-	if got, _ := a.secrets.Get(secrets.SinkRef(saved.ID)); got != "" {
+	if got, _ := eng.secrets.Get(secrets.SinkRef(saved.ID)); got != "" {
 		t.Fatalf("the credential is still in the store: %q", got)
 	}
 }
@@ -178,9 +178,9 @@ func TestSavingANewDestinationUnbindsTheStoredCredential(t *testing.T) {
 // Editing anything else — the name, the template, the timeout — must leave the
 // credential alone, or every save becomes a re-entry of the password.
 func TestSavingAnUnrelatedChangeKeepsTheCredential(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
-	saved, err := a.NotifySaveSink(notify.SinkConfig{
+	saved, err := eng.NotifySaveSink(notify.SinkConfig{
 		Name: "NOC", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x", Timeout: 10},
 		Secret:  stolen,
@@ -189,7 +189,7 @@ func TestSavingAnUnrelatedChangeKeepsTheCredential(t *testing.T) {
 		t.Fatalf("NotifySaveSink: %v", err)
 	}
 
-	again, err := a.NotifySaveSink(notify.SinkConfig{
+	again, err := eng.NotifySaveSink(notify.SinkConfig{
 		ID: saved.ID, Name: "NOC renamed", Kind: notify.SinkWebhook, Enabled: true,
 		Webhook: notify.WebhookConfig{URL: "https://hooks.example.com/x", Timeout: 30},
 	})

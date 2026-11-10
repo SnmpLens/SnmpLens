@@ -15,6 +15,7 @@ import (
 	"SnmpLens/pkg/netaddr"
 
 	"github.com/gosnmp/gosnmp"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // DefaultPort is the SNMP agent port used when none is given.
@@ -104,11 +105,33 @@ type Client struct {
 	// recorder durably journals received traps. Defaults to events.Nop so a
 	// trap listener goroutine can always call it without a nil check.
 	recorder events.Recorder
+	// emitter, when set, is where the client says what happened instead of
+	// the Wails runtime: the supervision engine's client has no runtime
+	// behind it, and the runtime ends the process when handed a context it
+	// did not issue.
+	emitter func(name string, data ...interface{})
 }
 
 // NewClient creates a new SNMP client.
 func NewClient(ctx context.Context) *Client {
 	return &Client{ctx: ctx, recorder: events.Nop{}}
+}
+
+// SetEmitter makes emit say what happens through emit rather than the Wails
+// runtime. Set before the client is used.
+func (c *Client) SetEmitter(emit func(name string, data ...interface{})) {
+	c.emitter = emit
+}
+
+// emit says what happened to whatever shows this client: its emitter, else the
+// runtime of the context it was made with, else nobody.
+func (c *Client) emit(name string, data ...interface{}) {
+	switch {
+	case c.emitter != nil:
+		c.emitter(name, data...)
+	case c.ctx != nil:
+		runtime.EventsEmit(c.ctx, name, data...)
+	}
 }
 
 // SetRecorder wires the event journal. Without it, received traps exist only as

@@ -1,4 +1,4 @@
-package app
+package engine
 
 import (
 	"errors"
@@ -22,8 +22,8 @@ import (
 // The two flushes below are the whole point. One failing flush proves little;
 // what proves the defect is what the SECOND one writes.
 func TestAFailedWriteIsNotClaimedByTheNextFlush(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	var wrote []int64
 	fail := true
@@ -88,8 +88,8 @@ func TestAFailedWriteIsNotClaimedByTheNextFlush(t *testing.T) {
 // The control: with the write succeeding, the watermark still advances. A fix
 // that simply never settles would pass the test above and break the feature.
 func TestACleanBatchStillAdvancesTheWatermark(t *testing.T) {
-	a := newTestApp(t)
-	r := newEventRouter(a)
+	eng := newTestApp(t)
+	r := newEventRouter(eng)
 
 	var wrote []int64
 	r.enqueue = func(_ []storage.RoutedGroup, mark int64) error {
@@ -125,10 +125,10 @@ func TestACleanBatchStillAdvancesTheWatermark(t *testing.T) {
 // markIfSettled must answer what settle would, without settling — otherwise
 // the write records one number and the bookkeeping keeps another.
 func TestMarkIfSettledAgreesWithSettle(t *testing.T) {
-	a := newTestApp(t)
+	eng := newTestApp(t)
 
 	for _, seqs := range [][]int64{{5}, {5, 6}, {5, 6, 7}, {}} {
-		r := newEventRouter(a)
+		r := newEventRouter(eng)
 		for _, seq := range []int64{5, 6, 7} {
 			e := trapEvent(int(seq))
 			e.Seq = seq

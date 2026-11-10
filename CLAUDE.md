@@ -169,9 +169,14 @@ The frontend calls Go through auto-generated bindings in `frontend/wailsjs/`, wh
   method, which is why the lifecycle (`startup`, `shutdown`, the close decision) is unexported and `app.Run` is a
   function rather than a method: a method would be callable from the renderer. Each becomes a callable JS
   function (e.g. `import { SnmpGet } from '../wailsjs/go/app/App'`); the directory is named after the Go package.
+- That includes the methods PROMOTED from an embedded field: `App` embeds `engine.Backend` (see **The supervision
+  engine**), and every method of that interface is bound as if `App` declared it — which is why what the
+  application reaches and the renderer must not (`engine.Host`: journalling an event of the window's own, creating
+  a preset's session) sits on a second interface that `App` holds as a field and does NOT embed.
 - `main.go` holds only what the binary embeds — `frontend/dist`, `mibs/`, `presets/`, the tray artwork — because
-  `//go:embed` cannot reach above the directory of the file it sits in, and hands it to `app.Run` as `fs.FS`. Tests
-  in `internal/app` read the same directories from the tree (`repo_test.go`: `repoRoot`, `mibs`, `presets`).
+  `//go:embed` cannot reach above the directory of the file it sits in, and hands it to `app.Run` as `fs.FS`, after
+  `cli.Run` has had the command line (`--headless`, `--help`). Tests in `internal/app` read the same directories
+  from the tree (`repo_test.go`: `repoRoot`, `mibs`, `presets`).
 - After changing any `App` method signature or any Go struct that crosses the bridge, you **must** re-run `wails dev`/`wails build` to regenerate bindings before the frontend can use them. A fresh checkout has no `wailsjs/` until the first build.
 - Request params are passed as structs defined in `pkg/snmp/params.go` (`SnmpRequest`, `SetRequest`, `GetBulkRequest`, etc.). The frontend constructs matching plain objects in
   `frontend/src/utils/snmpParams.js`, and the JSON field names are the whole of the contract.
@@ -183,6 +188,32 @@ The frontend calls Go through auto-generated bindings in `frontend/wailsjs/`, wh
   CAPITALISED (`json:"User"`), matching the renderer exactly rather than relying on
   `encoding/json`'s case-insensitive fallback; the test pins that too.
 - **Numeric serialization gotcha:** `formatSnmpValue` in `pkg/snmp/client.go` converts `*big.Int` to `int64`/`uint64` before returning. This is deliberate — raw `*big.Int` serializes as an object across the bridge and breaks frontend numeric parsing / chart rendering. Preserve this when touching SNMP value handling.
+
+## The supervision engine
+
+`internal/engine` is what has to keep working with no window open: the monitoring database, the poll clock and
+its thresholds, the trap listener, the event journal, and the routing and delivery of notifications. It imports
+nothing of Wails — the runtime ends the process when handed a context it did not issue, which is what a run with no
+window would hand it — and says what happens through an `Emitter`: the window passes one that reaches the webview,
+`--headless` none. `engine.New(Options)`, `Open` (the directory lock, the database, the secret store, then the
+consumers: router, outbox, poll clock, with what was journalled and not routed replayed before anything produces),
+`Start` (the producers: the trap listener when `service.json` says it starts with SnmpLens, the sessions running at
+the last exit) and `Close` (producers before consumers, the database last). The engine polls and listens on an
+`snmp.Client` of its own; the window's sends what a person asks for, and journals nothing.
+
+`Backend` is the engine's half of the bridge — every engine method the renderer calls, by the name it calls it —
+and `App` embeds it, so moving the engine did not change a single binding. `Host` is `Backend` plus what the
+application reaches and the renderer must not. The window opens the engine on its own directory and SHARES its
+secret store with it (two stores over one file would each write the whole of it).
+
+**One engine per directory** (`pkg/dirlock`, an OS lock held by an open handle, so a process that dies releases
+it): two would poll every session into one database and send every alert twice. A window started on a directory
+`--headless` holds gets an engine that answers every call with nothing rather than a second supervision.
+
+`internal/headless` runs the engine with no window — `SnmpLens --headless [--data-dir DIR]`, in a terminal or
+under systemd or launchd, until interrupted — and refuses a directory another process holds and a database that
+cannot be opened. `internal/cli` is the command line, read before anything of the desktop application exists; on
+Windows the binary is a GUI program, so it attaches to the console of the terminal that started it.
 
 ## Backend layout (`pkg/`)
 
@@ -199,7 +230,7 @@ The frontend calls Go through auto-generated bindings in `frontend/wailsjs/`, wh
 - `pkg/preset/` — the dashboard preset format: `preset.go` (the frozen widget vocabulary, `Validate`,
   `Estimate`, `PollOIDs`), `load.go` (reading a file off disk, listing a directory, matching a device). Pure: it
   touches no network, no database and no gosmi. See **Dashboard presets**.
-- `internal/app/router.go` — the event router: routing runs on its own goroutine in bounded batches, with a durable watermark so a crash replays rather than loses. See **The trap path**.
+- `internal/engine/router.go` — the event router: routing runs on its own goroutine in bounded batches, with a durable watermark so a crash replays rather than loses. See **The trap path**.
 - `pkg/events/`, `pkg/notify/`, `pkg/secrets/`, `pkg/service/`, `pkg/tray/`, `pkg/autostart/` — the event journal vocabulary, notification routing (syslog over UDP/TCP/**TLS per RFC5425**, webhook, email, with a durable outbox), OS-protected credential storage, the pre-GUI preference file, the fail-soft system-tray icon, and the per-user login entry (HKCU Run key / LaunchAgent / XDG autostart — never machine-wide, so it never needs elevation).
 - `pkg/netaddr/address.go` — address handling shared by `pkg/snmp` and `pkg/network`. `NormaliseTarget` strips
   the brackets people paste around an IPv6 literal, because gosnmp adds its own via `JoinHostPort` and
@@ -775,7 +806,7 @@ fails CI rather than quietly halving the next storm. The durable fix is a `WithR
 **The insert stays synchronous, the ROUTING does not.** gosnmp sends an INFORM's acknowledgement after the
 handler returns, so acknowledging a confirmed notification before it is durably journalled would be a lie.
 Routing was measured at 1.30 ms per event against 0.97 ms for the insert — essentially all of it a second
-write transaction — and now goes to `eventRouter` (`internal/app/router.go`). Batching is not an optimisation on
+write transaction — and now goes to `eventRouter` (`internal/engine/router.go`). Batching is not an optimisation on
 top: unbatched the router costs the same 1.0 ms per event and cannot keep up with a producer it just made
 twice as fast. At 50 events per transaction it costs 0.13 ms.
 
@@ -1175,7 +1206,7 @@ text ends with what the peer wrote and a 503 reading "invalid upstream" was bein
 no code is RETRIED: six attempts cost half an hour of backoff, discarding one loses the incident. Scrubbing a
 credential out of an error must therefore keep the chain (`scrubbedError` overrides `Error()` and keeps
 `Unwrap()`), or the code disappears with it. **A dead letter is never routed back to the sink that produced it**
-(`deadLetterSink` in `internal/app/app.go`), or one unreachable collector grows the journal without bound. **A disabled or
+(`deadLetterSink` in `internal/engine/journal.go`), or one unreachable collector grows the journal without bound. **A disabled or
 deleted sink is never queued for**, because the dispatcher's only answer is a dead letter and a dead letter is a
 MAJOR event — switching a sink off used to alarm on every event. **The drain is one goroutine per DESTINATION,
 serial within one**: parallel across sinks so an unreachable relay does not hold up a healthy webhook, serial
@@ -1486,7 +1517,7 @@ Three rules carry it, and each is a defect in the version without it:
   forever at one report per tick. Hysteresis is the other half.
 
 The default is to widen to twice the cycle, capped at eight times the interval, and to report the edge ONCE per
-episode — the same edge-triggering the pool-contention sampler in `internal/app/router.go` uses. `MonitorAcceptSlow` is
+episode — the same edge-triggering the pool-contention sampler in `internal/engine/router.go` uses. `MonitorAcceptSlow` is
 the operator saying "keep the cadence I chose": it reaches the RUNNING session rather than restarting it, because
 a restart throws away the samples every delta and rate is derived from. It is deliberately not persisted.
 

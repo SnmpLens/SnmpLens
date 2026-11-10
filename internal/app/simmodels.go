@@ -309,7 +309,10 @@ func (a *App) importSimulatorModels(paths []string) []SimulatorModelImportResult
 	for r := range results {
 		a.restartModelDevicesLocked(s, &results[r])
 	}
+	// A model imported again may have lost the port a cable is in.
+	s.settleModelsLocked(results)
 	a.emitSimulatorModelsChanged()
+	a.emitSimulatorChanged()
 	return results
 }
 

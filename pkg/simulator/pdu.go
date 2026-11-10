@@ -24,7 +24,9 @@ type answer struct {
 // for SNMPv1, whose errors are different. It counts what SNMPv2-MIB's snmp
 // group counts — the request on arrival, as net-snmp does, so that a GET of
 // snmpInGetRequests counts itself.
-func (a *Agent) process(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket, c clock, write bool) answer {
+//
+// view is the context the request names, or nil for the default one.
+func (a *Agent) process(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket, c clock, write bool, view *tree) answer {
 	st := &a.stats
 	switch req.PDUType {
 	case gosnmp.GetRequest:
@@ -38,7 +40,7 @@ func (a *Agent) process(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket, c clock,
 	}
 	ans, injected := a.injectedError(ver, req)
 	if !injected {
-		ans = a.dispatch(ver, req, c, write)
+		ans = a.dispatch(ver, req, c, write, view)
 	}
 	switch {
 	case ans.status != gosnmp.NoError:
@@ -54,17 +56,23 @@ func (a *Agent) process(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket, c clock,
 	return ans
 }
 
-func (a *Agent) dispatch(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket, c clock, write bool) answer {
+func (a *Agent) dispatch(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket, c clock, write bool, view *tree) answer {
 	v1 := ver == gosnmp.Version1
+	t := view
+	if t == nil {
+		t = a.tree.Load()
+	}
 	switch req.PDUType {
 	case gosnmp.GetRequest:
-		return a.get(v1, req.Variables, c)
+		return a.get(t, v1, req.Variables, c)
 	case gosnmp.GetNextRequest:
-		return a.getNext(v1, req.Variables, c)
+		return a.getNext(t, v1, req.Variables, c)
 	case gosnmp.GetBulkRequest:
-		return a.getBulk(req, c)
+		return a.getBulk(t, req, c)
 	}
-	if write {
+	// A VLAN's view is read-only: what a SET writes is the running device,
+	// which is the default view.
+	if write && view == nil {
 		return a.set(ver, req)
 	}
 	// A SET from a manager that only reads: nothing is in the view it may
@@ -86,8 +94,7 @@ func (a *Agent) dispatch(ver gosnmp.SnmpVersion, req *gosnmp.SnmpPacket, c clock
 // GET for it.
 func v1Hidden(e *entry) bool { return e.typ == gosnmp.Counter64 }
 
-func (a *Agent) get(v1 bool, vars []gosnmp.SnmpPDU, c clock) answer {
-	t := a.tree.Load()
+func (a *Agent) get(t *tree, v1 bool, vars []gosnmp.SnmpPDU, c clock) answer {
 	out := make([]gosnmp.SnmpPDU, len(vars))
 	for i, v := range vars {
 		id, err := parseArcs(v.Name)
@@ -107,12 +114,11 @@ func (a *Agent) get(v1 bool, vars []gosnmp.SnmpPDU, c clock) answer {
 	return answer{vars: out}
 }
 
-func (a *Agent) getNext(v1 bool, vars []gosnmp.SnmpPDU, c clock) answer {
+func (a *Agent) getNext(t *tree, v1 bool, vars []gosnmp.SnmpPDU, c clock) answer {
 	var skip func(*entry) bool
 	if v1 {
 		skip = v1Hidden
 	}
-	t := a.tree.Load()
 	out := make([]gosnmp.SnmpPDU, len(vars))
 	for i, v := range vars {
 		// A name that does not parse is placed before every object, so its
@@ -133,11 +139,10 @@ func (a *Agent) getNext(v1 bool, vars []gosnmp.SnmpPDU, c clock) answer {
 // getBulk is RFC 3416 4.2.3: the first non-repeaters varbinds once each, as a
 // GETNEXT, then the rest max-repetitions times, each repetition carrying on
 // from the one before.
-func (a *Agent) getBulk(req *gosnmp.SnmpPacket, c clock) answer {
-	t := a.tree.Load()
+func (a *Agent) getBulk(t *tree, req *gosnmp.SnmpPacket, c clock) answer {
 	vars := req.Variables
 	n := min(int(req.NonRepeaters), len(vars))
-	out := a.getNext(false, vars[:n], c).vars
+	out := a.getNext(t, false, vars[:n], c).vars
 	repeaters := vars[n:]
 	last := make([]oid, len(repeaters))
 	names := make([]string, len(repeaters))

@@ -42,7 +42,7 @@ func buildAPCSmartUPS(id Identity) []Object {
 		".1.3.6.1.4.1.318.1.3.17.1", // smartUPS3Phase10kVA
 		"facilities@example.com", "Server room, UPS bay", 72)
 	lan := lanPrefix(id.Seed)
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs: []iface{
 			{index: 1, descr: "eth0", ifType: ifTypeEthernet, mtu: 1500, speed: 100_000_000,

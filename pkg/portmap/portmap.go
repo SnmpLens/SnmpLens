@@ -246,7 +246,13 @@ func Build(in Input) Map {
 			}
 		}
 	}
-	read(sw, 0)
+	// What a Cisco answers without a VLAN is VLAN 1's view, once its other
+	// VLANs are read in their own.
+	defaultView := 0
+	if m.Cisco && len(in.ByVLAN) > 0 {
+		defaultView = 1
+	}
+	read(sw, defaultView)
 	for _, vlan := range sortedVLANs(in.ByVLAN) {
 		read(in.ByVLAN[vlan], vlan)
 	}
@@ -367,8 +373,20 @@ func Build(in Input) Map {
 			}
 			return p.Stations[i].MAC < p.Stations[j].MAC
 		})
-		p.Uplink = len(p.Stations) >= ManyStations ||
-			(p.Neighbour != nil && (p.Neighbour.Kind == "switch" || p.Neighbour.Kind == "router"))
+		// A neighbour that says it is an access point, a phone or a host is
+		// the end of the line however many stations it bridges for.
+		kind := ""
+		if p.Neighbour != nil {
+			kind = p.Neighbour.Kind
+		}
+		switch kind {
+		case "switch", "router":
+			p.Uplink = true
+		case "ap", "phone", "host":
+			p.Uplink = false
+		default:
+			p.Uplink = len(p.Stations) >= ManyStations
+		}
 	}
 	sort.Slice(ports, func(i, j int) bool { return ports[i].IfIndex < ports[j].IfIndex })
 	for _, p := range ports {
@@ -593,18 +611,22 @@ func neighbours(sw Walk, ifByName map[string]int, ifs map[int]*Port, byBridge ma
 // lldpKind reads lldpRemSysCapEnabled, a BITS whose bit 0 is the high bit of the
 // first octet: bridge 2, WLAN access point 3, router 4, telephone 5, station 7.
 // An access point bridges too, and is still an access point.
+//
+// A telephone and an access point are read before the bridge they also are: a
+// desk phone says bridge for its PC port, and read as a switch it made the port
+// it sits on an uplink.
 func lldpKind(v any) string {
 	b, _ := v.([]byte)
 	bit := func(n int) bool { return n/8 < len(b) && b[n/8]&(0x80>>(n%8)) != 0 }
 	switch {
 	case bit(3):
 		return "ap"
+	case bit(5):
+		return "phone"
 	case bit(2):
 		return "switch"
 	case bit(4):
 		return "router"
-	case bit(5):
-		return "phone"
 	case bit(7):
 		return "host"
 	}
@@ -620,12 +642,12 @@ func cdpKind(v any) string {
 	}
 	c := uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
 	switch {
+	case c&0x80 != 0:
+		return "phone"
 	case c&0x0a != 0:
 		return "switch"
 	case c&0x01 != 0:
 		return "router"
-	case c&0x80 != 0:
-		return "phone"
 	case c&0x10 != 0:
 		return "host"
 	}

@@ -1762,10 +1762,25 @@ it says `SetRegView 64`: earlier installers wrote the all-users entry under WOW6
 saw it; that entry is read from both views and moved, and the updater reads both too. A new all-users copy goes to
 the 64-bit Program Files; an existing one is updated where it is, silently too (an unelevated `/S` asks for the rights
 and relaunches). Installing for all users REPLACES the current user's copy (`/REPLACEUSER=`, honoured only when the
-elevated copy reads the same HKCU): its files, Start menu entries and uninstall key go, its desktop shortcut and start
-at sign-in point to the new copy, and the settings and history, which are the user's whichever copy runs, stay. Start
-at sign-in is the current user's QUOTED entry, as `pkg/autostart` writes it: the installer used to write an unquoted,
-machine-wide one in all-users mode, which the application's own toggle could neither see nor remove.
+elevated copy reads the same HKCU): its files, Start menu entries, desktop shortcut and uninstall key go — the
+all-users shortcut takes the place of its own, which recreated beside it made two icons — its start at sign-in points to
+the new copy, and the settings and history, which are the user's whichever copy runs, stay. Start at sign-in is the
+current user's QUOTED entry, as `pkg/autostart` writes it: the installer used to write an unquoted, machine-wide one in
+all-users mode, in the 32-bit view, which the application's own toggle could neither see nor remove. That entry is
+read in both views to tick the box, or an update from an all-users copy dropped start at sign-in.
+
+**Updating is tested against the latest release** (`.github/workflows/upgrade.yml`, `tools/upgradetest/upgrade.ps1`,
+on pull requests that touch the installer, the updater, the service or the release workflow). On a fresh Windows
+runner the latest published release is installed by its OWN installer, its updater's decision is computed by its OWN
+code (`target()` compiled from its tag and run from where it is installed, since `os.Executable` is part of what it
+reads), then this branch's installer is run as that updater runs it — no arguments, the old copy still running — and
+driven page by page through the window messages a click sends (`WM_COMMAND`, not `BM_CLICK`, which goes through the
+mouse and fails once the dialog is not the active window). Four scenarios: all users with the service, for this user,
+for this user then all users, a portable copy alone and beside an installation. What it checks afterwards is the state
+a person would find: one copy, the new one, where it should be, registered in the 64-bit view, start at sign-in kept
+and quoted, one desktop icon, the service running this copy under its own account and alone on port 162, the window
+started at the shell's elevation, and what the NEXT update will decide from there. Its first runs found the two
+defects above. On the runner Explorer itself runs elevated, so "never elevated" is checked as "like the shell" there.
 
 **A window beside a service it may not drive supervises nothing** (`ownsSupervision`). A portable copy of another
 version, an account that is not an operator, a pipe answered by something else: the window used to run its own

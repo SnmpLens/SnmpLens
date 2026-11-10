@@ -327,9 +327,17 @@ Function .onInit
         SetRegView 64
     ${EndIf}
 
-    ; Start at sign-in is kept as it was: ticked when there is an entry.
+    ; Start at sign-in is kept as it was: ticked when there is an entry. An
+    ; earlier all-users install wrote it machine-wide from this 32-bit program,
+    ; so in the 32-bit view: read in the 64-bit one alone, the box came up
+    ; unticked, the old entry was removed, and the update lost it.
     ReadRegStr $1 HKCU "${APP_RUN_KEY}" "${INFO_PRODUCTNAME}"
     ReadRegStr $2 HKLM "${APP_RUN_KEY}" "${INFO_PRODUCTNAME}"
+    ${If} $2 == ""
+        SetRegView 32
+        ReadRegStr $2 HKLM "${APP_RUN_KEY}" "${INFO_PRODUCTNAME}"
+        SetRegView 64
+    ${EndIf}
     ${If} $1 != ""
     ${OrIf} $2 != ""
         StrCpy $OptAutoStart ${BST_CHECKED}
@@ -614,8 +622,10 @@ FunctionEnd
 
 ; Removes what the current user's own uninstaller would, except what the new
 ; copy shares with it: the settings and the history live per user whichever
-; copy runs. Its desktop shortcut and its start at sign-in now start the new
-; copy, so nothing the user set up goes missing.
+; copy runs. Its start at sign-in now starts the new copy, and its desktop
+; shortcut gives way to the all-users one — recreated beside it, it put two
+; SnmpLens icons on this user's desktop — so nothing the user set up goes
+; missing and nothing appears twice.
 Function ReplaceUserCopy
     SetShellVarContext current
     ${If} $ReplaceUser != $INSTDIR
@@ -626,9 +636,7 @@ Function ReplaceUserCopy
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}\${INFO_PRODUCTNAME}.lnk"
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}\Uninstall ${INFO_PRODUCTNAME}.lnk"
     RMDir "$SMPROGRAMS\${INFO_PRODUCTNAME}"
-    ${If} ${FileExists} "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
-        CreateShortcut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
-    ${EndIf}
+    Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
     ReadRegStr $0 HKCU "${APP_RUN_KEY}" "${INFO_PRODUCTNAME}"
     ${StrStr} $1 $0 "$ReplaceUser\"
     ${If} $1 != ""

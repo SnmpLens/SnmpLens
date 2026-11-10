@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -152,6 +153,14 @@ func resolveKey(p keyProtector) ([]byte, error) {
 			return nil, fmt.Errorf("secrets: generate key: %w", err)
 		}
 		if err := p.saveKey(key); err != nil {
+			// Saving never replaces a key: another process — the window and a
+			// headless supervision starting together on a first run, two test
+			// binaries — can mint one at the same moment, and writing over it
+			// would leave that process sealing with a key nobody keeps. The
+			// loser's save fails instead, and it takes the key that was kept.
+			if kept, lerr := p.loadKey(); lerr == nil {
+				return kept, nil
+			}
 			return nil, fmt.Errorf("secrets: persist key: %w", err)
 		}
 		return key, nil
@@ -280,4 +289,34 @@ func (s *fileStore) Set(ref, secret string) error {
 // Delete removes a secret.
 func (s *fileStore) Delete(ref string) error {
 	return s.Set(ref, "")
+}
+
+// writeKeyOnce writes data to path unless something is there already: through
+// a temporary file of its own and a hard link, which fails when path exists
+// rather than replacing it. Where hard links are not to be had — a FAT volume —
+// it renames, as it always did.
+func writeKeyOnce(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	defer os.Remove(name)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(name, 0o600); err != nil {
+		return err
+	}
+	if err := os.Link(name, path); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return err
+		}
+		return os.Rename(name, path)
+	}
+	return nil
 }

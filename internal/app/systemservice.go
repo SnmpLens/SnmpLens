@@ -91,6 +91,10 @@ type SystemServiceLink struct {
 	// Location says why this copy cannot install the service — a portable copy,
 	// or one installed for one user — when it cannot.
 	Location string `json:"location,omitempty"`
+	// CanHandOver is true while this window drives a service that holds nothing
+	// — the installer's, started on the defaults — and the supervision this
+	// window ran before holds something to hand it.
+	CanHandOver bool `json:"canHandOver,omitempty"`
 }
 
 // localDataDir is where the window's own supervision keeps its data.
@@ -379,14 +383,73 @@ func (a *App) SystemServiceStatus() SystemServiceLink {
 		link.Installed, link.State = info.Installed, info.State
 	}
 	a.svc.mu.Lock()
-	defer a.svc.mu.Unlock()
-	if a.svc.client != nil {
+	c := a.svc.client
+	if c != nil {
 		link.Driving = true
-		link.ServiceVersion = a.svc.client.Hello().Version
+		link.ServiceVersion = c.Hello().Version
 	} else if link.Installed {
 		link.Reason, link.Detail = a.svc.reason, a.svc.detail
 	}
+	a.svc.mu.Unlock()
+	if c != nil {
+		link.CanHandOver = a.canHandOver(c)
+	}
 	return link
+}
+
+// canHandOver reports whether the service c holds nothing and this window's
+// own supervision, idle on its directory, holds something.
+func (a *App) canHandOver(c *remote.Client) bool {
+	if sessions, err := c.MonitorLoadSessions(); err != nil || len(sessions) > 0 {
+		return false
+	}
+	if sinks, err := c.NotifyListSinks(); err != nil || len(sinks) > 0 {
+		return false
+	}
+	has, err := engine.HoldsSomething(a.localDataDir())
+	return err == nil && has
+}
+
+// SystemServiceHandOver hands the supervision this window ran before to the
+// service it drives, which holds nothing yet — the one the installer set up:
+// the sessions, destinations, routes, trap users and history kept in this
+// window's directory. Through the administrator prompt; the service restarts
+// with them.
+func (a *App) SystemServiceHandOver() (SystemServiceLink, error) {
+	if !a.drivingService() {
+		return a.SystemServiceStatus(), errors.New("this window does not drive the service")
+	}
+	a.setBusy(true)
+	defer a.setBusy(false)
+	tmp, err := os.MkdirTemp("", "snmplens-service-")
+	if err != nil {
+		return a.SystemServiceStatus(), err
+	}
+	defer os.RemoveAll(tmp)
+	local := a.localDataDir()
+	b, err := engine.ExportBundleAt(local, a.secrets)
+	if err != nil {
+		return a.SystemServiceStatus(), fmt.Errorf("preparing what to hand over: %w", err)
+	}
+	b.Config = a.serviceCfg
+	data, err := json.Marshal(b)
+	if err != nil {
+		return a.SystemServiceStatus(), err
+	}
+	bundle, db := filepath.Join(tmp, sysvc.ExportedBundle), filepath.Join(tmp, sysvc.ExportedDatabase)
+	if err := os.WriteFile(bundle, data, 0o600); err != nil {
+		return a.SystemServiceStatus(), err
+	}
+	if err := engine.SnapshotAt(local, db); err != nil {
+		return a.SystemServiceStatus(), err
+	}
+	res, err := a.runServiceCommand("install", "--bundle", bundle, "--db", db)
+	a.dropService()
+	a.awaitService()
+	if err == nil && res.KeptHistory {
+		err = errors.New("the service had a history of its own by then, and kept it")
+	}
+	return a.SystemServiceStatus(), err
 }
 
 // SystemServiceInstall installs the system service, or updates the installed

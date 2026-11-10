@@ -1096,7 +1096,10 @@
       "started": "The service is running.",
       "stoppedDone": "The service is stopped.",
       "allowed": "This account may drive the service.",
-      "uninstalled": "The service was removed."
+      "uninstalled": "The service was removed.",
+      "handOverHint": "The service started empty, as the installer sets it up. This window ran a supervision of its own before: its sessions, destinations and history can be handed to the service.",
+      "handOver": "Hand this window’s supervision over",
+      "handedOver": "The service now supervises what this window did."
     }
   },
   "mibVerdict": {

@@ -1096,7 +1096,10 @@
       "started": "Der Dienst läuft.",
       "stoppedDone": "Der Dienst ist angehalten.",
       "allowed": "Dieses Konto darf den Dienst steuern.",
-      "uninstalled": "Der Dienst wurde entfernt."
+      "uninstalled": "Der Dienst wurde entfernt.",
+      "handOverHint": "Der Dienst ist leer gestartet, wie ihn das Installationsprogramm einrichtet. Dieses Fenster hat zuvor selbst überwacht: Seine Sitzungen, Ziele und sein Verlauf können dem Dienst übergeben werden.",
+      "handOver": "Überwachung dieses Fensters übergeben",
+      "handedOver": "Der Dienst überwacht jetzt, was dieses Fenster überwacht hat."
     }
   },
   "mibVerdict": {

@@ -25,6 +25,7 @@ func serviceCommand(args []string, stdout, stderr io.Writer) int {
 	bundle := fs.String("bundle", "", "the configuration a window prepared")
 	db := fs.String("db", "", "a copy of the window's monitoring database")
 	operator := fs.String("operator", "", "the SID of an account to let drive the service")
+	operatorSelf := fs.Bool("operator-self", false, "let the account running this drive the service: the installer's")
 	export := fs.String("export", "", "a directory to write the service's history and credentials into first")
 	purge := fs.Bool("purge", false, "delete the service's data as well")
 	result := fs.String("result", "", "a file to record the outcome in")
@@ -48,6 +49,12 @@ func serviceCommand(args []string, stdout, stderr io.Writer) int {
 		}
 		if real, rerr := filepath.EvalSymlinks(exe); rerr == nil {
 			exe = real
+		}
+		if *operatorSelf && *operator == "" {
+			// The installer's elevated copy runs as the account that approved
+			// it: on a machine one person administers, the person who will
+			// open the window.
+			*operator, _ = sysvc.CurrentUserSID()
 		}
 		res, err = sysvc.Install(exe, *bundle, *db, *operator)
 	case "allow":

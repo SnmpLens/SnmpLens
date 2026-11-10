@@ -1716,6 +1716,23 @@ that these exact bytes were built from this repository by this workflow, rather 
 release key. Verifiable without trusting anything here:
 `gh attestation verify SnmpLens-windows-amd64.exe --repo SnmpLens/SnmpLens`.
 
+**The installer knows the service** (`build/windows/installer/project.nsi`). An all-users install (Program Files,
+through UAC) may run SnmpLens as a Windows service: a checkbox, or `/ALLUSERS /SERVICE` silently, runs
+`SnmpLens.exe service install --operator-self`, so the service starts on the defaults — empty, until Settings ›
+Background hands it the window's supervision (`SystemServiceHandOver`, offered while the window drives a service that
+holds nothing and its own directory holds something; a service database holding nothing is replaced, one holding
+anything is kept) — and the account that approved the prompt may drive it. An update stops a running service BEFORE
+touching the files (it runs the same executable, and killing it would only have the service manager start it again
+over them) and starts it again after; an existing all-users copy is updated where it is, the mode page preselecting
+it. The uninstaller of an all-users copy elevates itself, removes the service with the executable that knows how,
+and deletes its data only if asked. The script is UTF-8 WITH a byte order mark — without one makensis reads it in the
+ANSI code page and garbles the localised pages — so the release DEFINES the version (`makensis
+/DINFO_PRODUCTVERSION=…`) instead of rewriting the script with `Set-Content`, which dropped the mark.
+`internal/app/installer_test.go` holds the mark, the service's name, and every `service` command and flag the script
+passes to ones the command line reads. The updater runs the installer only when the RUNNING executable is under a
+registered install location (`installedAt`): a portable copy beside an installation replaces itself instead of
+running the installer against the copy the service runs.
+
 ## The project site (`docs/`)
 
 Hand-written static HTML served by GitHub Pages from `main` + `/docs`. No generator and no

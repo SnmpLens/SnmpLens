@@ -119,6 +119,12 @@ type Agent struct {
 	// tree is what the agent answers. A SET replaces it whole (set.go), so a
 	// notification reading it from another goroutine never sees one half-made.
 	tree atomic.Pointer[tree]
+	// swap is held by whatever replaces the tree from the one it read — a SET,
+	// from its Load to its Store — and by a rewire storing new trees, which
+	// comes from another goroutine than the SET's: without it, a SET that read
+	// the tree before a rewire stored a copy of the old one after it, and the
+	// device answered as it was cabled before.
+	swap sync.Mutex
 	// contexts are the other views, by context name (Config.Contexts). They
 	// are read-only, and replaced whole when the device is recabled (Rewire).
 	contexts atomic.Pointer[map[string]*tree]
@@ -235,6 +241,8 @@ func (a *Agent) load(objects []Object, contexts map[string][]Object) error {
 		}
 		views[name] = ct
 	}
+	a.swap.Lock()
+	defer a.swap.Unlock()
 	a.tree.Store(t)
 	a.contexts.Store(&views)
 	return nil

@@ -13,8 +13,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/minio/selfupdate"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -109,9 +109,9 @@ func (s *Service) DownloadAndApply() error {
 
 	switch p.mode {
 	case applyReplace:
-		return applyBinary(ctx, tmpPath)
+		return s.applyBinary(ctx, tmpPath)
 	case applyInstaller:
-		return runInstaller(ctx, tmpPath)
+		return s.runInstaller(ctx, tmpPath)
 	default:
 		return fmt.Errorf("unsupported apply mode")
 	}
@@ -237,7 +237,7 @@ func parseChecksum(manifest []byte, asset string) (string, error) {
 
 // applyBinary self-replaces the running executable with the downloaded binary,
 // then relaunches it and quits. Used for the portable/raw-binary distributions.
-func applyBinary(ctx context.Context, binPath string) error {
+func (s *Service) applyBinary(ctx context.Context, binPath string) error {
 	f, err := os.Open(binPath)
 	if err != nil {
 		return err
@@ -252,32 +252,53 @@ func applyBinary(ctx context.Context, binPath string) error {
 		return fmt.Errorf("applying update: %w", err)
 	}
 
-	relaunch(ctx)
+	s.relaunch(ctx)
 	return nil
 }
 
 // runInstaller launches the downloaded installer detached, then quits so it can
 // replace the running files. Used for the Windows NSIS distribution.
-func runInstaller(ctx context.Context, installerPath string) error {
+func (s *Service) runInstaller(ctx context.Context, installerPath string) error {
 	cmd := exec.Command(installerPath)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launching installer: %w", err)
 	}
 	// Do not Wait: the installer outlives us.
-	wruntime.Quit(ctx)
+	s.quitApp(ctx)
 	return nil
 }
 
+// AfterUpdateFlag, followed by a process ID, tells a relaunched copy to wait
+// for that process to exit before it opens its window (see internal/cli).
+const AfterUpdateFlag = "--after-update"
+
 // relaunch starts a fresh copy of the (now updated) executable and quits.
-func relaunch(ctx context.Context) {
-	exe, err := os.Executable()
-	if err == nil {
-		cmd := exec.Command(exe)
-		_ = cmd.Start()
+//
+// The fresh copy is told to wait for this one. The single-instance lock is
+// held until this process exits, and a second instance that finds it held
+// hands its arguments over and exits: started without waiting — the copy
+// used to be given 300 ms, and shutting the engine down takes longer — the
+// updated copy vanished at once and, once this one had quit, nothing was
+// running.
+func (s *Service) relaunch(ctx context.Context) {
+	if exe, err := os.Executable(); err == nil {
+		_ = exec.Command(exe, AfterUpdateFlag, strconv.Itoa(os.Getpid())).Start()
 	}
-	// Give the new process a moment to spin up before we exit.
-	time.Sleep(300 * time.Millisecond)
-	wruntime.Quit(ctx)
+	s.quitApp(ctx)
+}
+
+// cleanupLeftoverOld removes the previous executable a Windows self-replace
+// leaves beside the new one: minio/selfupdate renames the running file aside
+// and cannot delete it while it runs, so it hides it instead, and it lingers
+// until the next launch removes it.
+func cleanupLeftoverOld() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	dir, base := filepath.Split(exe)
+	_ = os.Remove(exe + ".old")
+	_ = os.Remove(filepath.Join(dir, "."+base+".old"))
 }
 
 // progressReader wraps a reader and emits throttled "update:progress" events

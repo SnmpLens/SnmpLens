@@ -1744,6 +1744,17 @@ passes to ones the command line reads. The updater runs the installer only when 
 registered install location (`installedAt`): a portable copy beside an installation replaces itself instead of
 running the installer against the copy the service runs.
 
+**An update quits for real, and the copy it starts waits.** The runtime's `Quit` goes through `OnBeforeClose`, which
+hides the window to the tray in background mode: the update hid the window and left the process holding the
+executable. It now quits through `App.QuitApp` (`updater.SetQuit`). A self-replace relaunches with `--after-update
+<pid>`, and `cli.Run` waits for that process before the window opens (`updater.WaitForExit`): the single-instance lock
+is held until the old copy exits, and the new one, given 300 ms, handed over to it and vanished. Both fixes take effect
+from the version AFTER the one that carries them — an update is run by the copy being replaced. The finish page starts
+the application through Explorer after an all-users install (`LaunchApp`), never elevated. On Linux the `.deb`
+restarts the service on upgrade (`postinst`, `try-restart`) and stops and disables it on removal (`prerm`); a window
+the service refuses for its version is offered "update the service", which re-points it at this copy and hands
+nothing over.
+
 **The cases between copies.** The installer asks for its language (MUI_LANGDLL_DISPLAY), hands it to the elevated copy
 it relaunches (`/LANG=`) and remembers it for the uninstaller; every text of its own pages is a LangString in the five
 languages, which `installer_test.go` holds — they were English beside localised MUI pages. It is a 32-bit program, so

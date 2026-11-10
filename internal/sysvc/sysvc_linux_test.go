@@ -104,3 +104,26 @@ func TestOnlyOperatorsStay(t *testing.T) {
 	}
 	c.Close()
 }
+
+// The .deb's maintainer scripts name the unit this package installs: an upgrade
+// restarts the service onto the new binary, and a removal stops it rather than
+// leaving it to fail at every boot. A unit renamed here and not there would do
+// neither, and nothing would say so until someone upgraded.
+func TestThePackageRestartsTheServiceItReplaces(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := string(raw)
+	for _, want := range []string{
+		"DEBIAN/postinst",
+		"systemctl try-restart " + unitName,
+		"DEBIAN/prerm",
+		"systemctl disable --now " + unitName,
+		"chmod 755 deb-pkg/DEBIAN/postinst deb-pkg/DEBIAN/prerm",
+	} {
+		if !strings.Contains(release, want) {
+			t.Errorf("the .deb does not carry %q", want)
+		}
+	}
+}

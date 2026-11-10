@@ -131,3 +131,26 @@ func TestTheInstallerWritesWhereTheApplicationReads(t *testing.T) {
 		t.Error("start at sign-in is not the quoted path the application writes")
 	}
 }
+
+// The finish page starts the application. An all-users install runs elevated,
+// and the window must not: Explorer starts it as the signed-in user.
+func TestTheInstallerLaunchesTheApplicationUnelevated(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repoRoot, "build", "windows", "installer", "project.nsi"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	if !strings.Contains(script, "!define MUI_FINISHPAGE_RUN_FUNCTION LaunchApp") {
+		t.Fatal("the finish page starts the application itself, elevated after an all-users install")
+	}
+	i := strings.Index(script, "Function LaunchApp")
+	if i < 0 {
+		t.Fatal("no LaunchApp function")
+	}
+	body := script[i:]
+	body = body[:strings.Index(body, "FunctionEnd")]
+	if !strings.Contains(body, `$InstallMode == "admin"`) ||
+		!strings.Contains(body, `Exec '"$WINDIR\explorer.exe" "$INSTDIR\${PRODUCT_EXECUTABLE}"'`) {
+		t.Errorf("an all-users install does not start the application through Explorer:\n%s", body)
+	}
+}

@@ -15,7 +15,9 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	"SnmpLens/internal/headless"
 	"SnmpLens/internal/sysvc"
@@ -79,8 +81,31 @@ func Run(args []string) (handled bool, code int) {
 		attachConsole()
 		fmt.Fprintf(os.Stdout, usageText, updater.Version)
 		return true, 0
+	case updater.AfterUpdateFlag:
+		// Started by the copy that has just updated itself: it holds the
+		// single-instance lock until it exits, and opening a window before
+		// then would hand over to it and vanish.
+		if pid, ok := afterUpdatePID(args); ok {
+			updater.WaitForExit(pid, afterUpdateWait)
+		}
+		return false, 0
 	}
 	return false, 0
+}
+
+// afterUpdateWait bounds the wait for the copy that started this one: a copy
+// that never exits must not keep the updated one from opening at all.
+const afterUpdateWait = 30 * time.Second
+
+// afterUpdatePID returns the process given with --after-update.
+func afterUpdatePID(args []string) (int, bool) {
+	for i, a := range args {
+		if a == updater.AfterUpdateFlag && i+1 < len(args) {
+			pid, err := strconv.Atoi(args[i+1])
+			return pid, err == nil && pid > 0
+		}
+	}
+	return 0, false
 }
 
 func headlessCommand(args []string, stderr io.Writer) int {

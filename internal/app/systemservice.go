@@ -392,6 +392,13 @@ func (a *App) emitBackendChanged() {
 	}
 }
 
+// serviceReason says why the window does not drive the service, if it does not.
+func (a *App) serviceReason() string {
+	a.svc.mu.Lock()
+	defer a.svc.mu.Unlock()
+	return a.svc.reason
+}
+
 // drivingService reports whether the window drives the service.
 func (a *App) drivingService() bool {
 	a.svc.mu.Lock()
@@ -515,8 +522,11 @@ func (a *App) SystemServiceInstall() (SystemServiceLink, error) {
 	defer a.setBusy(false)
 
 	// A window driving the service updates it: there is nothing to hand over,
-	// the service's configuration is the one it edits.
-	if a.drivingService() {
+	// the service's configuration is the one it edits. So does a window the
+	// service refused for running another version — after a .deb upgraded
+	// under a running service, or an update that could not restart it: the
+	// service keeps its own supervision and is pointed at this copy.
+	if a.drivingService() || a.serviceReason() == reasonVersion {
 		_, err := a.runServiceCommand("install")
 		a.dropService()
 		a.awaitService()

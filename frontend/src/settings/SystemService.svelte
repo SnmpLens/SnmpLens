@@ -114,7 +114,7 @@
             {$_('service.system.start')}
           </button>
         {/if}
-        {#if link.driving}
+        {#if link.driving || link.reason === 'version'}
           <button class="btn btn-secondary" disabled={busy || !!link.location}
             on:click={() => run(SystemServiceInstall, 'service.system.updated')}>
             {$_('service.system.update')}

@@ -99,6 +99,8 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.snmpClient = snmp.NewClient(ctx)
 	a.updater.SetContext(ctx)
+	// An update quits for real: the window's own close hides it to the tray.
+	a.updater.SetQuit(a.QuitApp)
 
 	// 1. Determine/Create the persistent MIB directory
 	configDir, err := os.UserConfigDir()

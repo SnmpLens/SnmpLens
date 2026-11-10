@@ -83,6 +83,7 @@ BrandingText "${INFO_PRODUCTNAME} v${INFO_PRODUCTVERSION} - ${INFO_COMPANYNAME}"
 ; Finish page: run app + link to GitHub
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
 !define MUI_FINISHPAGE_RUN_TEXT "$(finish_run)"
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchApp
 !define MUI_FINISHPAGE_LINK "$(finish_link)"
 !define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/SnmpLens/SnmpLens"
 
@@ -431,9 +432,11 @@ Function InstallModePage
         ${NSD_SetState} $RadioUser ${BST_CHECKED}
     ${EndIf}
 
-    ; What choosing all users does to the copy installed for this user.
+    ; What choosing all users does to the copy installed for this user —
+    ; whether or not an all-users copy is there already, since either way
+    ; InstallModeLeave hands it to the elevated copy to replace.
     ${If} $ExistingUser != ""
-    ${AndIf} $ExistingAll == ""
+    ${AndIf} $ExistingUser != $ExistingAll
         ${NSD_CreateLabel} 10u 82u 280u 26u "$(mode_replace_user)"
         Pop $0
     ${EndIf}
@@ -473,6 +476,19 @@ FunctionEnd
 
 ; $0 is "1" when $INSTDIR is under Program Files, where only administrators
 ; can write: the only place the service may run from.
+; The finish page's launch. An all-users install runs elevated, and so would
+; the application started from it — as the administrator, who may not be the
+; user signed in, with drag and drop from Explorer refused by the integrity
+; level, and a second launch from a shortcut unable to reach it, so that
+; nothing seemed to open. Explorer starts it as the signed-in user, unelevated.
+Function LaunchApp
+    ${If} $InstallMode == "admin"
+        Exec '"$WINDIR\explorer.exe" "$INSTDIR\${PRODUCT_EXECUTABLE}"'
+    ${Else}
+        Exec '"$INSTDIR\${PRODUCT_EXECUTABLE}"'
+    ${EndIf}
+FunctionEnd
+
 Function InProgramFiles
     StrCpy $0 "0"
     StrLen $2 "$PROGRAMFILES64"

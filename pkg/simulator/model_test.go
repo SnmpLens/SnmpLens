@@ -15,20 +15,23 @@ import (
 // modelPresets names the bundled presets each model feeds. Every model is in
 // it: a model added without saying what it answers is one nobody checked.
 var modelPresets = map[string][]string{
-	"linux-server":      {"interfaces.json", "host-resources.json"},
-	"windows-server":    {"interfaces.json", "host-resources.json"},
-	"cisco-catalyst-24": {"interfaces.json", "switch-ports.json", "switch-drawing.json", "cisco-generic.json"},
-	"cisco-catalyst-48": {"interfaces.json", "switch-ports.json", "cisco-generic.json"},
-	"cisco-isr-4331":    {"interfaces.json", "cisco-generic.json"},
-	"synology-nas":      {"interfaces.json", "host-resources.json"},
-	"apc-smart-ups":     {"ups.json", "interfaces.json"},
-	"hp-laserjet":       {"interfaces.json"},
-	"environment-probe": {"interfaces.json"},
-	"dell-idrac9":       {"interfaces.json"},
-	"mikrotik-rb4011":   {"interfaces.json", "host-resources.json"},
-	"fortigate-60f":     {"interfaces.json"},
-	"unifi-u6-pro":      {"interfaces.json", "host-resources.json"},
-	"apc-rack-pdu":      {"interfaces.json"},
+	"linux-server":        {"interfaces.json", "host-resources.json"},
+	"windows-server":      {"interfaces.json", "host-resources.json"},
+	"cisco-catalyst-24":   {"interfaces.json", "switch-ports.json", "switch-drawing.json", "cisco-generic.json"},
+	"cisco-catalyst-48":   {"interfaces.json", "switch-ports.json", "cisco-generic.json"},
+	"cisco-isr-4331":      {"interfaces.json", "cisco-generic.json"},
+	"cisco-catalyst-9300": {"interfaces.json", "switch-ports.json", "cisco-generic.json"},
+	"aruba-2930f-24":      {"interfaces.json", "switch-ports.json"},
+	"ip-phone":            {"interfaces.json"},
+	"synology-nas":        {"interfaces.json", "host-resources.json"},
+	"apc-smart-ups":       {"ups.json", "interfaces.json"},
+	"hp-laserjet":         {"interfaces.json"},
+	"environment-probe":   {"interfaces.json"},
+	"dell-idrac9":         {"interfaces.json"},
+	"mikrotik-rb4011":     {"interfaces.json", "host-resources.json"},
+	"fortigate-60f":       {"interfaces.json"},
+	"unifi-u6-pro":        {"interfaces.json", "host-resources.json"},
+	"apc-rack-pdu":        {"interfaces.json"},
 }
 
 type presetFile struct {

@@ -57,7 +57,7 @@ func buildWindowsServer(id Identity) []Object {
 		index := []int{2, 3, 4, 5, 8, 9, 10, 11, 12, 13}[i]
 		ifs = append(ifs, iface{index: index, descr: p.descr, name: p.name, ifType: p.kind, mtu: 1500})
 	}
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed:    id.Seed,
 		ifs:     ifs,
 		addrs:   []ifAddr{{ifIndex: 6, prefix: addrIn(lan, 12+int(id.Seed%40)), neighbours: 5}},

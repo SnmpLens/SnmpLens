@@ -130,6 +130,16 @@ func TestNextHopsAreTheNeighboursAddresses(t *testing.T) {
 	}
 }
 
+// A desk phone says bridge and telephone, and is a phone.
+func TestAPhoneIsNotASwitch(t *testing.T) {
+	if got := kindOf([]byte{0x24}, 0); got != "phone" {
+		t.Errorf("bridge and telephone is %q", got)
+	}
+	if got := kindOf([]byte{0x28}, 0); got != "switch" {
+		t.Errorf("bridge and router is %q", got)
+	}
+}
+
 func TestPortNamesAreComparedShortened(t *testing.T) {
 	for a, b := range map[string]string{
 		"Gi1/0/1": "GigabitEthernet1/0/1", "Te1/1/1": "TenGigabitEthernet1/1/1", "eth0": "Ethernet0",

@@ -165,8 +165,8 @@
       "label": "Device simulator for testing without hardware",
       "cells": {
         "snmplens": {
-          "text": "Built in — fourteen models answering v1, v2c and v3 on loopback",
-          "short": "Built in, 14 models",
+          "text": "Built in — seventeen models answering v1, v2c and v3 on loopback, cabled to each other",
+          "short": "Built in, 17 models, cabled to each other",
           "kind": "yes"
         },
         "ireasoning": {

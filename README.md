@@ -112,7 +112,7 @@ copy and [the one on the site](https://snmplens.com/comparison.html) cannot disa
 | **MIB editor** | Yes, with diagnostics | Not listed | Not listed | Yes |
 | **Monitoring that continues with the window closed** | Yes | Enterprise | Not listed | Not listed |
 | **Alerts routed to syslog, a webhook or email** | All three | Email (Pro) | Email | Not listed |
-| **Device simulator for testing without hardware** | Built in, 14 models | Separate product | Not listed | Not listed |
+| **Device simulator for testing without hardware** | Built in, 17 models, cabled to each other | Separate product | Not listed | Not listed |
 | **Source code available** | Yes, MIT | No | No | Yes, GPLv2 |
 | **Latest release the project itself dates** | v1.6.4, October 2026 | Not dated on the product page | Not dated on the product page | 0.9, June 2019 |
 
@@ -157,7 +157,7 @@ at, is on [the comparison page](https://snmplens.com/comparison.html).
 
 ### Simulator
 
-- **Simulated devices on this machine** — SNMP agents on loopback addresses, answering v1, v2c and v3 (the whole USM) from fourteen models: Linux and Windows servers, an iDRAC, Catalyst switches, a router, a MikroTik, a FortiGate, a UniFi access point, a Synology NAS, UPSs, a rack PDU, a printer and an environment probe
+- **Simulated devices on this machine** — SNMP agents on loopback addresses, answering v1, v2c and v3 (the whole USM) from seventeen models: Linux and Windows servers, an iDRAC, Catalyst access and core switches, an Aruba switch, a router, a MikroTik, a FortiGate, a UniFi access point, a desk phone, a Synology NAS, UPSs, a rack PDU, a printer and an environment probe
 - **A whole agent's walk** — IF-MIB, IP, TCP, UDP, ENTITY, BRIDGE, LLDP, HOST-RESOURCES, UCD and each vendor's own MIBs, agreeing with each other, with counters that move and wrap
 - **Notifications** — traps and INFORMs in every version, to SnmpLens or anywhere on the network: at boot, on a refused request, on a schedule, or on demand
 - **Writable** — a write community, or SNMPv3 users allowed to SET; `RowStatus` rows created and destroyed as the loaded MIBs describe them
@@ -216,6 +216,7 @@ at, is on [the comparison page](https://snmplens.com/comparison.html).
 ### Network Tools
 
 - **CIDR Discovery** — scan IP ranges for SNMP-responsive devices
+- **A bench of simulated devices, cabled** — plug simulated devices into each other port to port: each names the other in LLDP and CDP at the address it answers on, switches learn what is behind each cable in its VLAN, and the Catalyst 9300 core routes the bench's VLANs, its ARP cache holding every station's address. The network map and the port map can be tried end to end without hardware; a Cisco answers its MAC table per VLAN (`public@10`, context `vlan-10`) as IOS does
 - **Network map** — the devices you list and what their LLDP and CDP neighbours say, drawn as a graph: switches, routers, access points, phones and servers, each link with the ports at both ends. Optionally follows neighbours to their neighbours, up to three hops and 64 devices. Drag, zoom, export to SVG
 - **Port map** — what is plugged into which port of a switch: MAC addresses from BRIDGE-MIB or Q-BRIDGE-MIB (Cisco read VLAN by VLAN), IP addresses from ARP caches, names by reverse DNS, LLDP and CDP neighbours, uplinks marked. Filter by port, MAC (in any notation), IP or name, and export to CSV
 - **Ping** — cross-platform, no elevated privileges required (pure Go)

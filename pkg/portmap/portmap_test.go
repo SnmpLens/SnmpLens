@@ -168,6 +168,57 @@ func TestLLDPNeighboursFindTheirPort(t *testing.T) {
 	}
 }
 
+// A desk phone says it is a bridge as well, for its PC port, and is still a
+// phone; an access point bridges for however many clients, and is still the end
+// of the line. Neither makes its port an uplink.
+func TestAPhoneAndABusyAccessPointAreNotUplinks(t *testing.T) {
+	sw := append(smallSwitch(),
+		pdu(lldpRem+".9.0.10101.1", []byte("phone-2-03")),
+		pdu(lldpRem+".6.0.10101.1", 5),
+		pdu(lldpRem+".7.0.10101.1", []byte("eth0")),
+		pdu(lldpRem+".12.0.10101.1", []byte{0x24}), // bridge and telephone
+		pdu(lldpRem+".9.0.10102.1", []byte("ap-hall")),
+		pdu(lldpRem+".6.0.10102.1", 5),
+		pdu(lldpRem+".7.0.10102.1", []byte("eth0")),
+		pdu(lldpRem+".12.0.10102.1", []byte{0x30}), // WLAN and bridge
+	)
+	for i := 0; i < ManyStations+2; i++ {
+		sw = append(sw, pdu(fdbPort+"."+macArcs(fmt.Sprintf("02:00:00:00:01:%02x", i)), 2))
+	}
+	m := Build(Input{Switch: sw})
+	phone, ap := m.Ports[0], m.Ports[1]
+	if phone.Neighbour == nil || phone.Neighbour.Kind != "phone" || phone.Uplink {
+		t.Errorf("the phone's port: %+v, uplink %v", phone.Neighbour, phone.Uplink)
+	}
+	if ap.Neighbour == nil || ap.Neighbour.Kind != "ap" || ap.Uplink || len(ap.Stations) < ManyStations {
+		t.Errorf("the access point's port: %+v, %d stations, uplink %v", ap.Neighbour, len(ap.Stations), ap.Uplink)
+	}
+	if got := cdpKind([]byte{0, 0, 0x02, 0x90}); got != "phone" {
+		t.Errorf("CDP host, phone and two-port MAC relay is %q", got)
+	}
+}
+
+// What a Cisco answers without a VLAN is VLAN 1's view once its other VLANs are
+// read in their own: a station there is in VLAN 1, not in no VLAN.
+func TestACiscosDefaultViewIsVLAN1(t *testing.T) {
+	sw := append(smallSwitch(),
+		pdu(sysObjectID+".0", ".1.3.6.1.4.1.9.1.716"),
+		pdu(fdbPort+"."+macArcs("00:11:22:33:44:01"), 2),
+	)
+	m := Build(Input{Switch: sw, ByVLAN: map[int]Walk{
+		10: {pdu(basePortIfIndex+".1", 10101), pdu(fdbPort+"."+macArcs("00:11:22:33:44:10"), 1)},
+	}})
+	if !m.Cisco || m.Stations != 2 {
+		t.Fatalf("map = %+v", m)
+	}
+	if s := m.Ports[1].Stations; len(s) != 1 || s[0].VLAN != 1 {
+		t.Errorf("the default view's station: %+v", s)
+	}
+	if s := m.Ports[0].Stations; len(s) != 1 || s[0].VLAN != 10 {
+		t.Errorf("VLAN 10's station: %+v", s)
+	}
+}
+
 func TestCDPNamesANeighbourLLDPDoesNot(t *testing.T) {
 	sw := append(smallSwitch(),
 		pdu(cdpCache+".6.10102.1", []byte("dist-1.example")),

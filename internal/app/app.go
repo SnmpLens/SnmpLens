@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"SnmpLens/internal/engine"
+	"SnmpLens/internal/remote"
 	"SnmpLens/pkg/events"
 	"SnmpLens/pkg/mib"
 	"SnmpLens/pkg/network"
@@ -25,14 +26,17 @@ import (
 // App struct holds our services and application context.
 type App struct {
 	// Backend is the supervision this window drives — the sessions, the event
-	// journal, the notifications, the trap listener (internal/engine). It is
-	// EMBEDDED, so every method of it is a method of App, which Wails binds
-	// without a forwarding stub apiece.
-	engine.Backend
-	// host is the same engine, with what the application reaches and the
-	// renderer must not; eng is the engine this process runs.
-	host engine.Host
-	eng  *engine.Engine
+	// journal, the notifications, the trap listener: its own engine, or the
+	// system service's (internal/remote). It is EMBEDDED, so every method of it
+	// is a method of App, which Wails binds without a forwarding stub apiece.
+	remote.Backend
+	// host is the same, with what the application reaches and the renderer
+	// must not; link is the switch both go through, so that the window can
+	// move between its own engine and the service's while calls are made.
+	host remote.Host
+	link *remote.Switch
+	// eng is the engine this process runs.
+	eng *engine.Engine
 
 	ctx              context.Context
 	mibs             fs.FS
@@ -175,7 +179,9 @@ func (a *App) startup(ctx context.Context) {
 
 // useEngine makes eng the engine this window runs and drives.
 func (a *App) useEngine(eng *engine.Engine) {
-	a.eng, a.host, a.Backend = eng, eng, eng
+	a.eng = eng
+	a.link = remote.NewSwitch(eng)
+	a.host, a.Backend = a.link, a.link
 }
 
 // wailsEmitter reaches the webview through the Wails runtime, which accepts

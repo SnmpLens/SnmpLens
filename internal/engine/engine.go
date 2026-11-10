@@ -231,6 +231,11 @@ func (eng *Engine) emit(name string, data ...interface{}) {
 	}
 }
 
+// SetEmitter makes e what the engine tells: a service makes the engine first,
+// then the server that serves it, which is the emitter. Set before Open: what
+// Open starts reads it from goroutines of its own.
+func (eng *Engine) SetEmitter(e Emitter) { eng.emitter = e }
+
 // DataDir is the directory the engine is open on.
 func (eng *Engine) DataDir() string { return eng.dataDir }
 

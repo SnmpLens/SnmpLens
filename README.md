@@ -192,6 +192,7 @@ at, is on [the comparison page](https://snmplens.com/comparison.html).
 - **Multiple View Modes** — raw values, delta, rate (per-second), and latency. Counter wraps are corrected, and rates derived from the time that actually elapsed
 - **Threshold Alerts** — a minimum, a maximum and how long it must be breached for. A value oscillating around its threshold is one incident, not forty; a device that stops answering is its own kind of incident
 - **Runs in the background** — the poll clock lives in the Go backend, so sessions, thresholds and alerts keep running with the window closed. Tray icon, start at login (per-user, never asks for elevation), and sessions resumed at startup
+- **Runs as a system service** — from boot, with nobody signed in: a Windows service under its own virtual account, or a systemd unit with only the right to bind port 162. Installed from *Settings → Background* or by the installer, it takes over the window's sessions, destinations, trap users and history, and the window drives it while it runs; removing it brings them back. `SnmpLens --headless` runs the same supervision in a terminal or under any service manager
 - **Overload guardrail** — when a round no longer fits inside its cadence, the session widens its own period and says so, instead of polling the device flat out. *Keep my cadence* overrides it
 - **Session Management** — create, pause, resume, and delete monitoring sessions
 - **Historical Data** — SQLite storage for long-term trending with time-range queries
@@ -402,6 +403,10 @@ go run ./tools/updatersign keygen
 SnmpLens
 ├── main.go                     # Wails entry point: the embedded files, handed to internal/app
 ├── internal/app/               # The methods the frontend calls, one file per feature
+├── internal/engine/            # The supervision: polling, thresholds, traps, journal, notifications
+├── internal/remote/            # A window driving an engine in another process (the service)
+├── internal/sysvc/             # The system service: Windows service, systemd unit
+├── internal/headless/ cli/     # Running with no window; the command line
 ├── pkg/
 │   ├── snmp/                   # SNMP client: operations, walks, traps and informs, discovery
 │   ├── simulator/              # Simulated SNMP agents: v1/v2c/v3, models, notifications, recordings
@@ -451,7 +456,7 @@ Everything is set in the in-app **Settings** dialog (`Ctrl + ,`), in six section
 - **Presets** — the dashboard preset library, what each one costs, and map backgrounds
 - **SNMP** — default community, SNMPv3 credentials, and a connection test
 - **Notifications** — alert destinations, routing rules, message templates and the delivery log
-- **Service** — background operation, start at login, what to resume at startup, and the SET audit
+- **Service** — the system service, background operation, start at login, what to resume at startup, and the SET audit
 
 Everything SnmpLens writes lives in the user config directory:
 
@@ -472,6 +477,8 @@ Everything SnmpLens writes lives in the user config directory:
 | `service.json`  | The few preferences read before the window exists                |
 | `simulator.json` | Simulated devices (their passwords are in the system keychain)  |
 | `simulator-models/` | Custom simulator models, and their icons                     |
+
+The system service keeps its own, apart from any user's: `%ProgramData%\SnmpLens\` on Windows — open to the service, SYSTEM and administrators only, its credentials sealed for the computer — and `/var/lib/snmplens/` on Linux.
 
 ---
 

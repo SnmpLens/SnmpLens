@@ -95,10 +95,20 @@ public static class Win {
 
     public static string Text(IntPtr h) { var s = new StringBuilder(2048); GetWindowText(h, s, s.Capacity); return s.ToString(); }
     public static string Class(IntPtr h) { var s = new StringBuilder(256); GetClassName(h, s, s.Capacity); return s.ToString(); }
-    // BM_CLICK, posted: a click that opens or ends something must not block the driver.
-    public static void Click(IntPtr h) { PostMessage(h, 0x00F5, IntPtr.Zero, IntPtr.Zero); }
-    // BM_GETCHECK
+    [DllImport("user32.dll")] static extern IntPtr GetParent(IntPtr h);
+    // What the dialog receives when the button is clicked: WM_COMMAND with
+    // BN_CLICKED, posted so that a click which ends the dialog does not block
+    // the driver. Not BM_CLICK, which goes through the mouse and fails once the
+    // dialog is no longer the active window — measured: every page went by
+    // until the old release's window came up, and Install was then never
+    // pressed.
+    public static void Press(IntPtr button) {
+        int id = GetDlgCtrlID(button);
+        PostMessage(GetParent(button), 0x0111, (IntPtr)(id & 0xFFFF), button);
+    }
+    // BM_GETCHECK and BM_SETCHECK
     public static bool Checked(IntPtr h) { return SendMessage(h, 0x00F0, IntPtr.Zero, IntPtr.Zero) == (IntPtr)1; }
+    public static void SetChecked(IntPtr h, bool on) { SendMessage(h, 0x00F1, (IntPtr)(on ? 1 : 0), IntPtr.Zero); }
 
     // 1 elevated, 0 not, -1 unknown.
     public static int Elevated(int pid) {
@@ -154,8 +164,13 @@ function Invoke-Installer {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $seen = @{}
     $goneSince = $null
+    $lastPage = $null
+    $pageSince = Get-Date
     while ($true) {
-        if ((Get-Date) -gt $deadline) { throw "the installer did not finish within $TimeoutSeconds s" }
+        if ((Get-Date) -gt $deadline) {
+            Save-Screen 'timeout'
+            throw "the installer did not finish within $TimeoutSeconds s"
+        }
         $procs = @(Get-Process -Name $name -ErrorAction SilentlyContinue)
         if ($procs.Count -eq 0) {
             if ($null -eq $goneSince) { $goneSince = Get-Date }
@@ -185,9 +200,35 @@ function Invoke-Installer {
                 & $OnPage $visible
             }
             $default = $visible | Where-Object { $_.Id -eq 1 -and $_.Class -eq 'Button' -and $_.Enabled } | Select-Object -First 1
-            if ($default) { [Win]::Click($default.Handle) }
+            if ($default) { [Win]::Press($default.Handle) }
+            if ($lastPage -ne $page) { $lastPage = $page; $pageSince = Get-Date }
+            elseif (((Get-Date) - $pageSince).TotalSeconds -gt 90 -and -not $seen.ContainsKey("stuck:$page")) {
+                $seen["stuck:$page"] = $true
+                Write-Host "    stuck on this page for 90 s; its controls:"
+                $controls | ForEach-Object { Write-Host ("      {0,-5} {1,-18} visible={2} enabled={3} '{4}'" -f $_.Id, $_.Class, $_.Visible, $_.Enabled, $_.Text) }
+                Save-Screen 'stuck'
+            }
         }
         Start-Sleep -Milliseconds 1500
+    }
+}
+
+# A picture of the screen for the workflow's artifacts, when something waits.
+function Save-Screen([string]$name) {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+        $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+        $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
+        $base = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
+        $dir = Join-Path $base 'upgrade-screens'
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $path = Join-Path $dir "$Scenario-$name-$(Get-Date -Format HHmmss).png"
+        $bmp.Save($path)
+        Write-Host "    screen saved: $path"
+    } catch {
+        Write-Host "    no screen: $_"
     }
 }
 
@@ -421,9 +462,11 @@ switch ($Scenario) {
             $script:pickedAllUsers = $false
             Invoke-Installer -Path $nextSetup -OnPage {
                 param($controls)
-                $radio = $controls | Where-Object { $_.Class -eq 'Button' -and $_.Text -like 'For all users*' } | Select-Object -First 1
-                if ($radio -and -not [Win]::Checked($radio.Handle)) {
-                    [Win]::Click($radio.Handle)
+                $all = $controls | Where-Object { $_.Class -eq 'Button' -and $_.Text -like 'For all users*' } | Select-Object -First 1
+                $me = $controls | Where-Object { $_.Class -eq 'Button' -and $_.Text -like 'For me only*' } | Select-Object -First 1
+                if ($all -and $me -and -not [Win]::Checked($all.Handle)) {
+                    [Win]::SetChecked($me.Handle, $false)
+                    [Win]::SetChecked($all.Handle, $true)
                     $script:pickedAllUsers = $true
                 }
             }

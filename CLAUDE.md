@@ -1744,6 +1744,26 @@ passes to ones the command line reads. The updater runs the installer only when 
 registered install location (`installedAt`): a portable copy beside an installation replaces itself instead of
 running the installer against the copy the service runs.
 
+**The cases between copies.** The installer asks for its language (MUI_LANGDLL_DISPLAY), hands it to the elevated copy
+it relaunches (`/LANG=`) and remembers it for the uninstaller; every text of its own pages is a LangString in the five
+languages, which `installer_test.go` holds — they were English beside localised MUI pages. It is a 32-bit program, so
+it says `SetRegView 64`: earlier installers wrote the all-users entry under WOW6432Node, where the 64-bit updater never
+saw it; that entry is read from both views and moved, and the updater reads both too. A new all-users copy goes to
+the 64-bit Program Files; an existing one is updated where it is, silently too (an unelevated `/S` asks for the rights
+and relaunches). Installing for all users REPLACES the current user's copy (`/REPLACEUSER=`, honoured only when the
+elevated copy reads the same HKCU): its files, Start menu entries and uninstall key go, its desktop shortcut and start
+at sign-in point to the new copy, and the settings and history, which are the user's whichever copy runs, stay. Start
+at sign-in is the current user's QUOTED entry, as `pkg/autostart` writes it: the installer used to write an unquoted,
+machine-wide one in all-users mode, which the application's own toggle could neither see nor remove.
+
+**A window beside a service it may not drive supervises nothing** (`ownsSupervision`). A portable copy of another
+version, an account that is not an operator, a pipe answered by something else: the window used to run its own
+supervision there, polling every session a second time, sending every alert twice and fighting the service for port
+162. It now opens its own history without starting it (`idle`, said in the settings and in its journal), and starts it
+once the service stops. A copy that predates the service cannot be held to that, so the sessions a window hands over
+are marked stopped in its own directory (`engine.StopSessionsAt`) — unless the service kept a history of its own and
+took none of them.
+
 ## The project site (`docs/`)
 
 Hand-written static HTML served by GitHub Pages from `main` + `/docs`. No generator and no

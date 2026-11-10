@@ -132,3 +132,38 @@ func TestABundleCarriesOnlyWhatItMay(t *testing.T) {
 		}
 	}
 }
+
+// The sessions a window handed over are stopped in its own directory: any copy
+// opening it that knows nothing of the service would resume them beside it.
+func TestHandedOverSessionsAreStoppedHere(t *testing.T) {
+	dir := t.TempDir()
+	eng := New(Options{DataDir: dir})
+	if err := eng.Open(); err != nil {
+		t.Fatal(err)
+	}
+	id, err := eng.MonitorCreateSession("1.3.6.1.2.1.1.3.0", []string{"10.0.0.1"}, 5000, "v2c", nil, "uplinks",
+		MonitorConnection{Port: 161, Community: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.MonitorUpdateSession(id, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	eng.Close()
+
+	if err := StopSessionsAt(dir); err != nil {
+		t.Fatal(err)
+	}
+	again := New(Options{DataDir: dir})
+	if err := again.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer again.Close()
+	sessions, _ := again.MonitorLoadSessions()
+	if len(sessions) != 1 || sessions[0].Active {
+		t.Errorf("sessions: %+v", sessions)
+	}
+	if err := StopSessionsAt(t.TempDir()); err != nil {
+		t.Errorf("a directory with no database: %v", err)
+	}
+}

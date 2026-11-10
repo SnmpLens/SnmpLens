@@ -1100,7 +1100,8 @@
       "handOverHint": "The service started empty, as the installer sets it up. This window ran a supervision of its own before: its sessions, destinations and history can be handed to the service.",
       "handOver": "Hand this window’s supervision over",
       "handedOver": "The service now supervises what this window did.",
-      "locationLinux": "This copy cannot install the service: the service runs only a copy that only root can change, as an installed package is — install SnmpLens’s package."
+      "locationLinux": "This copy cannot install the service: the service runs only a copy that only root can change, as an installed package is — install SnmpLens’s package.",
+      "idle": "Meanwhile this window shows its own history and supervises nothing: the service already does, and a second supervision would poll every session twice and send every alert twice."
     }
   },
   "mibVerdict": {

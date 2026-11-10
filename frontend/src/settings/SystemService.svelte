@@ -74,6 +74,9 @@
         <Icon name="triangle-alert" size={14} />
         {$_(`service.system.reason.${link.reason}`)}{link.detail ? ` — ${link.detail}` : ''}
       </p>
+      {#if link.idle}
+        <p class="note">{$_('service.system.idle')}</p>
+      {/if}
     {/if}
     {#if link.driving && link.canHandOver}
       <p class="note">{$_('service.system.handOverHint')}</p>

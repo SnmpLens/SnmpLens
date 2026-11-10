@@ -66,19 +66,24 @@ func installedAt(dir string, registered []string, programFiles ...string) bool {
 
 // installLocations returns the install directories the NSIS installer recorded:
 // the per-user one (HKCU) and the all-users one (HKLM), whichever exist. Both
-// can.
+// can. Both registry views are read: the installer is a 32-bit program, and
+// until it said otherwise (SetRegView 64) it wrote the all-users entry where
+// Windows redirects a 32-bit program — WOW6432Node — which this 64-bit process
+// does not see by default.
 func installLocations() []string {
 	const uninstallKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\SnmpLens`
 	var locs []string
 	for _, root := range []registry.Key{registry.CURRENT_USER, registry.LOCAL_MACHINE} {
-		k, err := registry.OpenKey(root, uninstallKey, registry.QUERY_VALUE)
-		if err != nil {
-			continue
+		for _, view := range []uint32{registry.WOW64_64KEY, registry.WOW64_32KEY} {
+			k, err := registry.OpenKey(root, uninstallKey, registry.QUERY_VALUE|view)
+			if err != nil {
+				continue
+			}
+			if loc, _, err := k.GetStringValue("InstallLocation"); err == nil && loc != "" {
+				locs = append(locs, loc)
+			}
+			k.Close()
 		}
-		if loc, _, err := k.GetStringValue("InstallLocation"); err == nil && loc != "" {
-			locs = append(locs, loc)
-		}
-		k.Close()
 	}
 	return locs
 }

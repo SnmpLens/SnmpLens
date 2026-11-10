@@ -1873,7 +1873,7 @@
     "scan": "Ports kartieren",
     "cancel": "Abbrechen",
     "noTargets": "Fügen Sie den Switch zuerst als Ziel hinzu.",
-    "gateways": "IP-Adressen aus dem ARP-Cache anderer Geräte ({count} gewählt)",
+    "arp": "ARP-Caches",
     "gatewaysHint": "Ein Switch kennt MAC-Adressen; die Router und Layer-3-Switches, die für seine Stationen routen, kennen deren IP-Adressen. Der ARP-Cache des Switches selbst wird immer gelesen.",
     "progress": {
       "switch": "Switch wird gelesen…",
@@ -1904,7 +1904,7 @@
   },
   "topology": {
     "noTargets": "Fügen Sie die Geräte zuerst als Ziele hinzu.",
-    "devices": "Startgeräte: {count}",
+    "devices": "Starten bei",
     "depth": "Nachbarn folgen",
     "depthNone": "Nein — nur diese Geräte",
     "depthHops": "{count} Hop(s) weiter",
@@ -1916,7 +1916,7 @@
     "summary": "{nodes} Geräte, {links} Verbindungen",
     "relayout": "Neu anordnen",
     "nothing": "Kein Gerät hat geantwortet.",
-    "help": "Ziehen, um die Karte oder ein Gerät zu verschieben, scrollen zum Zoomen, ein Gerät anklicken für seine Verbindungen. Eine gestrichelte Linie wurde nur von einer Seite gemeldet; ein gestrichelter Kreis ist ein Gerät, das nur seine Nachbarn nennen.",
+    "help": "Ziehen, um die Karte oder ein Gerät zu verschieben, scrollen zum Zoomen, ein Gerät anklicken für seine Verbindungen.",
     "managed": "abgefragt",
     "heard": "von einem Nachbarn genannt",
     "kind": {
@@ -1926,6 +1926,7 @@
       "phone": "Telefon",
       "host": "Host",
       "unknown": "Gerät"
-    }
+    },
+    "oneSided": "nur von einer Seite gemeldet"
   }
 }

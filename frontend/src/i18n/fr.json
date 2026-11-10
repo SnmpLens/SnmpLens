@@ -1873,7 +1873,7 @@
     "scan": "Cartographier les ports",
     "cancel": "Arrêter",
     "noTargets": "Ajoutez d'abord le switch comme cible.",
-    "gateways": "Adresses IP tirées du cache ARP d'autres équipements ({count} choisi(s))",
+    "arp": "Caches ARP",
     "gatewaysHint": "Un switch connaît les adresses MAC ; les routeurs et switchs de niveau 3 qui routent pour ses stations en connaissent les adresses IP. Le cache ARP du switch lui-même est toujours lu.",
     "progress": {
       "switch": "Lecture du switch…",
@@ -1904,7 +1904,7 @@
   },
   "topology": {
     "noTargets": "Ajoutez d'abord les équipements comme cibles.",
-    "devices": "Équipements de départ : {count}",
+    "devices": "Partir de",
     "depth": "Suivre les voisins",
     "depthNone": "Non — seulement ces équipements",
     "depthHops": "{count} saut(s) plus loin",
@@ -1916,7 +1916,7 @@
     "summary": "{nodes} équipements, {links} liens",
     "relayout": "Réorganiser",
     "nothing": "Aucun équipement n'a répondu.",
-    "help": "Glissez pour déplacer la carte ou un équipement, faites défiler pour zoomer, cliquez un équipement pour voir ses liens. Un trait pointillé n'a été signalé que par une extrémité ; un cercle pointillé est un équipement que seuls ses voisins nomment.",
+    "help": "Glissez pour déplacer la carte ou un équipement, faites défiler pour zoomer, cliquez un équipement pour voir ses liens.",
     "managed": "parcouru",
     "heard": "nommé par un voisin",
     "kind": {
@@ -1926,6 +1926,7 @@
       "phone": "Téléphone",
       "host": "Hôte",
       "unknown": "Équipement"
-    }
+    },
+    "oneSided": "signalé par une seule extrémité"
   }
 }

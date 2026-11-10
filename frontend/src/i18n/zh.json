@@ -1873,7 +1873,7 @@
     "scan": "映射端口",
     "cancel": "停止",
     "noTargets": "请先将交换机添加为目标。",
-    "gateways": "来自其他设备 ARP 缓存的 IP 地址（已选 {count} 个）",
+    "arp": "ARP 缓存",
     "gatewaysHint": "交换机只知道 MAC 地址；为其终端路由的路由器和三层交换机知道它们的 IP 地址。始终会读取交换机自身的 ARP 缓存。",
     "progress": {
       "switch": "正在读取交换机…",
@@ -1904,7 +1904,7 @@
   },
   "topology": {
     "noTargets": "请先将设备添加为目标。",
-    "devices": "起始设备：{count}",
+    "devices": "起始设备",
     "depth": "跟随邻居",
     "depthNone": "否 — 仅这些设备",
     "depthHops": "再向外 {count} 跳",
@@ -1916,7 +1916,7 @@
     "summary": "{nodes} 台设备，{links} 条链路",
     "relayout": "重新布局",
     "nothing": "没有设备响应。",
-    "help": "拖动可移动地图或设备，滚动可缩放，点击设备查看其链路。虚线表示仅一端报告的链路；虚线圆表示仅由其邻居提及的设备。",
+    "help": "拖动可移动地图或设备，滚动可缩放，点击设备查看其链路。",
     "managed": "已遍历",
     "heard": "由邻居提及",
     "kind": {
@@ -1926,6 +1926,7 @@
       "phone": "电话",
       "host": "主机",
       "unknown": "设备"
-    }
+    },
+    "oneSided": "仅一端报告"
   }
 }

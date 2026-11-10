@@ -1873,7 +1873,7 @@
     "scan": "Map the ports",
     "cancel": "Stop",
     "noTargets": "Add the switch as a target first.",
-    "gateways": "IP addresses from other devices' ARP caches ({count} chosen)",
+    "arp": "ARP caches",
     "gatewaysHint": "A switch knows MAC addresses; the routers and layer-3 switches that route for its stations know their IP addresses. The switch's own ARP cache is always read.",
     "progress": {
       "switch": "Reading the switch…",
@@ -1904,7 +1904,7 @@
   },
   "topology": {
     "noTargets": "Add the devices as targets first.",
-    "devices": "Devices to start from: {count}",
+    "devices": "Start from",
     "depth": "Follow neighbours",
     "depthNone": "No — only these devices",
     "depthHops": "{count} hop(s) further",
@@ -1916,7 +1916,7 @@
     "summary": "{nodes} devices, {links} links",
     "relayout": "Lay out again",
     "nothing": "No device answered.",
-    "help": "Drag to move the map or a device, scroll to zoom, click a device for its links. A dashed line was reported by one end only; a dashed circle is a device only its neighbours name.",
+    "help": "Drag to move the map or a device, scroll to zoom, click a device for its links.",
     "managed": "walked",
     "heard": "named by a neighbour",
     "kind": {
@@ -1926,6 +1926,7 @@
       "phone": "Phone",
       "host": "Host",
       "unknown": "Device"
-    }
+    },
+    "oneSided": "reported by one end only"
   }
 }

@@ -1,20 +1,23 @@
 <script>
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { get } from 'svelte/store';
   import Icon from '../Icon.svelte';
+  import TargetChips from './TargetChips.svelte';
   import { TopologyScan, TopologyCancel } from '../../wailsjs/go/app/App';
   import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
   import { settingsStore } from '../stores/settingsStore';
   import { notificationStore } from '../stores/notifications';
-  import { targetLabels } from '../stores/targetLabels';
-  import { getTargetsAsArray, displayTarget } from '../utils/targets';
+  import { getTargetsAsArray } from '../utils/targets';
   import { anonMode, anonymizeIp, anonymizeHost } from '../utils/anonymize';
   import { downloadFile } from '../utils/csv';
   import { buildTopologyRequest, layout, linksOf } from '../utils/topology';
+  import { fillHeight, afterLayout } from '../utils/fillHeight';
 
-  const W = 1000;
-  const H = 640;
+  // The drawing is laid out at the size of its box, one unit a pixel, so that a
+  // label is the size it is written at; these are only what it starts from.
+  let W = 1000;
+  let H = 640;
   const ICONS = { switch: 'network', router: 'route', ap: 'wifi', phone: 'radio', host: 'server' };
 
   let chosen = null; // null: every target
@@ -41,8 +44,9 @@
     selected = null;
     try {
       graph = await TopologyScan(buildTopologyRequest(get(settingsStore), seeds, depth));
-      pos = layout(graph, { width: W, height: H });
-      view = { x: 0, y: 0, scale: 1 };
+      await tick();
+      await afterLayout();
+      relayout();
     } catch (e) {
       notificationStore.add(String(e), 'error');
     } finally {
@@ -51,9 +55,13 @@
     }
   }
 
-  function toggle(target, on) {
-    const base = chosen === null ? [...targets] : chosen;
-    chosen = on ? [...base, target] : base.filter((t) => t !== target);
+  function relayout() {
+    if (svg && svg.clientWidth > 0 && svg.clientHeight > 0) {
+      W = svg.clientWidth;
+      H = svg.clientHeight;
+    }
+    pos = layout(graph, { width: W, height: H });
+    view = { x: 0, y: 0, scale: 1 };
   }
 
   function label(node, anon) {
@@ -69,10 +77,18 @@
     return ICONS[kind] || 'circle-dot';
   }
 
-  // Panning and zooming the drawing, and moving a node, with the pointer.
+  // Panning and zooming the drawing, and moving a node, with the pointer: read
+  // through the drawing's own transform, because the box is as tall as the window
+  // allows and the drawing is centred in it, so the box's edges are not the
+  // viewBox's.
   function svgPoint(e) {
-    const r = svg.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    const m = svg.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const p = pt.matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
   }
 
   function onWheel(e) {
@@ -127,65 +143,71 @@
 
 <div class="tool-section">
   {#if targets.length === 0}
-    <p class="empty">{$_('topology.noTargets')}</p>
+    <div class="empty-state"><p>{$_('topology.noTargets')}</p></div>
   {:else}
-    <div class="tool-form">
-      <details class="seeds">
-        <summary>{$_('topology.devices', { values: { count: seeds.length } })}</summary>
-        <div class="seed-list">
-          {#each targets as t, i (i)}
-            <label class="check">
-              <input type="checkbox" checked={seeds.includes(t)} disabled={drawing}
-                on:change={(e) => toggle(t, e.currentTarget.checked)} />
-              {displayTarget(t, $targetLabels, $anonMode)}
-            </label>
-          {/each}
-        </div>
-      </details>
-      <div class="form-group">
-        <label for="topology-depth">{$_('topology.depth')}</label>
+    <div class="setup">
+      <label class="row-label" for="topology-depth">{$_('topology.depth')}</label>
+      <div class="row-field">
         <select id="topology-depth" bind:value={depth} disabled={drawing}>
           <option value={0}>{$_('topology.depthNone')}</option>
           <option value={1}>{$_('topology.depthHops', { values: { count: 1 } })}</option>
           <option value={2}>{$_('topology.depthHops', { values: { count: 2 } })}</option>
           <option value={3}>{$_('topology.depthHops', { values: { count: 3 } })}</option>
         </select>
+        <div class="actions">
+          {#if drawing}
+            <span class="progress">
+              <span class="spin"><Icon name="loader-circle" size={14} /></span>
+              {progress ? $_('topology.progress', { values: { walked: progress.walked, pending: progress.pending } }) : $_('topology.walking')}
+            </span>
+            <button class="btn secondary" on:click={() => TopologyCancel()}>
+              <Icon name="square" size={12} /> {$_('topology.cancel')}
+            </button>
+          {:else}
+            <button class="btn" on:click={draw} disabled={seeds.length === 0}>
+              <Icon name="network" size={14} /> {$_('topology.draw')}
+            </button>
+          {/if}
+        </div>
+        {#if depth > 0}
+          <span class="field-hint wide">{$_('topology.depthHint')}</span>
+        {/if}
       </div>
-      {#if drawing}
-        <button class="btn secondary" on:click={() => TopologyCancel()}>{$_('topology.cancel')}</button>
-        <span class="muted">
-          {progress ? $_('topology.progress', { values: { walked: progress.walked, pending: progress.pending } }) : $_('topology.walking')}
-        </span>
-      {:else}
-        <button class="btn" on:click={draw} disabled={seeds.length === 0}>
-          <Icon name="network" size={14} /> {$_('topology.draw')}
-        </button>
-      {/if}
+
+      <span class="row-label top" id="topology-seeds">{$_('topology.devices')}</span>
+      <div class="row-field" role="group" aria-labelledby="topology-seeds">
+        <TargetChips {targets} chosen={seeds} disabled={drawing} on:change={(e) => { chosen = e.detail; }} />
+      </div>
     </div>
-    {#if depth > 0}
-      <p class="hint">{$_('topology.depthHint')}</p>
-    {/if}
   {/if}
 
   {#if graph}
-    <div class="summary">
-      <span>{$_('topology.summary', { values: { nodes: graph.nodes.length, links: graph.links.length } })}</span>
-      <div class="spacer"></div>
-      <button class="btn tertiary" on:click={() => { pos = layout(graph, { width: W, height: H }); view = { x: 0, y: 0, scale: 1 }; }}>
-        <Icon name="refresh-cw" size={14} /> {$_('topology.relayout')}
-      </button>
-      <button class="btn tertiary" on:click={exportSvg}><Icon name="download" size={14} /> SVG</button>
+    <div class="toolbar">
+      <div class="counts">
+        <strong>{$_('topology.summary', { values: { nodes: graph.nodes.length, links: graph.links.length } })}</strong>
+        <ul class="legend">
+          <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="managed" cx="8" cy="8" r="6" /></svg>{$_('topology.managed')}</li>
+          <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /></svg>{$_('topology.heard')}</li>
+          <li><svg viewBox="0 0 22 16" aria-hidden="true"><line x1="1" y1="8" x2="21" y2="8" /></svg>{$_('topology.oneSided')}</li>
+        </ul>
+      </div>
+      <div class="tools">
+        <button class="btn tertiary" on:click={relayout}>
+          <Icon name="refresh-cw" size={14} /> {$_('topology.relayout')}
+        </button>
+        <button class="btn tertiary" on:click={exportSvg}><Icon name="download" size={14} /> SVG</button>
+      </div>
     </div>
     {#each graph.warnings as w, i (i)}
       <p class="note warn"><Icon name="triangle-alert" size={14} /> {w}</p>
     {/each}
 
     {#if graph.nodes.length === 0}
-      <p class="empty">{$_('topology.nothing')}</p>
+      <div class="empty-state"><p>{$_('topology.nothing')}</p></div>
     {:else}
       <div class="canvas">
         <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <svg bind:this={svg} viewBox="0 0 {W} {H}" on:wheel={onWheel} on:pointerdown={startPan}>
+        <svg bind:this={svg} viewBox="0 0 {W} {H}" use:fillHeight={{ min: 360, margin: 44 }} on:wheel={onWheel} on:pointerdown={startPan}>
           <g transform="translate({view.x} {view.y}) scale({view.scale})">
             {#each graph.links as l, i (i)}
               {#if pos[l.a] && pos[l.b]}
@@ -201,7 +223,7 @@
                   transform="translate({pos[n.id].x} {pos[n.id].y})" on:pointerdown={(e) => startNode(e, n.id)}>
                   <circle r="18" />
                   <g transform="translate(-9 -9)"><Icon name={kindIcon(n.kind)} size={18} /></g>
-                  <text y="32">{label(n, $anonMode)}</text>
+                  <text y="34">{label(n, $anonMode)}</text>
                 </g>
               {/if}
             {/each}
@@ -210,18 +232,25 @@
 
         {#if selected && byId[selected]}
           <aside class="details">
-            <h4>{label(byId[selected], $anonMode)}</h4>
+            <header>
+              <span class="kind-icon"><Icon name={kindIcon(byId[selected].kind)} size={16} /></span>
+              <div>
+                <h4>{label(byId[selected], $anonMode)}</h4>
+                <p class="muted">
+                  {byId[selected].kind ? $_(`topology.kind.${byId[selected].kind}`) : $_('topology.kind.unknown')}
+                  · {byId[selected].managed ? $_('topology.managed') : $_('topology.heard')}
+                </p>
+              </div>
+            </header>
             {#if byId[selected].address}<p class="mono">{address(byId[selected].address, $anonMode)}</p>{/if}
-            <p class="muted">
-              {byId[selected].kind ? $_(`topology.kind.${byId[selected].kind}`) : $_('topology.kind.unknown')}
-              · {byId[selected].managed ? $_('topology.managed') : $_('topology.heard')}
-            </p>
             {#if byId[selected].descr}<p class="descr">{byId[selected].descr}</p>{/if}
             <ul>
               {#each linksOf(graph, selected) as link, i (i)}
                 <li>
-                  <span class="mono">{link.port || '?'}</span> →
-                  {label(byId[link.other], $anonMode)} <span class="mono">{link.remotePort || ''}</span>
+                  <span class="mono">{link.port || '?'}</span>
+                  <Icon name="chevron-right" size={12} />
+                  <span>{label(byId[link.other], $anonMode)}</span>
+                  {#if link.remotePort}<span class="mono muted">{link.remotePort}</span>{/if}
                 </li>
               {/each}
             </ul>
@@ -238,79 +267,173 @@
     padding: 0 5px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-  }
-
-  .tool-form {
-    display: flex;
     gap: 12px;
-    align-items: flex-end;
-    flex-wrap: wrap;
   }
 
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  /* The same settings card as the port map's. */
+  .setup {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: 12px 16px;
+    padding: 14px 16px;
+    background-color: var(--bg-light-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
   }
 
-  .form-group label {
-    font-size: 0.8em;
-    color: var(--text-muted);
-  }
-
-  .seeds summary {
-    cursor: pointer;
-    font-size: 0.85em;
+  .row-label {
+    font-weight: 500;
     color: var(--text-color);
-    padding-bottom: 6px;
   }
 
-  .seed-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 16px;
-    max-width: 640px;
+  .row-label.top {
+    align-self: start;
+    line-height: 26px;
   }
 
-  .check {
+  .row-field {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.85em;
+    gap: 16px;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  select {
+    height: 34px;
+    min-width: 240px;
+    padding: 0 10px;
+    background-color: var(--bg-lighter-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
     color: var(--text-color);
+    font-family: inherit;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
   }
 
   .btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    white-space: nowrap;
   }
 
-  .muted,
-  .hint {
+  .progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     color: var(--text-muted);
-    font-size: 0.82em;
+    font-size: 0.85em;
   }
 
-  .hint {
-    margin: 0;
+  .spin {
+    display: inline-flex;
+    animation: spin 1s linear infinite;
   }
 
-  .summary {
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spin { animation: none; }
+  }
+
+  .field-hint {
+    font-size: 0.78em;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  .field-hint.wide {
+    flex-basis: 100%;
+    margin-top: -6px;
+  }
+
+  .toolbar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .counts {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
     font-size: 0.9em;
   }
 
-  .spacer {
-    flex: 1;
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-muted);
+    font-size: 0.9em;
+  }
+
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  .legend svg[viewBox="0 0 22 16"] {
+    width: 22px;
+  }
+
+  .legend circle {
+    fill: var(--bg-light-color);
+    stroke: var(--text-muted);
+    stroke-width: 1.5;
+    stroke-dasharray: 2.5 2;
+  }
+
+  .legend circle.managed {
+    stroke: var(--accent-color);
+    stroke-dasharray: none;
+  }
+
+  .legend line {
+    stroke: var(--text-muted);
+    stroke-width: 2;
+    stroke-dasharray: 4 3;
+  }
+
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .tools .btn {
+    height: 32px;
   }
 
   .note {
     margin: 0;
-    font-size: 0.82em;
+    font-size: 0.85em;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -328,13 +451,17 @@
     overflow: hidden;
   }
 
-  svg {
+  .canvas > svg {
     display: block;
     width: 100%;
-    height: auto;
-    max-height: calc(100vh - 300px);
     touch-action: none;
     cursor: grab;
+  }
+
+  .hint {
+    margin: -4px 0 0;
+    color: var(--text-muted);
+    font-size: 0.8em;
   }
 
   .link {
@@ -383,27 +510,62 @@
     position: absolute;
     top: 10px;
     right: 10px;
-    width: 280px;
+    width: 300px;
     max-height: calc(100% - 20px);
     overflow: auto;
     background: var(--bg-light-color);
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    padding: 10px 12px;
-    font-size: 0.82em;
+    padding: 12px 14px;
+    font-size: 0.85em;
+  }
+
+  .details header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .kind-icon {
+    display: inline-flex;
+    padding: 6px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
   }
 
   .details h4 {
-    margin: 0 0 4px;
+    margin: 0 0 2px;
+    font-size: 1.05em;
   }
 
   .details p {
-    margin: 2px 0;
+    margin: 4px 0;
   }
 
   .details ul {
-    margin: 8px 0 0;
-    padding-left: 16px;
+    margin: 10px 0 0;
+    padding: 8px 0 0;
+    list-style: none;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .details li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    color: var(--text-color);
+  }
+
+  .details li :global(svg) {
+    color: var(--text-muted);
+    flex: none;
+  }
+
+  .muted {
+    color: var(--text-muted);
   }
 
   .descr {
@@ -411,13 +573,8 @@
     overflow-wrap: anywhere;
   }
 
+  /* A family named first: the generic one alone is shrunk by the browser. */
   .mono {
-    font-family: var(--font-mono, monospace);
-  }
-
-  .empty {
-    color: var(--text-muted);
-    font-size: 0.85em;
-    padding: 10px;
+    font-family: 'Courier New', monospace;
   }
 </style>

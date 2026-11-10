@@ -1873,7 +1873,7 @@
     "scan": "Mapear los puertos",
     "cancel": "Detener",
     "noTargets": "Añada primero el switch como destino.",
-    "gateways": "Direcciones IP de la caché ARP de otros equipos ({count} elegido(s))",
+    "arp": "Cachés ARP",
     "gatewaysHint": "Un switch conoce las direcciones MAC; los routers y switches de capa 3 que enrutan para sus estaciones conocen sus direcciones IP. La caché ARP del propio switch se lee siempre.",
     "progress": {
       "switch": "Leyendo el switch…",
@@ -1904,7 +1904,7 @@
   },
   "topology": {
     "noTargets": "Añada primero los equipos como destinos.",
-    "devices": "Equipos de partida: {count}",
+    "devices": "Empezar por",
     "depth": "Seguir a los vecinos",
     "depthNone": "No — solo estos equipos",
     "depthHops": "{count} salto(s) más allá",
@@ -1916,7 +1916,7 @@
     "summary": "{nodes} equipos, {links} enlaces",
     "relayout": "Reorganizar",
     "nothing": "Ningún equipo respondió.",
-    "help": "Arrastre para mover el mapa o un equipo, desplace para hacer zoom, haga clic en un equipo para ver sus enlaces. Una línea discontinua solo la informó un extremo; un círculo discontinuo es un equipo que solo nombran sus vecinos.",
+    "help": "Arrastre para mover el mapa o un equipo, desplace para hacer zoom, haga clic en un equipo para ver sus enlaces.",
     "managed": "recorrido",
     "heard": "nombrado por un vecino",
     "kind": {
@@ -1926,6 +1926,7 @@
       "phone": "Teléfono",
       "host": "Host",
       "unknown": "Equipo"
-    }
+    },
+    "oneSided": "informado por un solo extremo"
   }
 }

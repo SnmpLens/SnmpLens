@@ -335,7 +335,7 @@ const CATALOGUE = [
   {
     base: 'simulator',
     tab: TABS.operations,
-    height: 900,
+    height: 1080,
     bindings: {
       ListSimulatorModels: simulatorModels(),
       ListSimulatedDevices: [
@@ -367,9 +367,12 @@ const CATALOGUE = [
           traps: { destinations: [], onStart: false, onAuthFailure: false, schedules: [], suppressed: 0 },
         },
       ],
+      // The server is cabled to the switch: each names the other, and the
+      // switch learns the server on that port.
+      ListSimulatorLinks: [{ id: 'k1', a: { device: 'c0ffee01', port: 'eth0' }, b: { device: 'c0ffee02', port: 'Fa0/1' } }],
     },
     act: ['sel:.status-item.simulator|0'],
-    describe: 'The simulator: a Linux server sending traps, a Catalyst switch made to misbehave and a UPS, each one click from being a target.',
+    describe: 'The simulator: a Linux server sending traps, cabled to a Catalyst switch made to misbehave, and a UPS, each one click from being a target.',
   },
   {
     base: 'simulator-traps',
@@ -525,6 +528,9 @@ function simulatorModels() {
       notifications: generic([...link, config]) },
     { id: 'cisco-catalyst-48', category: 'network', params: [{ name: 'ports', min: 2, max: 48, default: 48 }],
       notifications: generic([...link, config]) },
+    { id: 'cisco-catalyst-9300', category: 'network', params: [{ name: 'ports', min: 4, max: 24, default: 24 }],
+      notifications: generic([...link, config]) },
+    { id: 'aruba-2930f-24', category: 'network', notifications: generic(link) },
     { id: 'cisco-isr-4331', category: 'network', notifications: generic([...link,
       { name: 'bgpEstablishedNotification', oid: '.1.3.6.1.2.1.15.0.1' },
       { name: 'bgpBackwardTransNotification', oid: '.1.3.6.1.2.1.15.0.2' }, config]) },
@@ -534,6 +540,7 @@ function simulatorModels() {
       { name: 'fnTrapCpuThreshold', oid: '.1.3.6.1.4.1.12356.100.1.3.0.101' },
       { name: 'fnTrapMemThreshold', oid: '.1.3.6.1.4.1.12356.100.1.3.0.102' }]) },
     { id: 'unifi-u6-pro', category: 'wireless', notifications: generic([link[1]]) },
+    { id: 'ip-phone', category: 'telephony', notifications: generic([link[1]]) },
     { id: 'synology-nas', category: 'storage', params: [{ name: 'disks', min: 1, max: 9, default: 4 }],
       notifications: generic(link) },
     { id: 'apc-smart-ups', category: 'power', notifications: generic([{ name: 'upsTrapOnBattery', oid: '.1.3.6.1.2.1.33.2.1' }]) },

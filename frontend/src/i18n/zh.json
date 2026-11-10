@@ -1677,7 +1677,8 @@
       "environment": "环境",
       "security": "安全",
       "wireless": "无线",
-      "other": "其他"
+      "other": "其他",
+      "telephony": "电话"
     },
     "model": {
       "windows-server": {
@@ -1686,11 +1687,11 @@
       },
       "cisco-catalyst-24": {
         "name": "Cisco Catalyst 2960，24 端口",
-        "description": "一台接入交换机：24 个快速以太网端口、两个千兆上联口和 VLAN 1，带 MAC 地址表、生成树、VLAN（Q-BRIDGE 和 VTP）、LLDP 和 CDP 邻居、ENTITY-MIB 硬件，以及 Cisco 的 CPU、内存和环境。被识别为 Cisco 设备，因此“Cisco (IF-MIB)”预设排在最前；也适用于“Switch ports”和“Switch drawing (24 ports)”。"
+        "description": "一台接入交换机：24 个快速以太网端口、两个千兆上联口和 VLAN 1，带 MAC 地址表、生成树、VLAN（Q-BRIDGE 和 VTP）、LLDP 和 CDP 邻居、ENTITY-MIB 硬件，以及 Cisco 的 CPU、内存和环境。被识别为 Cisco 设备，因此“Cisco (IF-MIB)”预设排在最前；也适用于“Switch ports”和“Switch drawing (24 ports)”。其 MAC 地址表按 VLAN 逐个提供，与 IOS 相同（public@10），端口 3 上接有一部桌面电话。"
       },
       "cisco-catalyst-48": {
         "name": "Cisco Catalyst 2960，48 端口",
-        "description": "同一款接入交换机的 48 端口版本，以及随之而来的一切。被识别为 Cisco 设备，因此“Cisco (IF-MIB)”预设排在最前；也适用于“Switch ports”。"
+        "description": "同一款接入交换机的 48 端口版本，以及随之而来的一切。被识别为 Cisco 设备，因此“Cisco (IF-MIB)”预设排在最前；也适用于“Switch ports”。其 MAC 地址表按 VLAN 逐个提供，与 IOS 相同（public@10），端口 3 上接有一部桌面电话。"
       },
       "cisco-isr-4331": {
         "name": "Cisco ISR 4331 路由器",
@@ -1735,6 +1736,18 @@
       "apc-rack-pdu": {
         "name": "APC 可开关机架 PDU",
         "description": "一台 AP7921B：八个插座（其中一个已关闭），相位负载（安培）和功耗（PowerNet-MIB），以及网卡的地址和服务。发送 rPDUOutletOff 和 rPDUNearOverload。"
+      },
+      "cisco-catalyst-9300": {
+        "name": "Cisco Catalyst 9300-24T（核心）",
+        "description": "一台三层核心交换机：24 个千兆端口、四个 10G 上联口，以及以 IPv4 和 IPv6 路由测试台各子网的 VLAN 接口，因此它的 ARP 缓存（IP-MIB 的两张表）包含与其相连的交换机上的每个站点。其 MAC 地址表按 VLAN 逐个提供，与 IOS 相同；支持 LLDP、CDP、VTP 和 ENTITY-MIB；其端口不从 ifIndex 1 开始。适用于“Cisco (IF-MIB)”“Interfaces (IF-MIB)”和“Switch ports”预设。"
+      },
+      "aruba-2930f-24": {
+        "name": "Aruba 2930F-24G-4SFP+",
+        "description": "一台非 Cisco 的接入交换机：24 个以编号命名的端口、四个 SFP+ 中继口、一个用户 VLAN 和一个接有桌面电话的语音 VLAN。Q-BRIDGE-MIB 给出每个站点所在的 VLAN；支持 LLDP，不支持 CDP。适用于“Interfaces (IF-MIB)”和“Switch ports”预设。"
+      },
+      "ip-phone": {
+        "name": "IP 桌面电话",
+        "description": "一部 SIP 桌面电话，其 PC 口后接有一台电脑。LLDP-MED 表明它是电话，因此它所连接的交换机端口既不是上联口也不是交换机。通用 net-snmp 代理；适用于“Interfaces (IF-MIB)”预设。"
       }
     },
     "userN": "用户 {n}",
@@ -1814,10 +1827,25 @@
         "iconMissing": "{name}：压缩包中没有“{detail}”，因此该型号没有图标",
         "iconRefused": "{name}：其图标被拒绝（{detail}）",
         "restartFailed": "{name}：有设备未能重启——{detail}",
+        "cableUnplugged": "{name}：有一根线缆被拔下——{detail}",
         "walkSkipped": "{name}：无法读取的录制值已被略过（{detail}）",
         "walkAgentOwned": "{name}：{detail} 个录制对象属于代理本身——其 SNMP 计数器、引擎、用户、组和团体——已被略过",
         "packageIgnored": "{name}：“{detail}”不是型号包会读取的文件，已被略过"
       }
+    },
+    "cabling": {
+      "title": "布线",
+      "hint": "将设备逐端口相互连接。之后每台设备都会在 LLDP 和 CDP 中以其应答地址指明对方，并学习其后方的内容；核心交换机的 ARP 缓存包含各站点的地址：网络地图和端口映射看到的是同一个网络。运行中的设备无需重启即可重新布线。",
+      "none": "尚无线缆。",
+      "chooseDevice": "设备…",
+      "choosePort": "端口…",
+      "aDevice": "第一台设备",
+      "aPort": "第一台设备的端口",
+      "bDevice": "第二台设备",
+      "bPort": "第二台设备的端口",
+      "connect": "连接",
+      "disconnect": "断开",
+      "connected": "{a} {aPort} 已连接到 {b} {bPort}。"
     }
   },
   "backup": {

@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"fmt"
 	"net"
+	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,6 +31,14 @@ type bridgeInfo struct {
 	// MAC is root. No uplink makes this switch the root.
 	uplink int
 	root   net.HardwareAddr
+	// fixed are MACs learnt on a port besides its stations, by bridge port:
+	// the devices the model's LLDP and CDP invent, which a switch hears from
+	// as well as about.
+	fixed map[int][]net.HardwareAddr
+	// qFDB answers Q-BRIDGE-MIB's dot1qTpFdbTable, which says the VLAN each
+	// station is in. perVLAN answers dot1dTpFdbTable one VLAN at a time, as
+	// Cisco IOS does (Object.VLAN).
+	qFDB, perVLAN bool
 }
 
 // vlanInfo is one VLAN and the bridge ports it is on.
@@ -95,13 +105,26 @@ func addBridge(o *objects, s stack, b bridgeInfo) {
 	o.add(br+"4.1.0", gosnmp.Counter32, zero)     // dot1dTpLearnedEntryDiscards
 	o.add(br+"4.2.0", gosnmp.Integer, Const(300)) // dot1dTpAgingTime, seconds
 
-	fdb := func(mac net.HardwareAddr, port, status int) {
-		inst := macArcs(mac)
-		o.add(br+"4.3.1.1."+inst, gosnmp.OctetString, Const([]byte(mac)))
-		o.add(br+"4.3.1.2."+inst, gosnmp.Integer, Const(port))
-		o.add(br+"4.3.1.3."+inst, gosnmp.Integer, Const(status))
+	// Each port's own VLAN, and every VLAN the switch has.
+	pvid := map[int]int{}
+	var vlanIDs []int
+	for _, v := range b.vlans {
+		vlanIDs = append(vlanIDs, v.id)
+		for _, p := range v.untagged {
+			pvid[p] = v.id
+		}
 	}
-	fdb(own, 0, 4) // self
+	// What the switch learnt, on which port and in which VLAN; its own MAC is
+	// in every VLAN.
+	type learnt struct {
+		mac                net.HardwareAddr
+		port, status, vlan int
+	}
+	entries := []learnt{{own, 0, 4, 0}}
+	var wires map[string]Wire
+	if s.wiring != nil {
+		wires = s.wiring.Ports
+	}
 
 	var station uint64
 	for i, ifIndex := range b.ports {
@@ -159,19 +182,56 @@ func addBridge(o *objects, s stack, b bridgeInfo) {
 		o.add(tp(4), gosnmp.Counter32, out)
 		o.add(tp(5), gosnmp.Counter32, zero)
 
-		// The stations learnt on the port; the gateway is behind the uplink.
+		// The stations learnt on the port: on the bench, what the cable in it
+		// leads to; otherwise invented, the gateway and the hosts in the
+		// switch's ARP cache behind the uplink with the rest of the network.
 		if !up {
 			continue
+		}
+		if wire, cabled := wires[f.ifName()]; cabled {
+			for _, st := range wire.Behind {
+				entries = append(entries, learnt{st.MAC, port, 3, cmp.Or(st.VLAN, 1)})
+			}
+			continue
+		}
+		for _, mac := range b.fixed[port] {
+			entries = append(entries, learnt{mac, port, 3, cmp.Or(pvid[port], 1)})
 		}
 		n := b.stations
 		if port == b.uplink {
 			n = b.uplinkStations
-			fdb(peerMAC(s.seed, 0), port, 3)
+			entries = append(entries, learnt{peerMAC(s.seed, 0), port, 3, 1})
+			for _, nb := range s.neighbours() {
+				entries = append(entries, learnt{nb.mac, port, 3, 1})
+			}
 		}
 		for k := 0; k < n; k++ {
 			station++
-			fdb(peerMAC(s.seed, 1000+station), port, 3) // learned
+			vlan := cmp.Or(pvid[port], 1)
+			if port == b.uplink && len(vlanIDs) > 0 {
+				vlan = vlanIDs[int(station)%len(vlanIDs)]
+			}
+			entries = append(entries, learnt{peerMAC(s.seed, 1000+station), port, 3, vlan})
 		}
+	}
+
+	// dot1dTpFdbTable is indexed by the MAC alone: one entry a MAC, or on a
+	// switch answering it per VLAN, one a MAC in each VLAN's view.
+	seen := map[string]bool{}
+	for _, e := range entries {
+		key, view := macArcs(e.mac), 0
+		if b.perVLAN {
+			view = e.vlan
+			key = strconv.Itoa(view) + "/" + key
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		inst := macArcs(e.mac)
+		o.addInVLAN(view, br+"4.3.1.1."+inst, gosnmp.OctetString, Const([]byte(e.mac)))
+		o.addInVLAN(view, br+"4.3.1.2."+inst, gosnmp.Integer, Const(e.port))
+		o.addInVLAN(view, br+"4.3.1.3."+inst, gosnmp.Integer, Const(e.status))
 	}
 
 	// Q-BRIDGE-MIB: the VLANs, the ports each is on as a PortList — one bit a
@@ -192,7 +252,6 @@ func addBridge(o *objects, s stack, b bridgeInfo) {
 		}
 		return l
 	}
-	pvid := map[int]int{}
 	for _, v := range b.vlans {
 		col := func(c int) string { return fmt.Sprintf(q+"4.3.1.%d.%d", c, v.id) }
 		o.add(col(1), gosnmp.OctetString, Const(v.name))
@@ -200,13 +259,33 @@ func addBridge(o *objects, s stack, b bridgeInfo) {
 		o.add(col(3), gosnmp.OctetString, Const(portList()))
 		o.add(col(4), gosnmp.OctetString, Const(portList(v.untagged)))
 		o.add(col(5), gosnmp.Integer, Const(1)) // active
-		for _, p := range v.untagged {
-			pvid[p] = v.id
-		}
 	}
 	for i := range b.ports {
 		port := i + 1
 		o.add(fmt.Sprintf(q+"4.5.1.1.%d", port), gosnmp.Gauge32, Const(uint32(cmp.Or(pvid[port], 1))))
+	}
+
+	// dot1qTpFdbTable: the same stations by VLAN — its filtering database is
+	// numbered as the VLAN is — then MAC, and how many each VLAN learnt.
+	if b.qFDB {
+		qseen := map[string]bool{}
+		count := map[int]uint32{}
+		for _, e := range entries {
+			vid := cmp.Or(e.vlan, 1)
+			inst := strconv.Itoa(vid) + "." + macArcs(e.mac)
+			if qseen[inst] {
+				continue
+			}
+			qseen[inst] = true
+			o.add(q+"2.2.1.2."+inst, gosnmp.Integer, Const(e.port))
+			o.add(q+"2.2.1.3."+inst, gosnmp.Integer, Const(e.status))
+			if e.status == 3 {
+				count[vid]++
+			}
+		}
+		for _, v := range b.vlans {
+			o.add(fmt.Sprintf(q+"2.1.1.2.%d", v.id), gosnmp.Counter32, Const(count[v.id]))
+		}
 	}
 }
 
@@ -218,21 +297,23 @@ type lldpInfo struct {
 	neighbours []neighbour
 }
 
-// neighbour is a device heard on a port.
+// neighbour is a device heard on a port, and the management address it gives.
 type neighbour struct {
 	ifIndex                      int
 	name, descr, port, portDescr string
 	chassis                      net.HardwareAddr
 	caps                         byte
+	addr                         netip.Addr
 }
 
 // The LLDP system capabilities, as the bits of one octet: bit 0, "other", is
 // the high bit.
 const (
-	capBridge  = 0x20
-	capWLAN    = 0x10
-	capRouter  = 0x08
-	capStation = 0x01
+	capBridge    = 0x20
+	capWLAN      = 0x10
+	capRouter    = 0x08
+	capTelephone = 0x04
+	capStation   = 0x01
 )
 
 func addLLDP(o *objects, s stack, l lldpInfo) {
@@ -258,17 +339,27 @@ func addLLDP(o *objects, s stack, l lldpInfo) {
 		o.add(col(4), gosnmp.OctetString, Const(f.descr))
 	}
 	// lldpLocManAddrTable: the management address, indexed by its type and
-	// the address with its length first.
-	if len(s.addrs) > 0 {
-		inst := "1.4." + s.primary().String()
+	// the address with its length first. On the bench it is where the device
+	// answers, which is where a manager following LLDP has to go.
+	if len(s.addrs) > 0 || (s.wiring != nil && s.wiring.Listen.IsValid()) {
+		mgmt, ifIndex := s.primary(), 0
+		if len(s.addrs) > 0 {
+			ifIndex = s.addrs[0].ifIndex
+		}
+		if s.wiring != nil && s.wiring.Listen.IsValid() {
+			mgmt = s.wiring.Listen
+		}
+		inst := inetIndex(mgmt)
 		col := func(c int) string { return fmt.Sprintf(lldp+"3.8.1.%d.%s", c, inst) }
-		o.add(col(3), gosnmp.Integer, Const(5))
+		o.add(col(3), gosnmp.Integer, Const(len(mgmt.AsSlice())+1))
 		o.add(col(4), gosnmp.Integer, Const(2)) // an ifIndex
-		o.add(col(5), gosnmp.Integer, Const(s.addrs[0].ifIndex))
+		o.add(col(5), gosnmp.Integer, Const(ifIndex))
 		o.add(col(6), gosnmp.ObjectIdentifier, Const(".0.0"))
 	}
-	// lldpRemTable, indexed by a time mark, the local port and an index.
-	for i, n := range l.neighbours {
+	// lldpRemTable, indexed by a time mark, the local port and an index; and
+	// lldpRemManAddrTable, each neighbour's management address under the same
+	// three and the address.
+	for i, n := range neighboursOf(s, l) {
 		inst := fmt.Sprintf("0.%d.%d", n.ifIndex, i+1)
 		col := func(c int) string { return fmt.Sprintf(lldp+"4.1.1.%d.%s", c, inst) }
 		o.add(col(4), gosnmp.Integer, Const(4))
@@ -280,5 +371,44 @@ func addLLDP(o *objects, s stack, l lldpInfo) {
 		o.add(col(10), gosnmp.OctetString, Const(n.descr))
 		o.add(col(11), gosnmp.OctetString, Const([]byte{n.caps}))
 		o.add(col(12), gosnmp.OctetString, Const([]byte{n.caps}))
+		if n.addr.IsValid() {
+			man := func(c int) string { return fmt.Sprintf(lldp+"4.2.1.%d.%s.%s", c, inst, inetIndex(n.addr)) }
+			o.add(man(3), gosnmp.Integer, Const(2)) // an ifIndex, which LLDP did not say
+			o.add(man(4), gosnmp.Integer, Const(0))
+			o.add(man(5), gosnmp.ObjectIdentifier, Const(".0.0"))
+		}
 	}
+}
+
+// neighboursOf are what a device hears on its ports: on the bench, the device
+// at the far end of each cable, and the ones its model invents on the ports
+// with no cable in them.
+func neighboursOf(s stack, l lldpInfo) []neighbour {
+	w := s.wiring
+	if w == nil {
+		return l.neighbours
+	}
+	byName := map[string]int{}
+	byIndex := map[int]string{}
+	for _, f := range s.ifs {
+		byName[f.ifName()] = f.index
+		byIndex[f.index] = f.ifName()
+	}
+	var out []neighbour
+	for _, n := range l.neighbours {
+		if _, cabled := w.Ports[byIndex[n.ifIndex]]; !cabled {
+			out = append(out, n)
+		}
+	}
+	for _, name := range sortedKeys(w.Ports) {
+		ifIndex, ok := byName[name]
+		if !ok {
+			continue
+		}
+		p := w.Ports[name].Peer
+		out = append(out, neighbour{ifIndex: ifIndex, name: p.Name, descr: p.Descr, port: p.Port,
+			portDescr: p.PortDescr, chassis: p.Chassis, caps: p.Caps, addr: p.Addr})
+	}
+	slices.SortStableFunc(out, func(a, b neighbour) int { return a.ifIndex - b.ifIndex })
+	return out
 }

@@ -57,7 +57,7 @@ func buildFortiGate60F(id Identity) []Object {
 	lan := lanPrefix(id.Seed)
 	dmzNet := netip.MustParsePrefix("172.16.10.0/24")
 	sslvpn := netip.MustParsePrefix("10.212.134.0/24")
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs: []iface{
 			wan1,

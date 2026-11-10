@@ -57,7 +57,7 @@ func buildMikrotikRB4011(id Identity) []Object {
 	wan := netip.MustParsePrefix("198.51.100.0/29")
 	lan := netip.MustParsePrefix("192.168.88.0/24")
 	switchMAC, apMAC := peerMAC(id.Seed, 901), peerMAC(id.Seed, 902)
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs:  ifs,
 		addrs: []ifAddr{
@@ -76,7 +76,7 @@ func buildMikrotikRB4011(id Identity) []Object {
 		lldp: &lldpInfo{name: id.Name, descr: descr, caps: capRouter | capBridge, neighbours: []neighbour{
 			{ifIndex: 2, name: "sw-office", descr: catalystDescr, port: "Gi0/24", portDescr: "GigabitEthernet0/24",
 				chassis: switchMAC, caps: capBridge},
-			{ifIndex: 3, name: "ap-openspace", descr: "U6-Pro 6.6.77.15402", port: "eth0", portDescr: "eth0",
+			{ifIndex: 3, name: "ap-office", descr: "U6-Pro 6.6.77.15402", port: "eth0", portDescr: "eth0",
 				chassis: apMAC, caps: capWLAN | capBridge},
 		}},
 	})

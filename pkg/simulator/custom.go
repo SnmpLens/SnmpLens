@@ -67,7 +67,8 @@ const instancePlaceholder = "{#}"
 
 // customCategories are the categories a custom model may be filed under: the
 // catalogue's, and "other". The interface names each (simulator.category.<id>).
-var customCategories = []string{"server", "network", "security", "wireless", "storage", "power", "printing", "environment", "other"}
+var customCategories = []string{"server", "network", "security", "wireless", "storage", "power", "printing", "environment",
+	"telephony", "other"}
 
 // customTypes are the SMI types an object may be sent as, by the names the SMI
 // gives them.

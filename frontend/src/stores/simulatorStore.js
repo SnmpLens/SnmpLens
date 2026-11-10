@@ -22,6 +22,10 @@ import {
   SimulatorSetFaults,
   SimulatorPreview,
   TrapListenerEngineID,
+  ListSimulatorLinks,
+  SimulatorPorts,
+  SimulatorConnect,
+  SimulatorDisconnect,
 } from '../../wailsjs/go/app/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 
@@ -36,13 +40,13 @@ import { EventsOn } from '../../wailsjs/runtime/runtime';
  */
 function createSimulatorStore() {
   // recording is the recording under way — { objects } kept so far — or null.
-  const { subscribe, update } = writable({ models: [], icons: {}, devices: [], recording: null, loaded: false });
+  const { subscribe, update } = writable({ models: [], icons: {}, devices: [], links: [], recording: null, loaded: false });
   let subscribed = false;
 
-  /** The devices, re-read: what the modal polls while it is open. */
+  /** The devices and the cables between them, re-read: what the modal polls while it is open. */
   async function refresh() {
-    const devices = await ListSimulatedDevices();
-    update((s) => ({ ...s, devices: devices || [], loaded: true }));
+    const [devices, links] = await Promise.all([ListSimulatedDevices(), ListSimulatorLinks()]);
+    update((s) => ({ ...s, devices: devices || [], links: links || [], loaded: true }));
   }
 
   /**
@@ -125,6 +129,11 @@ function createSimulatorStore() {
     preview: async (device, query) => (await SimulatorPreview(device, query)) || { rows: [], total: 0 },
     /** The engine ID SnmpLens's own trap listener stands for, in hex. */
     listenerEngineId: async () => (await TrapListenerEngineID()) || '',
+    /** The ports of a device a cable can go into: [{ name, descr, speedMbps }]. */
+    ports: async (id) => (await SimulatorPorts(id)) || [],
+    /** Plugs a cable in: { a: { device, port }, b: { device, port } }; resolves to it, with its ID. */
+    connect: (link) => SimulatorConnect(link),
+    disconnect: (id) => SimulatorDisconnect(id),
   };
 }
 

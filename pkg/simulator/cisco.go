@@ -3,6 +3,7 @@ package simulator
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
 	"net/netip"
 	"slices"
 	"time"
@@ -28,7 +29,12 @@ import (
 // fewer ports keeps its uplinks at the indexes its model has them — a gap in
 // ifIndex is what a real switch's numbering has too — so that its
 // notifications still name them. Two at least: the second is the access
-// point LLDP hears.
+// point LLDP hears, and the third, when there is one, a desk phone with a
+// computer behind it.
+//
+// BRIDGE-MIB is answered as IOS answers it, one VLAN at a time: the community
+// alone reads VLAN 1's stations, public@10 VLAN 10's, and in SNMPv3 the
+// context vlan-10.
 var (
 	catalyst24 = model{
 		ModelInfo: ModelInfo{ID: "cisco-catalyst-24", Category: "network",
@@ -38,6 +44,7 @@ var (
 			return buildCatalyst(id, 24, ".1.3.6.1.4.1.9.1.716", "WS-C2960-24TT-L") // catalyst296024TT
 		},
 		notifications: catalystNotifications(24),
+		vlanContexts:  true,
 	}
 	catalyst48 = model{
 		ModelInfo: ModelInfo{ID: "cisco-catalyst-48", Category: "network",
@@ -47,6 +54,7 @@ var (
 			return buildCatalyst(id, 48, ".1.3.6.1.4.1.9.1.717", "WS-C2960-48TT-L") // catalyst296048TT
 		},
 		notifications: catalystNotifications(48),
+		vlanContexts:  true,
 	}
 )
 
@@ -79,6 +87,8 @@ func buildCatalyst(id Identity, ports int, sysObjectID, model string) []Object {
 			f.up, f.alias, f.inRate, f.outRate = true, "srv-01", 900_000, 2_400_000
 		case p == 2:
 			f.up, f.alias, f.inRate, f.outRate = true, "ap-openspace", 380_000, 1_900_000
+		case p == 3:
+			f.up, f.alias, f.inRate, f.outRate = true, "desk 2-03 phone", 12_000, 30_000
 		case r < 0.06:
 			f.adminDown = true
 		case r < 0.64:
@@ -121,7 +131,23 @@ func buildCatalyst(id Identity, ports int, sysObjectID, model string) []Object {
 		}
 		return out
 	}
-	core := peerMAC(id.Seed, 900)
+	// What the switch's neighbours are when nothing is cabled to it: the core
+	// every simulated access switch hangs from, the access point on port 2 and
+	// the phone on port 3, each learnt on its port as well as named there.
+	core := fictionalCoreChassis
+	apMAC, phoneMAC, pcMAC := peerMAC(id.Seed, 902), peerMAC(id.Seed, 904), peerMAC(id.Seed, 905)
+	fixed := map[int][]net.HardwareAddr{portOf(uplink)[0]: {core}, portOf(2)[0]: {apMAC}}
+	invented := []neighbour{
+		{ifIndex: uplink, name: fictionalCoreName, descr: coreDescr, port: "Gi1/0/12", portDescr: "GigabitEthernet1/0/12",
+			chassis: core, caps: capBridge | capRouter, addr: hostIn(lan, 1)},
+		{ifIndex: 2, name: "ap-openspace", descr: "U6-Pro 6.6.77.15402", port: "eth0", portDescr: "eth0",
+			chassis: apMAC, caps: capWLAN | capBridge, addr: hostIn(lan, 40)},
+	}
+	if n >= 3 {
+		fixed[portOf(3)[0]] = []net.HardwareAddr{phoneMAC, pcMAC}
+		invented = append(invented, neighbour{ifIndex: 3, name: "phone-2-03", descr: phoneDescr, port: "eth0",
+			portDescr: "eth0", chassis: phoneMAC, caps: capTelephone | capBridge})
+	}
 
 	// ENTITY-MIB: the chassis, its supply, fan and temperature sensor, and a
 	// port for every physical interface.
@@ -138,7 +164,7 @@ func buildCatalyst(id Identity, ports int, sysObjectID, model string) []Object {
 			descr: f.descr, name: f.ifName(), ifIndex: f.index})
 	}
 
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed:     id.Seed,
 		ifs:      ifs,
 		addrs:    []ifAddr{{ifIndex: vlan1, prefix: addrIn(lan, 2+int(id.Seed%5)), neighbours: 3}},
@@ -157,13 +183,9 @@ func buildCatalyst(id Identity, ports int, sysObjectID, model string) []Object {
 				{id: 20, name: "PRINTERS", untagged: portOf(printers...), tagged: portOf(uplink)},
 			},
 			stations: 1, uplinkStations: 40, uplink: portOf(uplink)[0], root: core,
+			fixed: fixed, perVLAN: true,
 		},
-		lldp: &lldpInfo{name: id.Name, descr: catalystDescr, caps: capBridge, neighbours: []neighbour{
-			{ifIndex: uplink, name: "core-sw-01", descr: coreDescr, port: "Gi1/0/12", portDescr: "GigabitEthernet1/0/12",
-				chassis: core, caps: capBridge | capRouter},
-			{ifIndex: 2, name: "ap-openspace", descr: "U6-Pro 6.6.77.15402", port: "eth0", portDescr: "eth0",
-				chassis: peerMAC(id.Seed, 902), caps: capWLAN | capBridge},
-		}},
+		lldp: &lldpInfo{name: id.Name, descr: catalystDescr, caps: capBridge, neighbours: invented},
 	})
 
 	addCiscoCPU(&o, id.Seed, 1001, 3, 24, 65536)
@@ -173,10 +195,10 @@ func buildCatalyst(id Identity, ports int, sysObjectID, model string) []Object {
 	})
 	addCiscoEnv(&o, id.Seed, []envTemp{{"SW#1, Sensor#1, GREEN ", 36, 41, 60}},
 		[]string{"Switch#1, Fan#1, Normal"}, []string{"Sw1, PS1 Normal, RPS NotExist"})
-	addCDP(&o, id.Name, []cdpNeighbour{
-		{ifIndex: uplink, name: "core-sw-01.example.com", addr: hostIn(lan, 1), version: coreDescr,
-			port: "GigabitEthernet1/0/12", platform: "cisco C9300-48P", caps: 0x29, nativeVLAN: 1},
-	})
+	addCDP(&o, id.Name, cdpOf(id, ifs, []cdpNeighbour{
+		{ifIndex: uplink, name: fictionalCoreName, addr: hostIn(lan, 1), version: coreDescr,
+			port: "GigabitEthernet1/0/12", platform: "cisco C9300-24T", caps: 0x29, nativeVLAN: 1},
+	}))
 	addVTP(&o, "OFFICE", []vtpVLAN{{1, "default", vlan1}, {10, "USERS", 0}, {20, "PRINTERS", 0}})
 	addCiscoConfigHistory(&o)
 	return o
@@ -265,7 +287,7 @@ func buildISR4331(id Identity) []Object {
 			descr: f.descr, name: f.ifName(), ifIndex: f.index})
 	}
 
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs:  ifs,
 		addrs: []ifAddr{
@@ -287,8 +309,8 @@ func buildISR4331(id Identity) []Object {
 		},
 		entity: entity,
 		lldp: &lldpInfo{name: id.Name, descr: isrDescr, caps: capRouter, neighbours: []neighbour{
-			{ifIndex: 2, name: "sw-floor-2", descr: catalystDescr, port: "Gi0/1", portDescr: "GigabitEthernet0/1",
-				chassis: peerMAC(id.Seed, 903), caps: capBridge},
+			{ifIndex: 2, name: fictionalCoreName, descr: coreDescr, port: "Gi1/0/1", portDescr: "GigabitEthernet1/0/1",
+				chassis: fictionalCoreChassis, caps: capBridge | capRouter, addr: hostIn(lan, 2)},
 		}},
 	})
 	addCiscoCPU(&o, id.Seed, 6, 2, 14, 3_900_000)
@@ -301,10 +323,10 @@ func buildISR4331(id Identity) []Object {
 		{"Temp: Outlet 1", 31, 38, 60},
 		{"Temp: CPU 0", 41, 55, 90},
 	}, []string{"Fan 1", "Fan 2", "Fan 3"}, []string{"PEM Iout: power-supply 0"})
-	addCDP(&o, id.Name, []cdpNeighbour{
-		{ifIndex: 2, name: "sw-floor-2", addr: hostIn(lan, 2), version: catalystDescr, port: "GigabitEthernet0/1",
-			platform: "cisco WS-C2960-24TT-L", caps: 0x28, nativeVLAN: 1},
-	})
+	addCDP(&o, id.Name, cdpOf(id, ifs, []cdpNeighbour{
+		{ifIndex: 2, name: fictionalCoreName, addr: hostIn(lan, 2), version: coreDescr, port: "GigabitEthernet1/0/1",
+			platform: "cisco C9300-24T", caps: 0x29, nativeVLAN: 1},
+	}))
 	addBGP(&o, id.Seed)
 	addCiscoConfigHistory(&o)
 	return o
@@ -395,6 +417,57 @@ type cdpNeighbour struct {
 	addr                          netip.Addr
 	caps                          uint32 // router 0x01, switch 0x08, IGMP 0x20…
 	nativeVLAN                    int
+}
+
+// cdpOf is a Cisco's CDP cache: on the bench, the Cisco at the far end of each
+// cable, by the address it answers on, and the neighbours its model invents on
+// the ports with no cable in them; elsewhere what its model invents.
+func cdpOf(id Identity, ifs []iface, invented []cdpNeighbour) []cdpNeighbour {
+	w := id.Wiring
+	if w == nil {
+		return invented
+	}
+	byName, byIndex := map[string]int{}, map[int]string{}
+	for _, f := range ifs {
+		byName[f.ifName()], byIndex[f.index] = f.index, f.ifName()
+	}
+	var out []cdpNeighbour
+	for _, n := range invented {
+		if _, cabled := w.Ports[byIndex[n.ifIndex]]; !cabled {
+			out = append(out, n)
+		}
+	}
+	for _, name := range sortedKeys(w.Ports) {
+		p := w.Ports[name].Peer
+		ifIndex, ok := byName[name]
+		// CDP's address here is IPv4: a neighbour answering on ::1 alone is
+		// heard by LLDP.
+		if !ok || !p.CDP || !p.Addr.Is4() {
+			continue
+		}
+		out = append(out, cdpNeighbour{ifIndex: ifIndex, name: p.Name, addr: p.Addr, version: p.Descr,
+			port: p.PortDescr, platform: p.Platform, caps: cdpCaps(p.Caps), nativeVLAN: 1})
+	}
+	return out
+}
+
+// cdpCaps is cdpCacheCapabilities for LLDP capabilities: router 0x01, switch
+// 0x08, host 0x10, phone 0x80.
+func cdpCaps(lldp byte) uint32 {
+	var c uint32
+	if lldp&capRouter != 0 {
+		c |= 0x01
+	}
+	if lldp&capBridge != 0 {
+		c |= 0x08 | 0x20 // a switch, which snoops IGMP
+	}
+	if lldp&capTelephone != 0 {
+		c = 0x80 | 0x10
+	}
+	if c == 0 {
+		c = 0x10
+	}
+	return c
 }
 
 // addCDP adds CISCO-CDP-MIB: CDP running, and its cache, indexed by the port

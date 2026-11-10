@@ -438,11 +438,54 @@ export const CATEGORY_ICONS = {
   power: 'battery-charging',
   printing: 'printer',
   environment: 'thermometer',
+  telephony: 'phone',
   other: 'package',
 };
 
 export function categoryIcon(category) {
   return CATEGORY_ICONS[category] || CATEGORY_ICONS.other;
+}
+
+/* --- the bench's cables -------------------------------------------------- */
+
+/**
+ * The cables as the list shows them: each end with its device's name, the
+ * devices in the order they are listed and the ports as a person orders them.
+ * A cable to a device no longer listed is left out, as Go drops it.
+ */
+export function cableRows(links, devices) {
+  const byId = new Map((devices || []).map((d, i) => [d.id, { name: d.name, order: i }]));
+  const rows = [];
+  for (const l of links || []) {
+    const a = byId.get(l.a?.device);
+    const b = byId.get(l.b?.device);
+    if (!a || !b) continue;
+    const ends = [{ id: l.a.device, name: a.name, port: l.a.port, order: a.order },
+      { id: l.b.device, name: b.name, port: l.b.port, order: b.order }];
+    if (ends[1].order < ends[0].order) ends.reverse();
+    rows.push({ id: l.id, a: ends[0], b: ends[1] });
+  }
+  return rows.sort((x, y) => x.a.order - y.a.order || portOrder(x.a.port, y.a.port) || x.b.order - y.b.order);
+}
+
+/** Port names in the order a person reads them: Fa0/2 before Fa0/10. */
+export function portOrder(a, b) {
+  return String(a).localeCompare(String(b), undefined, { numeric: true });
+}
+
+/** The ports of a device a cable can still go into: those no cable is in. */
+export function freePorts(ports, links, deviceId) {
+  const used = new Set();
+  for (const l of links || []) {
+    if (l.a?.device === deviceId) used.add(l.a.port);
+    if (l.b?.device === deviceId) used.add(l.b.port);
+  }
+  return (ports || []).filter((p) => !used.has(p.name));
+}
+
+/** Whether a cable being made names two ports of two devices. */
+export function cableReady(c) {
+  return !!(c?.a?.device && c.a.port && c.b?.device && c.b.port && c.a.device !== c.b.device);
 }
 
 /** The model of that ID — undefined for a custom model since deleted. */

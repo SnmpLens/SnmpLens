@@ -55,7 +55,7 @@ func buildAPCRackPDU(id Identity) []Object {
 		".1.3.6.1.4.1.318.1.3.4.5", // masterSwitchrPDU
 		"facilities@example.com", "Rack A2, rear", 72)
 	lan := lanPrefix(id.Seed)
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs: []iface{
 			{index: 1, descr: "eth0", ifType: ifTypeEthernet, mtu: 1500, speed: 100_000_000,

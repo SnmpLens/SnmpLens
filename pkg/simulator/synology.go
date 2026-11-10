@@ -28,7 +28,7 @@ func buildSynologyNAS(id Identity) []Object {
 		".1.3.6.1.4.1.8072.3.2.10", "admin@"+id.Name, "Office, storage shelf", 76)
 	lan := lanPrefix(id.Seed)
 	peer := func(n int, port uint16) netip.AddrPort { return netip.AddrPortFrom(hostIn(lan, n), port) }
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs: []iface{
 			{index: 1, descr: "lo", ifType: ifTypeSoftwareLoopback, mtu: 65536, speed: 10_000_000,

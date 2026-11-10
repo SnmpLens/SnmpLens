@@ -17,6 +17,7 @@
   import ModelPicker from './simulator/ModelPicker.svelte';
   import ModelIcon from './simulator/ModelIcon.svelte';
   import FaultsPanel from './simulator/FaultsPanel.svelte';
+  import CablingPanel from './simulator/CablingPanel.svelte';
   import SecretInput from './SecretInput.svelte';
   import Icon from './Icon.svelte';
 
@@ -1009,6 +1010,9 @@
             {/each}
           </ul>
           {/each}
+          {#if $simulatorStore.devices.length > 1}
+            <CablingPanel devices={$simulatorStore.devices} links={$simulatorStore.links} />
+          {/if}
         {/if}
       </div>
       <footer class="sim-footer">

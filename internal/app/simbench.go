@@ -82,6 +82,7 @@ func (a *App) exportDevices(ids []string, withSecrets bool) ([]byte, string, err
 			chosen = append(chosen, d)
 		}
 	}
+	links := slices.Clone(s.links)
 	s.mu.Unlock()
 	switch {
 	case len(chosen) == 0:
@@ -98,7 +99,7 @@ func (a *App) exportDevices(ids []string, withSecrets bool) ([]byte, string, err
 			chosen[i] = chosen[i].WithSecrets(sec)
 		}
 	}
-	data, err := simulator.ExportDevices(chosen, withSecrets)
+	data, err := simulator.ExportDevices(chosen, links, withSecrets)
 	name := "simulated-devices.json"
 	if len(chosen) == 1 {
 		name = simulator.Slug(chosen[0].Name, "simulated-device") + ".json"
@@ -168,7 +169,9 @@ func (a *App) importDevices(file string, raw []byte) []SimulatorDeviceImportResu
 	results := make([]SimulatorDeviceImportResult, 0, len(f.Devices))
 	next := slices.Clone(s.devices)
 	var stored []string
-	for _, fd := range f.Devices {
+	// The new ID of each device of the file, by its place in it, for the cables.
+	made := map[int]string{}
+	for place, fd := range f.Devices {
 		d := fd.Device()
 		res := SimulatorDeviceImportResult{Name: d.Name, Warnings: []SimulatorModelWarning{}}
 		refuse := func(err error) {
@@ -222,13 +225,29 @@ func (a *App) importDevices(file string, raw []byte) []SimulatorDeviceImportResu
 		}
 		taken = append(taken, d.Listen())
 		next = append(next, d.WithoutSecrets())
+		made[place] = d.ID
 		res.ID, res.Success = d.ID, true
 		results = append(results, res)
 	}
 	if len(next) == len(s.devices) {
 		return results
 	}
-	if err := s.write(next); err != nil {
+	// The cables between the devices made, each kept only if it fits: a device
+	// refused takes its cables with it.
+	links := slices.Clone(s.links)
+	for _, c := range f.Cables {
+		a, okA := made[c.A.Device]
+		b, okB := made[c.B.Device]
+		if !okA || !okB {
+			continue
+		}
+		l := simulator.Link{ID: simulator.NewLinkID(), A: simulator.LinkEnd{Device: a, Port: c.A.Port},
+			B: simulator.LinkEnd{Device: b, Port: c.B.Port}}
+		if simulator.CheckLinks(next, append(slices.Clone(links), l)) == nil {
+			links = append(links, l)
+		}
+	}
+	if err := s.writeBench(next, links); err != nil {
 		for _, id := range stored {
 			_ = a.secrets.Delete(secrets.SimulatorDeviceRef(id))
 		}
@@ -240,7 +259,7 @@ func (a *App) importDevices(file string, raw []byte) []SimulatorDeviceImportResu
 		}
 		return results
 	}
-	s.devices = next
+	s.devices, s.links = next, links
 	a.emitSimulatorChanged()
 	return results
 }

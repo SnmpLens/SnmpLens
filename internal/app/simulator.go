@@ -32,6 +32,9 @@ const simulatorFileVersion = 1
 type simulatorFileContent struct {
 	FormatVersion int                `json:"formatVersion"`
 	Devices       []simulator.Device `json:"devices"`
+	// Links are the cables between them (simcabling.go). A version that did
+	// not know them reads the devices and ignores the cables.
+	Links []simulator.Link `json:"links"`
 }
 
 // simulatorService holds the simulated devices and runs them. devices never
@@ -41,7 +44,12 @@ type simulatorService struct {
 	mu      sync.Mutex
 	path    string
 	devices []simulator.Device
-	fleet   *simulator.Fleet
+	// links are the cables between the devices, and wired the wiring each
+	// running device was last built with, so that a change to the bench
+	// rewires only the devices it changes.
+	links []simulator.Link
+	wired map[string]*simulator.Wiring
+	fleet *simulator.Fleet
 	// modelDir holds the custom models (simmodels.go), and models is what
 	// it held when it was last read.
 	modelDir string
@@ -55,11 +63,15 @@ func newSimulatorService(dir string) *simulatorService {
 		path:     filepath.Join(dir, simulatorFile),
 		modelDir: filepath.Join(dir, simulatorModelSubdir),
 		fleet:    simulator.NewFleet(),
+		wired:    map[string]*simulator.Wiring{},
 	}
 	s.load()
 	// The custom models before any device is validated or started: a device
 	// names its model by ID.
 	s.loadModels()
+	// The cables once every model is known: a cable is checked against the
+	// ports of the devices at its ends, and one that no longer fits is dropped.
+	s.links = keptLinks(s.devices, s.links)
 	return s
 }
 
@@ -89,16 +101,26 @@ func (s *simulatorService) load() {
 	for _, d := range content.Devices {
 		s.devices = append(s.devices, d.WithoutSecrets())
 	}
+	s.links = content.Links
 }
 
-// write replaces the file with devices, through a temporary file so that a
-// crash mid-write cannot leave half of one behind.
+// write replaces the file with devices and the cables as they are, through a
+// temporary file so that a crash mid-write cannot leave half of one behind.
 func (s *simulatorService) write(devices []simulator.Device) error {
+	return s.writeBench(devices, s.links)
+}
+
+// writeBench replaces the file with devices and links.
+func (s *simulatorService) writeBench(devices []simulator.Device, links []simulator.Link) error {
 	bare := make([]simulator.Device, len(devices))
 	for i, d := range devices {
 		bare[i] = d.WithoutSecrets()
 	}
-	raw, err := json.MarshalIndent(simulatorFileContent{FormatVersion: simulatorFileVersion, Devices: bare}, "", "  ")
+	if links == nil {
+		links = []simulator.Link{}
+	}
+	raw, err := json.MarshalIndent(simulatorFileContent{FormatVersion: simulatorFileVersion, Devices: bare,
+		Links: links}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -362,6 +384,15 @@ func (a *App) SimulatorSaveDevice(d simulator.Device) (SimulatedDevice, error) {
 			return SimulatedDevice{}, fmt.Errorf("%q already answers on %s", other.Name, d.Listen())
 		}
 	}
+	// A device given fewer ports, or another model, may no longer have the port
+	// a cable is in: that is said rather than the cable quietly dropped.
+	if i >= 0 {
+		edited := slices.Clone(s.devices)
+		edited[i] = d.WithoutSecrets()
+		if err := simulator.CheckLinks(edited, s.links); err != nil {
+			return SimulatedDevice{}, fmt.Errorf("unplug its cable first: %w", err)
+		}
+	}
 
 	// The secrets FIRST: a file naming a device whose secrets were never kept
 	// would start it with none.
@@ -394,6 +425,8 @@ func (a *App) SimulatorSaveDevice(d simulator.Device) (SimulatedDevice, error) {
 	if s.fleet.Stop(d.ID) {
 		restartErr = a.startSimulatedLocked(s, i)
 	}
+	// Its name, its description or its ports are what its neighbours say of it.
+	s.rewireLocked()
 	a.emitSimulatorChanged()
 	return s.view(s.devices[i]), restartErr
 }
@@ -412,11 +445,16 @@ func (a *App) SimulatorDeleteDevice(id string) error {
 		return nil
 	}
 	s.fleet.Stop(id)
+	delete(s.wired, id)
 	next := slices.Delete(slices.Clone(s.devices), i, i+1)
-	if err := s.write(next); err != nil {
+	links := slices.DeleteFunc(slices.Clone(s.links), func(l simulator.Link) bool {
+		return l.A.Device == id || l.B.Device == id
+	})
+	if err := s.writeBench(next, links); err != nil {
 		return fmt.Errorf("saving the simulated devices: %w", err)
 	}
-	s.devices = next
+	s.devices, s.links = next, links
+	s.rewireLocked()
 	if a.secrets != nil {
 		if err := a.secrets.Delete(secrets.SimulatorDeviceRef(id)); err != nil {
 			log.Printf("simulator: the credentials of deleted device %s remain: %v", id, err)
@@ -575,5 +613,11 @@ func (a *App) startSimulatedLocked(s *simulatorService, i int) error {
 		return fmt.Errorf("saving the simulated devices: %w", err)
 	}
 	s.devices = next
-	return s.fleet.Start(next[i].WithSecrets(sec))
+	d := next[i].WithSecrets(sec)
+	d.Wiring = s.planLocked()[d.ID]
+	if err := s.fleet.Start(d); err != nil {
+		return err
+	}
+	s.wired[d.ID] = d.Wiring
+	return nil
 }

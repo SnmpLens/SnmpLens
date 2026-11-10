@@ -48,6 +48,11 @@ type Config struct {
 	EngineBoots uint32
 	// Objects are what the agent answers for.
 	Objects []Object
+	// Contexts are the other views the agent answers, by SNMPv3 context name:
+	// "vlan-20" is also what the community indexed by the VLAN reads in v1 and
+	// v2c (public@20), as Cisco IOS answers BRIDGE-MIB. Each is whole, not a
+	// difference from Objects.
+	Contexts map[string][]Object
 	// Notifications are what the agent can send: its model's catalogue, or
 	// without one the generic notifications every agent has.
 	Notifications []Notification
@@ -113,8 +118,14 @@ type Agent struct {
 	boots       uint32
 	// tree is what the agent answers. A SET replaces it whole (set.go), so a
 	// notification reading it from another goroutine never sees one half-made.
-	tree    atomic.Pointer[tree]
-	maxSize int
+	tree atomic.Pointer[tree]
+	// contexts are the other views, by context name (Config.Contexts). They
+	// are read-only, and replaced whole when the device is recabled (Rewire).
+	contexts atomic.Pointer[map[string]*tree]
+	// agentObjects are what the agent adds to every view: its own counters,
+	// and for v3 its engine.
+	agentObjects []Object
+	maxSize      int
 	// writeCommunity writes in v1 and v2c; empty, nothing is written there.
 	writeCommunity []byte
 	rowStatus      func(string) (string, bool)
@@ -191,12 +202,10 @@ func NewAgent(cfg Config) (*Agent, error) {
 	}
 	// What only the agent knows — its own counters, and for v3 its engine —
 	// beside what the device answers.
-	objects := slices.Concat(cfg.Objects, agentObjects(a.v3, a.engineID, a.boots, cfg.Traps.OnAuthFailure))
-	t, err := newTree(objects)
-	if err != nil {
+	a.agentObjects = agentObjects(a.v3, a.engineID, a.boots, cfg.Traps.OnAuthFailure)
+	if err := a.load(cfg.Objects, cfg.Contexts); err != nil {
 		return nil, fmt.Errorf("simulator: %w", err)
 	}
-	a.tree.Store(t)
 	if a.notify, err = newNotifier(a, cfg); err != nil {
 		return nil, fmt.Errorf("simulator: %w", err)
 	}
@@ -205,6 +214,50 @@ func NewAgent(cfg Config) (*Agent, error) {
 	}
 	a.faults.Store(&faultState{faults: cfg.Faults})
 	return a, nil
+}
+
+// load makes the trees the agent answers from: the default view and the other
+// contexts, each with the agent's own objects beside it. Nothing is replaced
+// unless every tree builds.
+func (a *Agent) load(objects []Object, contexts map[string][]Object) error {
+	t, err := newTree(slices.Concat(objects, a.agentObjects))
+	if err != nil {
+		return err
+	}
+	views := make(map[string]*tree, len(contexts))
+	for name, objs := range contexts {
+		if name == "" {
+			return errors.New("a context has a name; the default view is Objects")
+		}
+		ct, err := newTree(slices.Concat(objs, a.agentObjects))
+		if err != nil {
+			return fmt.Errorf("context %q: %w", name, err)
+		}
+		views[name] = ct
+	}
+	a.tree.Store(t)
+	a.contexts.Store(&views)
+	return nil
+}
+
+// context is the view a context name answers from, or nil when the agent has
+// no such context.
+func (a *Agent) context(name string) *tree {
+	if views := a.contexts.Load(); views != nil {
+		return (*views)[name]
+	}
+	return nil
+}
+
+// Rewire has a running agent answer from objects and contexts instead: a device
+// recabled on the bench, which a real one is without restarting — its uptime,
+// its counters and its engine's boots carry on. What a SET wrote is not carried
+// over: it was written to the model as it was cabled.
+func (a *Agent) Rewire(objects []Object, contexts map[string][]Object) error {
+	if err := a.load(objects, contexts); err != nil {
+		return fmt.Errorf("simulator: %w", err)
+	}
+	return nil
 }
 
 // engineObjects is the snmpEngine group (SNMP-FRAMEWORK-MIB): the engine's own
@@ -384,8 +437,22 @@ func (a *Agent) answerCommunity(ver gosnmp.SnmpVersion, msg []byte, c clock) []b
 	}
 	// In constant time: the communities are the only secrets v1 and v2c have.
 	// The write community reads as well; the read community only reads.
-	read := subtle.ConstantTimeCompare([]byte(req.Community), a.community) == 1
-	write := len(a.writeCommunity) > 0 && subtle.ConstantTimeCompare([]byte(req.Community), a.writeCommunity) == 1
+	community, view := []byte(req.Community), (*tree)(nil)
+	read := subtle.ConstantTimeCompare(community, a.community) == 1
+	write := len(a.writeCommunity) > 0 && subtle.ConstantTimeCompare(community, a.writeCommunity) == 1
+	if !read && !write {
+		// A community indexed by a VLAN — public@20 — reads that VLAN's view, as
+		// Cisco IOS answers BRIDGE-MIB: the community before the last @ is
+		// checked as any other, and only a view that exists is read.
+		if at := bytes.LastIndexByte(community, '@'); at > 0 {
+			if v := a.context("vlan-" + string(community[at+1:])); v != nil {
+				base := community[:at]
+				read = subtle.ConstantTimeCompare(base, a.community) == 1 ||
+					len(a.writeCommunity) > 0 && subtle.ConstantTimeCompare(base, a.writeCommunity) == 1
+				view = v
+			}
+		}
+	}
 	if !read && !write {
 		a.stats.badCommunities.Add(1)
 		a.authFailed()
@@ -403,7 +470,7 @@ func (a *Agent) answerCommunity(ver gosnmp.SnmpVersion, msg []byte, c clock) []b
 		a.stats.unknownPDUHandlers.Add(1)
 		return nil
 	}
-	out, err := fit(a.process(ver, req, c, write), bulkFloor(req), tooBig(ver, req), a.maxSize,
+	out, err := fit(a.process(ver, req, c, write, view), bulkFloor(req), tooBig(ver, req), a.maxSize,
 		func(ans answer) ([]byte, error) {
 			resp := &gosnmp.SnmpPacket{
 				Version:    ver,

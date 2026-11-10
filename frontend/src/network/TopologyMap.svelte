@@ -18,7 +18,7 @@
   // label is the size it is written at; these are only what it starts from.
   let W = 1000;
   let H = 640;
-  const ICONS = { switch: 'network', router: 'route', ap: 'wifi', phone: 'radio', host: 'server' };
+  const ICONS = { switch: 'network', router: 'route', ap: 'wifi', phone: 'phone', host: 'server' };
 
   let chosen = null; // null: every target
   let depth = 0;

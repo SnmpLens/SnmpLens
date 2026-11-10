@@ -148,6 +148,7 @@ type notifySection struct {
 
 type simulatorSection struct {
 	Devices []simulator.Device `json:"devices"`
+	Links   []simulator.Link   `json:"links,omitempty"`
 }
 
 type trapsSection struct {
@@ -255,6 +256,7 @@ func (a *App) buildBackup(req BackupExportRequest) ([]byte, BackupContents, erro
 	if s := a.sim; s != nil {
 		s.mu.Lock()
 		devices := slices.Clone(s.devices)
+		links := slices.Clone(s.links)
 		modelDir := s.modelDir
 		s.mu.Unlock()
 		for _, d := range devices {
@@ -265,7 +267,7 @@ func (a *App) buildBackup(req BackupExportRequest) ([]byte, BackupContents, erro
 				sec.Devices[d.ID] = raw
 			}
 		}
-		sections[sectionSim] = simulatorSection{Devices: nonNil(devices)}
+		sections[sectionSim] = simulatorSection{Devices: nonNil(devices), Links: links}
 		c.Devices = len(devices)
 		models, _ := readFolder(modelDir, func(string) bool { return true })
 		files["simulator-models"] = models
@@ -695,6 +697,9 @@ func (a *App) restoreArchive(ar *backup.Archive, sec backupSecrets) BackupRestor
 		problem("%v", err)
 	} else if ok {
 		for _, msg := range a.restoreSimulatedDevices(sim.Devices, sec.Devices, &res.Restored.Devices) {
+			problem("%s", msg)
+		}
+		for _, msg := range a.restoreSimulatorLinks(sim.Links) {
 			problem("%s", msg)
 		}
 	}

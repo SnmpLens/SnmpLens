@@ -1065,7 +1065,39 @@
     "loginWindowNote": "The window will open at login. Enable \"Start minimised to the tray\" above for a silent start.",
     "loginUnsupported": "Registering a login entry is not implemented on this platform.",
     "loginRegistered": "SnmpLens will now start at login.",
-    "loginRemoved": "SnmpLens will no longer start at login."
+    "loginRemoved": "SnmpLens will no longer start at login.",
+    "system": {
+      "title": "System service",
+      "hint": "Supervise from the moment the PC starts, even with nobody signed in: the monitoring sessions, their thresholds, the trap listener and the notifications run as a Windows service, and this window drives it while it runs.",
+      "notInstalled": "Not installed: this window supervises while it runs.",
+      "driving": "Running — this window drives the service (SnmpLens {version}).",
+      "runningElsewhere": "Running, but this window does not drive it.",
+      "stopped": "Installed, stopped: this window supervises while it runs.",
+      "reason": {
+        "stopped": "The service is stopped.",
+        "denied": "This account may not drive the service. Allow it — Windows asks for administrator rights.",
+        "version": "The service and this window are different versions: install the same version of SnmpLens for both.",
+        "notService": "Another program answers on the service’s channel, so this window does not talk to it.",
+        "unreachable": "The service cannot be reached."
+      },
+      "location": "This copy cannot install the service: it must be installed for all users, in Program Files — run the installer and choose that.",
+      "install": "Install the service",
+      "installHint": "The sessions, notification destinations, trap users and history of this window are handed over to it. Windows asks for administrator rights once.",
+      "update": "Update to this version",
+      "start": "Start",
+      "stop": "Stop",
+      "allow": "Allow this account",
+      "uninstall": "Remove…",
+      "bringBack": "Bring its history and settings back to this window",
+      "purge": "Delete the service’s data as well",
+      "uninstallConfirm": "Remove the service",
+      "installed": "The service is installed and running.",
+      "updated": "The service runs this version.",
+      "started": "The service is running.",
+      "stoppedDone": "The service is stopped.",
+      "allowed": "This account may drive the service.",
+      "uninstalled": "The service was removed."
+    }
   },
   "mibVerdict": {
     "failed": "Does not load",

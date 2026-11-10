@@ -35,8 +35,9 @@ type App struct {
 	// move between its own engine and the service's while calls are made.
 	host remote.Host
 	link *remote.Switch
-	// eng is the engine this process runs.
-	eng *engine.Engine
+	// svc is which supervision the window drives: the service's, or its own
+	// engine (systemservice.go).
+	svc serviceLink
 
 	ctx              context.Context
 	mibs             fs.FS
@@ -133,19 +134,13 @@ func (a *App) startup(ctx context.Context) {
 		log.Printf("Secret storage backend: %s", store.Backend())
 	}
 
-	// 3. The supervision: the monitoring database, the journal, the routes,
-	// the poll clock. Opened here, started once the window's half is ready.
-	a.useEngine(engine.New(engine.Options{
-		DataDir: filepath.Join(configDir, "SnmpLens"),
-		Secrets: a.secrets,
-		Config:  a.serviceCfg,
-		Emitter: wailsEmitter{ctx},
-		Version: a.GetAppVersion(),
-	}))
-	if err := a.eng.Open(); err != nil {
-		log.Printf("WARNING: %v", err)
+	// 3. The supervision: the system service's when it runs and lets this
+	// account in, else the window's own — the monitoring database, the
+	// journal, the routes, the poll clock, the trap listener (systemservice.go).
+	if a.configDir == "" {
+		a.configDir = filepath.Join(configDir, "SnmpLens")
 	}
-	a.eng.OnSessionsChanged(a.refreshTrayStatus)
+	a.startLink()
 
 	// The simulated devices are read, and those set to start with the
 	// application are started — after the secret store, which holds their
@@ -170,16 +165,15 @@ func (a *App) startup(ctx context.Context) {
 	// 5. Tray and hide-on-close: the tray decides whether closing the window
 	// may merely hide it.
 	a.initBackgroundMode()
-
-	// 6. The trap listener when it starts with SnmpLens, and what was running
-	// when we last exited.
-	a.eng.Start()
 	a.refreshTrayStatus()
 }
 
-// useEngine makes eng the engine this window runs and drives.
+// useEngine makes eng the supervision this window runs and drives, with no
+// service to follow: what a test wires.
 func (a *App) useEngine(eng *engine.Engine) {
-	a.eng = eng
+	a.svc.mu.Lock()
+	a.svc.eng = eng
+	a.svc.mu.Unlock()
 	a.link = remote.NewSwitch(eng)
 	a.host, a.Backend = a.link, a.link
 }
@@ -511,10 +505,9 @@ func (a *App) shutdown(ctx context.Context) {
 		a.sim.fleet.StopAll()
 	}
 	a.tray.Stop()
-	// Then the engine, which stops its own producers before its consumers.
-	if a.eng != nil {
-		a.eng.Close()
-	}
+	// Then the supervision: the service let go of, or the window's own engine
+	// closed — its producers before its consumers.
+	a.stopLink()
 }
 
 // SecretsBackend names the protection actually in use on this machine, so the

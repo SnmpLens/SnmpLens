@@ -106,7 +106,7 @@ func (l *liveApp) awaitEvents(t *testing.T, f events.Filter, within time.Duratio
 	f.Limit = 500
 	deadline := time.Now().Add(within)
 	for {
-		page, err := l.eng.Storage().QueryEvents(f)
+		page, err := l.localEngine().Storage().QueryEvents(f)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -213,7 +213,7 @@ func (l *liveApp) route(t *testing.T, match notify.RouteMatch) *hookServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.eng.Storage().SaveRoute(notify.Route{Name: "test", Enabled: true, Priority: 1,
+	if _, err := l.localEngine().Storage().SaveRoute(notify.Route{Name: "test", Enabled: true, Priority: 1,
 		Match: match, SinkIDs: []string{sink.ID}}); err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestSnmpLensIdentifiesBindsAndPollsEachSimulatedModel(t *testing.T) {
 						t.Errorf("%s: %s answered %q", file, p.OID, p.Error)
 					}
 				}
-				opened, err := l.eng.Storage().QueryEvents(events.Filter{Kinds: []string{events.KindThresholdOpened}, SessionID: sess.ID})
+				opened, err := l.localEngine().Storage().QueryEvents(events.Filter{Kinds: []string{events.KindThresholdOpened}, SessionID: sess.ID})
 				if err != nil {
 					t.Fatal(err)
 				}

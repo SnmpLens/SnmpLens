@@ -21,6 +21,10 @@ func newProtector(dir string) keyProtector {
 	return &fileProtector{path: filepath.Join(dir, "sinks.key")}
 }
 
+// newMachineProtector is the same file: what keeps the service's key from
+// other accounts is its directory, which only the service may enter.
+func newMachineProtector(dir string) keyProtector { return newProtector(dir) }
+
 func (p *fileProtector) name() string { return "encrypted-file" }
 
 func (p *fileProtector) loadKey() ([]byte, error) {

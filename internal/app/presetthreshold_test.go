@@ -66,7 +66,7 @@ func TestBindingMaterialisesThePresetsThresholds(t *testing.T) {
 	}
 
 	// And the shape the evaluator is actually handed.
-	spec := a.eng.SessionSpec(sess)
+	spec := a.localEngine().SessionSpec(sess)
 	if len(spec.Thresholds) != 3 {
 		t.Fatalf("the poll clock would evaluate %d band(s)", len(spec.Thresholds))
 	}
@@ -107,7 +107,7 @@ func TestABrokenBandCannotBeBound(t *testing.T) {
 	if _, err := a.PresetBind("bad.json", "10.0.0.1", "v2c", engine.MonitorConnection{Port: 161}); err == nil {
 		t.Fatal("a band on a counter was bound")
 	}
-	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.localEngine().Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) left behind", len(sessions))
 	}
 }

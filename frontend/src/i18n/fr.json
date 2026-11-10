@@ -1065,7 +1065,39 @@
     "loginWindowNote": "La fenêtre s'ouvrira à la connexion. Activez « Démarrer réduit dans la zone de notification » ci-dessus pour un démarrage silencieux.",
     "loginUnsupported": "L'enregistrement au démarrage de session n'est pas implémenté sur cette plateforme.",
     "loginRegistered": "SnmpLens démarrera désormais à l'ouverture de session.",
-    "loginRemoved": "SnmpLens ne démarrera plus à l'ouverture de session."
+    "loginRemoved": "SnmpLens ne démarrera plus à l'ouverture de session.",
+    "system": {
+      "title": "Service système",
+      "hint": "Superviser dès le démarrage du PC, même sans session ouverte : les sessions de monitoring, leurs seuils, l’écoute des traps et les notifications tournent comme service Windows, et cette fenêtre le pilote tant qu’il tourne.",
+      "notInstalled": "Non installé : cette fenêtre supervise tant qu’elle est ouverte.",
+      "driving": "En marche — cette fenêtre pilote le service (SnmpLens {version}).",
+      "runningElsewhere": "En marche, mais cette fenêtre ne le pilote pas.",
+      "stopped": "Installé, arrêté : cette fenêtre supervise tant qu’elle est ouverte.",
+      "reason": {
+        "stopped": "Le service est arrêté.",
+        "denied": "Ce compte n’a pas le droit de piloter le service. Autorisez-le — Windows demande les droits administrateur.",
+        "version": "Le service et cette fenêtre ne sont pas de la même version : installez la même version de SnmpLens pour les deux.",
+        "notService": "Un autre programme répond sur le canal du service : cette fenêtre ne lui parle pas.",
+        "unreachable": "Le service est injoignable."
+      },
+      "location": "Cette copie ne peut pas installer le service : il faut une installation pour tous les utilisateurs, dans Program Files — relancez l’installateur et choisissez-la.",
+      "install": "Installer le service",
+      "installHint": "Les sessions, destinations de notification, utilisateurs de traps et l’historique de cette fenêtre lui sont transmis. Windows demande une fois les droits administrateur.",
+      "update": "Mettre à jour vers cette version",
+      "start": "Démarrer",
+      "stop": "Arrêter",
+      "allow": "Autoriser ce compte",
+      "uninstall": "Retirer…",
+      "bringBack": "Rapatrier son historique et ses réglages dans cette fenêtre",
+      "purge": "Supprimer aussi les données du service",
+      "uninstallConfirm": "Retirer le service",
+      "installed": "Le service est installé et en marche.",
+      "updated": "Le service tourne avec cette version.",
+      "started": "Le service est en marche.",
+      "stoppedDone": "Le service est arrêté.",
+      "allowed": "Ce compte peut piloter le service.",
+      "uninstalled": "Le service a été retiré."
+    }
   },
   "mibVerdict": {
     "failed": "Ne se charge pas",

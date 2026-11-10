@@ -35,6 +35,10 @@ func newProtector(dir string) keyProtector {
 	return &keychainProtector{service: "SnmpLens", account: "sink-secrets"}
 }
 
+// newMachineProtector is the Keychain too: there is no system service on
+// macOS, and a headless run under launchd runs as its user.
+func newMachineProtector(dir string) keyProtector { return newProtector(dir) }
+
 func (p *keychainProtector) name() string { return "macos-keychain" }
 
 // keychainItemNotFound is what `security` exits with when the item has never

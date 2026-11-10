@@ -153,6 +153,35 @@ func (c *Client) startTrapListener(port int, users []V3Params) (TrapListenerInfo
 	return sec.info, nil
 }
 
+// TrapListenerBound waits for the running listener to bind its socket, and
+// reports whether it did. Starting returns before the bind, which happens on the
+// listener's own goroutine: a port another process holds is only known once
+// Listen has returned without binding, and then this says false — as it does
+// when no listener runs, or timeout passes first.
+func (c *Client) TrapListenerBound(timeout time.Duration) bool {
+	c.trapMu.Lock()
+	bound, done := c.trapBound, c.trapDone
+	c.trapMu.Unlock()
+	if bound == nil {
+		return false
+	}
+	select {
+	case <-bound:
+		return true
+	default:
+	}
+	t := time.NewTimer(timeout)
+	defer t.Stop()
+	select {
+	case <-bound:
+		return true
+	case <-done:
+		return false
+	case <-t.C:
+		return false
+	}
+}
+
 // SetTrapEngineID gives the trap listener the snmpEngineID it stands for, from
 // its next start.
 //

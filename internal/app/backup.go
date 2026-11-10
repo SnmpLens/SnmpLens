@@ -296,8 +296,8 @@ func (a *App) buildBackup(req BackupExportRequest) ([]byte, BackupContents, erro
 		sections[sectionService] = a.serviceCfg
 		c.Service = true
 	}
-	if a.eng != nil && len(a.eng.TrapEngineID()) > 0 {
-		sections[sectionTraps] = trapsSection{EngineID: hex.EncodeToString(a.eng.TrapEngineID())}
+	if eng := a.localEngine(); eng != nil && len(eng.TrapEngineID()) > 0 {
+		sections[sectionTraps] = trapsSection{EngineID: hex.EncodeToString(eng.TrapEngineID())}
 		c.TrapEngine = true
 	}
 
@@ -836,10 +836,11 @@ func (a *App) restoreTrapEngineID(engineID string) error {
 	if err != nil || len(id) < 5 || len(id) > 32 {
 		return errors.New("the backup's engine ID is not one")
 	}
-	if a.eng == nil {
-		return errors.New("the configuration directory is not ready")
+	eng := a.localEngine()
+	if eng == nil {
+		return errors.New("this window drives the system service, whose trap listener keeps its own engine ID")
 	}
-	return a.eng.SetTrapEngineID(id)
+	return eng.SetTrapEngineID(id)
 }
 
 func sortedNames(m map[string][]byte) []string {
@@ -854,10 +855,11 @@ func sortedNames(m map[string][]byte) []string {
 // engineStorage is the database of the engine this window runs, nil when there
 // is none: what a backup reads its sessions, destinations and routes from.
 func (a *App) engineStorage() *storage.Storage {
-	if a.eng == nil {
+	eng := a.localEngine()
+	if eng == nil {
 		return nil
 	}
-	return a.eng.Storage()
+	return eng.Storage()
 }
 
 // storedSinkSecret is the credential kept for a destination, "" when none is.

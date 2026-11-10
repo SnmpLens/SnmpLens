@@ -11,6 +11,7 @@ import (
 // StartTrapListener starts listening for SNMP traps, accepting every SNMPv3 user
 // in the request, and remembers the users it took for the next start.
 func (eng *Engine) StartTrapListener(req snmp.TrapListenerRequest) (snmp.TrapListenerInfo, error) {
+	eng.trapTouched.Store(true)
 	info, err := eng.snmpClient.StartTrapListener(req.Port, req.Users)
 	if err != nil {
 		return info, err

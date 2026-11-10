@@ -361,3 +361,23 @@ func TestAKeyFileIsWrittenOnce(t *testing.T) {
 		t.Errorf("temporary files left behind: %v", left)
 	}
 }
+
+// The service's store keeps what it is given across opens, as the user's does:
+// the installer writes it, the service reads it.
+func TestTheMachineStoreKeepsWhatItIsGiven(t *testing.T) {
+	dir := t.TempDir()
+	s, err := OpenMachine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Set(SessionRef("s1"), "community"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := OpenMachine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := again.Get(SessionRef("s1")); err != nil || got != "community" {
+		t.Fatalf("read back %q, %v", got, err)
+	}
+}

@@ -9,10 +9,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 
 	"SnmpLens/internal/engine"
+	"SnmpLens/internal/remote"
+	"SnmpLens/pkg/secrets"
 	"SnmpLens/pkg/service"
 )
 
@@ -23,8 +26,15 @@ type Options struct {
 	DataDir string
 	// Version is the application's.
 	Version string
-	// Emitter reaches whatever watches the engine; nil says nothing.
+	// Emitter reaches whatever watches the engine; nil says nothing. Ignored
+	// with Control, whose server is the emitter.
 	Emitter engine.Emitter
+	// Secrets is the store to supervise with; nil opens the data directory's.
+	// The system service passes one bound to the computer (secrets.OpenMachine).
+	Secrets secrets.Store
+	// Control, when given, is where windows connect to drive the supervision
+	// (internal/remote): the system service's named pipe.
+	Control net.Listener
 }
 
 // DefaultDataDir is the desktop application's own directory, so that a
@@ -41,6 +51,7 @@ func DefaultDataDir() (string, error) {
 // Host is the supervision running with no window.
 type Host struct {
 	eng *engine.Engine
+	srv *remote.Server
 }
 
 // Start opens the engine on the data directory and starts it: the trap
@@ -56,20 +67,48 @@ func Start(opts Options) (*Host, error) {
 	if err != nil {
 		log.Printf("WARNING: could not read %s, using defaults: %v", service.Path(opts.DataDir), err)
 	}
-	eng := engine.New(engine.Options{DataDir: opts.DataDir, Config: cfg, Emitter: opts.Emitter, Version: opts.Version})
+	eng := engine.New(engine.Options{DataDir: opts.DataDir, Config: cfg, Emitter: opts.Emitter,
+		Secrets: opts.Secrets, Version: opts.Version})
+	h := &Host{eng: eng}
+	if opts.Control != nil {
+		// The server is the engine's emitter: every window connected is told
+		// what a window running the engine itself would be.
+		h.srv = remote.NewServer(eng, opts.Version)
+		eng.SetEmitter(h.srv)
+	}
 	if err := eng.Open(); err != nil {
 		eng.Close()
+		if opts.Control != nil {
+			opts.Control.Close()
+		}
 		return nil, err
 	}
 	eng.Start()
-	return &Host{eng: eng}, nil
+	if h.srv != nil {
+		go func() { _ = h.srv.Serve(opts.Control) }()
+	}
+	return h, nil
 }
 
 // Engine is the engine the host runs.
 func (h *Host) Engine() *engine.Engine { return h.eng }
 
-// Stop stops the supervision: the trap listener first, the database last.
-func (h *Host) Stop() { h.eng.Close() }
+// Stop stops the supervision: the windows let go of first, then the trap
+// listener, and the database last.
+func (h *Host) Stop() {
+	if h.srv != nil {
+		h.srv.Close()
+	}
+	h.eng.Close()
+}
+
+// Windows is how many windows drive the supervision.
+func (h *Host) Windows() int {
+	if h.srv == nil {
+		return 0
+	}
+	return h.srv.Windows()
+}
 
 // Run starts the supervision and stops it when ctx is done.
 func Run(ctx context.Context, opts Options) error {

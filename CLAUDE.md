@@ -233,6 +233,44 @@ under systemd or launchd, until interrupted — and refuses a directory another 
 cannot be opened. `internal/cli` is the command line, read before anything of the desktop application exists; on
 Windows the binary is a GUI program, so it attaches to the console of the terminal that started it.
 
+## The system service
+
+`internal/sysvc` runs the supervision as a Windows service — from boot, with nobody signed in — under the virtual
+account `NT SERVICE\SnmpLens`, from `%ProgramData%\SnmpLens` (a PROTECTED DACL: SYSTEM, administrators, the service;
+`status\` readable by local users and holding nothing it supervises). `SnmpLens service run` is what the service
+manager starts; `install`, `uninstall`, `allow`, `start` and `stop` are the administrator steps, which the window
+runs in an elevated copy of itself (`RunElevated`, ShellExecuteEx `runas`) that reports through a `--result` file,
+since it has no console — the window itself never runs elevated. Installing refuses a copy outside Program Files: the
+service runs this executable as a system account, and a copy an ordinary user can replace would hand that account to
+whoever replaces it. It adds recovery actions (restart after a failure, then every minute), an event-log source, and
+an inbound UDP firewall rule for the program on domain and private profiles — a service has no desktop to show
+Windows' prompt on, so the trap listener would otherwise hear nothing.
+
+**The service's credentials are sealed for the computer** (`secrets.OpenMachine`, DPAPI `CRYPTPROTECT_LOCAL_MACHINE`),
+not an account: the elevated installer, running as the administrator who approved it, writes them, and the service's
+own account reads them. Who may read them is the directory's DACL; a copy carried elsewhere is useless.
+
+**Installing hands the window's supervision over** (`engine.Bundle`, `storage.SnapshotTo`): the credentials, by the
+reference they are kept under (sessions', destinations' and the trap users' only — `bundledRef`), the trap engine ID,
+and a `VACUUM INTO` copy of `monitoring.db` with its history, written to the user's temp directory and deleted by the
+elevated step as soon as it is read. A service that already has a database keeps it (`Result.KeptHistory`). The
+service always starts the trap listener and resumes its sessions, whatever the window's background preferences said.
+The installer's own install hands nothing over and the service starts on the defaults. Removing it with "bring back"
+first exports the stopped service's database and credentials into a directory of the window's; the window keeps its
+own database from before beside it (`monitoring.db.before-service-*`) and takes the service's.
+
+**The window drives the service while it runs** (`internal/app/systemservice.go`). At startup, and every three
+seconds after, it dials the control pipe `\\.\pipe\SnmpLens` — whose SDDL admits SYSTEM, administrators, the
+service's account (each instance of the pipe is opened against the same descriptor, the server's included) and the
+operators in `operators.json` — and checks the PID behind it is the service's (`GetNamedPipeServerProcessId`): a
+window hands the service credentials, and a program that took the name first must not get them. Connected, the
+window's own engine is CLOSED — two supervisions would poll every session twice, send every alert twice and fight for
+port 162 — and the `Switch` sends every call to the service; lost, it waits `reconnectFor` for a restart, then runs its
+own engine again. Each move emits `backend:changed`, and the renderer reloads (`main.js`). An account that is not an
+operator is told so (`reason: denied`) and offered "Allow this account", which restarts the service so its pipe lets it
+in. The engine retries a trap port that was taken at start (`retryTrapListener`): handing over can leave it taken by
+the window for a moment, and `StartTrapListener` returns before the bind, so `TrapListenerBound` is what says it failed.
+
 ## Backend layout (`pkg/`)
 
 - `pkg/mib/service.go` — MIB loading/parsing and tree construction via **gosmi**. `LoadAll`/`LoadSpecific`/`LoadWithDiagnostics` (the diagnostics variant returns per-file load errors for the drag-&-drop import UI). Also OID translation/resolution (`Translate`, `ResolveOid(s)`).

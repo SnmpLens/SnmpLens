@@ -53,7 +53,7 @@ func TestBindingADiscoveringPresetToASilentDeviceIsRefused(t *testing.T) {
 		t.Errorf("the refusal does not say what could not be walked: %v", err)
 	}
 
-	if sessions, _ := a.eng.Storage().ListSessions(); len(sessions) != 0 {
+	if sessions, _ := a.localEngine().Storage().ListSessions(); len(sessions) != 0 {
 		t.Errorf("%d session(s) left behind by a refused bind", len(sessions))
 	}
 }

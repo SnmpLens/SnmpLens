@@ -509,14 +509,11 @@ func neighbours(sw Walk, ifByName map[string]int, ifs map[int]*Port, byBridge ma
 			if len(a) < 6 || len(a) != 6+a[5] {
 				continue
 			}
-			if (a[4] == 1 && a[5] == 4) || (a[4] == 2 && a[5] == 16) {
-				ip := make(net.IP, a[5])
-				for i := range ip {
-					ip[i] = byte(a[6+i])
-				}
+			raw, ok := octets(a[6:])
+			if ok && ((a[4] == 1 && a[5] == 4) || (a[4] == 2 && a[5] == 16)) {
 				key := fmt.Sprintf("%d.%d.%d", a[1], a[2], a[3])
 				if _, have := manAddr[key]; !have || a[4] == 1 {
-					manAddr[key] = ip.String() // IPv4 preferred: what an SNMP target usually is
+					manAddr[key] = net.IP(raw).String() // IPv4 preferred: what an SNMP target usually is
 				}
 			}
 		case under(name, cdpCache):

@@ -118,10 +118,13 @@ func TestANeighbourFindsTheDeviceByNameThenAddress(t *testing.T) {
 }
 
 func TestNextHopsAreTheNeighboursAddresses(t *testing.T) {
-	sw := device("sw", "00:00:00:00:01:01", 0x20, map[string]string{"1": "Gi1/0/1"},
-		append(neighbour("1", "1", "core", "Te1/0/1", mac("00:00:00:00:0c:01"), 0x28),
+	sw := device("sw", "00:00:00:00:01:01", 0x20, map[string]string{"1": "Gi1/0/1", "2": "Gi1/0/2"},
+		append(append(neighbour("1", "1", "core", "Te1/0/1", mac("00:00:00:00:0c:01"), 0x28),
+			neighbour("2", "1", "dist", "Te1/0/2", mac("00:00:00:00:0c:02"), 0x28)...),
 			pdu("1.0.8802.1.1.2.1.4.2.1.3.0.1.1.1.4.10.0.0.1", 2),
-			pdu("1.0.8802.1.1.2.1.4.2.1.3.0.1.1.2.16.32.1.13.184.0.0.0.0.0.0.0.0.0.0.0.1", 2))...)
+			pdu("1.0.8802.1.1.2.1.4.2.1.3.0.1.1.2.16.32.1.13.184.0.0.0.0.0.0.0.0.0.0.0.1", 2),
+			// An arc above 255 is no octet: truncated, 10.0.0.258 would be 10.0.0.2.
+			pdu("1.0.8802.1.1.2.1.4.2.1.3.0.2.1.1.4.10.0.0.258", 2))...)
 	if got := strings.Join(NextHops(sw), ","); got != "10.0.0.1" {
 		t.Errorf("next hops = %q", got)
 	}

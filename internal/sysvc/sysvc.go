@@ -50,36 +50,6 @@ type Operator struct {
 	Name string `json:"name,omitempty"`
 }
 
-// operatorsFile lists the accounts allowed to drive the service from a window,
-// in the service's own directory.
-const operatorsFile = "operators.json"
-
-func loadOperators(dir string) ([]Operator, error) {
-	data, err := os.ReadFile(filepath.Join(dir, operatorsFile))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var ops []Operator
-	if err := json.Unmarshal(data, &ops); err != nil {
-		return nil, fmt.Errorf("read %s: %w", operatorsFile, err)
-	}
-	return ops, nil
-}
-
-func saveOperators(dir string, ops []Operator) error {
-	data, err := json.MarshalIndent(ops, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(dir, operatorsFile), data, 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", operatorsFile, err)
-	}
-	return nil
-}
-
 // readBundle reads what the window prepared, and deletes the file at once: it
 // holds credentials in the clear. No file is an empty bundle — the installer's,
 // which has no window's configuration to hand over.
@@ -182,14 +152,6 @@ type Status struct {
 }
 
 const statusFile = "status.json"
-
-func writeStatus(dir string, s Status) {
-	if dir == "" {
-		return
-	}
-	data, _ := json.Marshal(s)
-	_ = os.WriteFile(filepath.Join(dir, statusFile), data, 0o644)
-}
 
 // ReadStatus reads what the service published.
 func ReadStatus(dir string) (Status, bool) {

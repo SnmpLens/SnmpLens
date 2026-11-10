@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -118,14 +119,21 @@ func (a *App) scanPorts(ctx context.Context, req PortMapRequest) (portmap.Map, e
 	in := portmap.Input{Switch: sw}
 	var warnings []string
 
-	// A Cisco switch answers BRIDGE-MIB one VLAN at a time, and only that way.
-	if !portmap.HasFDB(sw) && portmap.IsCisco(sw) {
+	// A Cisco switch answers BRIDGE-MIB one VLAN at a time: without a VLAN it
+	// answers VLAN 1's, so every other VLAN it lists is read in its own context
+	// — and VLAN 1 as well when the default view has nothing, as some do.
+	if portmap.IsCisco(sw) {
 		vlans := portmap.CiscoVLANs(sw)
+		if portmap.HasFDB(sw) {
+			vlans = slices.DeleteFunc(vlans, func(v int) bool { return v == 1 })
+		}
 		if len(vlans) > maxCiscoVLANs {
 			warnings = append(warnings, fmt.Sprintf("only the first %d of %d VLANs were read", maxCiscoVLANs, len(vlans)))
 			vlans = vlans[:maxCiscoVLANs]
 		}
-		in.ByVLAN = map[int]portmap.Walk{}
+		if len(vlans) > 0 {
+			in.ByVLAN = map[int]portmap.Walk{}
+		}
 		for i, vlan := range vlans {
 			progress("vlans", i, len(vlans))
 			w, err := walk(inVLAN(req.Switch, vlan), portmap.VLANRoots)

@@ -38,7 +38,7 @@ func buildHPLaserJet(id Identity) []Object {
 		".1.3.6.1.4.1.11.2.3.9.1", // hpNetPrinter
 		"helpdesk@example.com", "Floor 1, copy room", 72)
 	lan := lanPrefix(id.Seed)
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs: []iface{
 			{index: 1, descr: "HP ETHERNET MULTI-ENVIRONMENT", ifType: ifTypeEthernet, mtu: 1500,

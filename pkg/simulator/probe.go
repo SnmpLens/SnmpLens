@@ -25,7 +25,7 @@ func buildEnvironmentProbe(id Identity) []Object {
 		".1.3.6.1.4.1.8072.3.2.10", "facilities@example.com", "Server room, cold aisle", 72)
 	lan := lanPrefix(id.Seed)
 	serial := fmt.Sprintf("EM2-%06d", int(unit(id.Seed+51)*1e6))
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed: id.Seed,
 		ifs: []iface{
 			{index: 1, descr: "eth0", ifType: ifTypeEthernet, mtu: 1500, speed: 100_000_000,

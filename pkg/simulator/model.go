@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"cmp"
+	"net"
 	"slices"
 
 	"github.com/gosnmp/gosnmp"
@@ -40,6 +41,10 @@ type Identity struct {
 	// Params are the numbers the device was given, by ModelParam name; a
 	// number it was not given is its model's (Identity.count).
 	Params map[string]int
+	// Wiring is where the device sits on the bench: what is cabled to its
+	// ports (bench.go). Nil is a device cabled to nothing, answering as its
+	// model always has.
+	Wiring *Wiring
 }
 
 type model struct {
@@ -50,6 +55,14 @@ type model struct {
 	// notifications are the model's own, beside the generic ones every device
 	// sends.
 	notifications []Notification
+	// vlanContexts is an agent answering BRIDGE-MIB one VLAN at a time, as
+	// Cisco IOS does (Object.VLAN).
+	vlanContexts bool
+	// attached are the MACs of what a device bridges for besides itself, by the
+	// port they are behind — the
+	// computer plugged into a desk phone — which a switch it is cabled to
+	// learns on that port (bench.go).
+	attached func(Identity) map[string][]net.HardwareAddr
 }
 
 // models is the catalogue, in the order the interface offers it; a new device
@@ -57,9 +70,10 @@ type model struct {
 // (TestEveryModelFeedsItsPresets).
 var models = []model{
 	linuxServer, windowsServer, dellIDRAC9,
-	catalyst24, catalyst48, isr4331, mikrotikRB4011,
+	catalyst24, catalyst48, catalyst9300, aruba2930F, isr4331, mikrotikRB4011,
 	fortiGate60F,
 	unifiU6Pro,
+	ipPhone,
 	synologyNAS,
 	apcSmartUPS, apcRackPDU,
 	hpLaserJet,
@@ -106,6 +120,11 @@ type objects []Object
 
 func (o *objects) add(oid string, t gosnmp.Asn1BER, r Reading) {
 	*o = append(*o, Object{OID: oid, Type: t, Value: r})
+}
+
+// addInVLAN adds an object of one VLAN's view (Object.VLAN).
+func (o *objects) addInVLAN(vlan int, oid string, t gosnmp.Asn1BER, r Reading) {
+	*o = append(*o, Object{OID: oid, Type: t, Value: r, VLAN: vlan})
 }
 
 // addForNotify adds an object only a notification carries (Object.NotifyOnly).

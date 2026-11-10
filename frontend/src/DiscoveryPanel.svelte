@@ -67,7 +67,10 @@
 
     try {
       results = await SnmpDiscover(buildDiscoverRequest(withProfile($settingsStore, scanProfile), cidr.trim(), scanTimeout));
-      notificationStore.add(t('discovery.scanComplete', { values: { count: reachableCount, total: results.length } }), 'success');
+      // Counted here: reachableCount is reactive and not yet recomputed from the
+      // results just assigned, so it said 0 found whatever answered.
+      const found = results.filter((r) => r.reachable).length;
+      notificationStore.add(t('discovery.scanComplete', { values: { count: found, total: results.length } }), 'success');
     } catch (err) {
       notificationStore.add(t('discovery.scanFailed', { values: { error: err } }), 'error');
     } finally {
@@ -539,7 +542,13 @@
     flex: 0 0 auto;
   }
 
-  .form-group.compact select { width: 80px; }
+  /* The timeout is a number and stays narrow; the identifiers are a profile's name,
+     which 80 px cut to "Defaul". */
+  #discovery-timeout { width: 80px; }
+  #discovery-profile { min-width: 180px; }
+
+  /* As tall as the fields beside it. */
+  .form-row .btn { align-self: stretch; }
 
   .progress-section {
     margin-bottom: 15px;

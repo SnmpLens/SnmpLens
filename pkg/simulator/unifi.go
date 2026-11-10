@@ -58,7 +58,7 @@ func buildUniFiU6Pro(id Identity) []Object {
 	}
 	ifs = append(ifs, iface{index: 8, descr: "br0", ifType: ifTypeBridge, mtu: 1500,
 		mac: deviceMAC(id.Seed, 0), up: true, inRate: 2_800_000, outRate: 850_000})
-	addStack(&o, stack{
+	addStack(&o, id, stack{
 		seed:    id.Seed,
 		ifs:     ifs,
 		addrs:   []ifAddr{{ifIndex: 8, prefix: own, neighbours: 4}},
@@ -69,8 +69,8 @@ func buildUniFiU6Pro(id Identity) []Object {
 		// The access point keeps its controller informed.
 		sessions: []session{{45872, netip.AddrPortFrom(hostIn(lan, 20), 8080)}},
 		lldp: &lldpInfo{name: id.Name, descr: descr, caps: capWLAN | capBridge, neighbours: []neighbour{
-			{ifIndex: 2, name: "sw-floor-2", descr: catalystDescr, port: "Gi0/3", portDescr: "GigabitEthernet0/3",
-				chassis: peerMAC(id.Seed, 900), caps: capBridge},
+			{ifIndex: 2, name: "sw-floor-2", descr: catalystDescr, port: "Fa0/2", portDescr: "FastEthernet0/2",
+				chassis: peerMAC(id.Seed, 900), caps: capBridge, addr: hostIn(lan, 2)},
 		}},
 		modules: []sysOR{moduleHostResources},
 	})

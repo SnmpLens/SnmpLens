@@ -18,6 +18,21 @@ wails build -platform darwin/universal
 
 Frontend-only scripts (run from `frontend/`): `npm run dev`, `npm run build`. You normally don't invoke these directly — `wails dev`/`wails build` drive them via `wails.json`.
 
+```bash
+go test -tags webkit2_41 -count=1 -run '^TestEveryModelFeedsItsPresets$' ./pkg/simulator/   # one Go test
+cd frontend && npm ci                 # once: the frontend tests need node_modules
+node tests/profiles.test.mjs          # one frontend test, from frontend/
+npm test                              # all of them, from frontend/
+npm run check                         # svelte-check --fail-on-warnings, from frontend/
+```
+
+**A fresh checkout does not compile as `./...`.** `main.go` embeds `frontend/dist`, which is gitignored, so anything
+naming the root package fails with `pattern all:frontend/dist: no matching files found` until `wails build` has run
+or a placeholder is there: `mkdir -p frontend/dist && echo '<!-- placeholder -->' > frontend/dist/index.html`. A single
+package under `pkg/` or `internal/` needs neither. `-tags webkit2_41` is for Linux; CI passes it there and nowhere else, and runs
+Node 22. `wails build` and `wails dev` on Linux also need `libgtk-3-dev`, `libwebkit2gtk-4.1-dev` and `pkg-config`
+(`.github/linux-deps.sh`); `go build`, `go vet` and `go test` pass without them.
+
 `go run ./tools/cataloguecheck <directory>` validates a catalogue of contributed simulator models and
 dashboard presets — the shape [SnmpLens/snmplens-community](https://github.com/SnmpLens/snmplens-community)
 has — by BUILDING each one through `pkg/simulator` and `pkg/preset` rather than reimplementing their rules: a
@@ -30,7 +45,7 @@ recent majors, so a project sitting on an older one stops receiving security fix
 
 Security workflows: `codeql.yml` (SAST for Go and the frontend, weekly as well as per-push, because a query added
 after a commit lands would otherwise never see it), `dependency-review` on pull requests (govulncheck reports on
-what is already merged; this blocks it before), `govulncheck`, and `npm audit --audit-level=high` — which used to
+what is already merged; this blocks it before), `govulncheck`, and `npm audit --omit=dev --audit-level=high` — which used to
 end in `|| true` and therefore never failed. `ci.yml` also runs twice a week on main with nothing pushed, so the
 two that float check a merged commit against advisories published since, and the caches below are read often
 enough that GitHub does not evict them after seven quiet days. Actions are pinned by commit SHA, with Dependabot configured for
@@ -47,7 +62,13 @@ go build -tags webkit2_41 ./...                     # the tripwire, see below
 govulncheck -tags webkit2_41 ./...
 ```
 
-Three of those lines are load-bearing in a way the obvious version is not.
+The same workflow also runs `wails build` on all three platforms and, on Linux, `npm run check` and `npm test` from
+`frontend/`, `node tools/genbridge.mjs tools/screenshot-spec.json && node tools/editorcheck.mjs` (the editor's
+underlines, in Chrome), `node tools/check-assets.mjs` (what `docs/` names is committed),
+`node tools/sitemap-lastmod.mjs --check` (the sitemap's dates match git) and `node tools/actionpins.mjs` (one SHA per
+action).
+
+Three of the Go lines are load-bearing in a way the obvious version is not.
 
 **The tests run on every platform we ship.** They used to run on Linux alone "to avoid redundant runs", and they
 are not redundant: `pkg/autostart` is an HKCU Run key, a LaunchAgent and an XDG entry; `pkg/secrets` is DPAPI,
@@ -66,7 +87,7 @@ found" and exits 0.
 fails a commit that changed nothing when a new check lands; a vulnerability scanner that is pinned reports an
 old world. Dependabot does not see versions inside a `run:` step, so staticcheck is bumped by hand.
 
-The **Wails CLI** sits in the same blind spot (`go install …/cmd/wails@vX` in `ci.yml` and `release.yml`) and
+The **Wails CLI** sits in the same blind spot (`go install …/cmd/wails@vX` in `ci.yml`, `release.yml` and `upgrade.yml`) and
 costs more there: it generates `frontend/wailsjs/runtime`, the JavaScript half of the bridge whose Go half is the
 library in `go.mod`, and on a mismatch `wails build` prints a warning and builds anyway. Dependabot moves the
 library alone, so `internal/app/wailscli_test.go` fails until every install names the version `go.mod` requires.
@@ -93,7 +114,7 @@ global state keeps its tests serial inside one process. Measured against a basel
 step went from 90 s to 45-69 s on Linux and 106-139 s to 46-81 s on macOS, Windows within noise. If the split
 drifts out of balance, `go test -v ./pkg/mib/` gives the per-test times to move the letter by.
 
-Go unit tests live beside the code they cover (`go test ./...`, run in CI). They are deliberately few and target
+Go unit tests live beside the code they cover (`go test ./...`, run in CI). They target
 the logic that is subtle and easy to break silently — storage pragmas/migrations, aggregation, threshold
 semantics, the poll clock, counter-wrap maths — not coverage for its own sake.
 
@@ -118,9 +139,9 @@ The frontend tests are `cd frontend && npm test`. Three of them check a contract
 boundary and has no other symptom: `presetkeys.test.mjs` (every `errf` message and widget kind `pkg/preset` emits
 has an `en.json` key, with the placeholders the `Args` map supplies), `dashboard.test.mjs` (the widget dispatch
 names every kind Go serves — one it does not renders as nothing at all), and `series.test.mjs` (one plan decides
-every chart colour; there were four rules and they disagreed whenever OIDs had uneven target counts). The first runs the real `pollingStore` against a stubbed Wails
+every chart colour; there were four rules and they disagreed whenever OIDs had uneven target counts). `polling.smoke.mjs` runs the real `pollingStore` against a stubbed Wails
 bridge under node — it exists because a `ReferenceError` on that path once disabled all monitoring silently (the
-outer `try/catch` swallowed it) and neither the Vite build nor `go vet` can see that class of bug. The second
+outer `try/catch` swallowed it) and neither the Vite build nor `go vet` can see that class of bug. `i18n.parity.mjs`
 checks that the five locale files carry the same keys and the same placeholders; svelte-i18n falls back silently,
 so a locale can drift for months and only be noticed by whoever reads that language.
 
@@ -299,6 +320,7 @@ the window for a moment, and `StartTrapListener` returns before the bind, so `Tr
   touches no network, no database and no gosmi. See **Dashboard presets**.
 - `internal/engine/router.go` — the event router: routing runs on its own goroutine in bounded batches, with a durable watermark so a crash replays rather than loses. See **The trap path**.
 - `pkg/events/`, `pkg/notify/`, `pkg/secrets/`, `pkg/service/`, `pkg/tray/`, `pkg/autostart/` — the event journal vocabulary, notification routing (syslog over UDP/TCP/**TLS per RFC5425**, webhook, email, with a durable outbox), OS-protected credential storage, the pre-GUI preference file, the fail-soft system-tray icon, and the per-user login entry (HKCU Run key / LaunchAgent / XDG autostart — never machine-wide, so it never needs elevation).
+- `pkg/updater/`, `pkg/imagegate/` — in-app updates from GitHub Releases, checked against the signed manifest (see **Releases**), and the decode that decides whether a file is an image (see **The map**).
 - `pkg/netaddr/address.go` — address handling shared by `pkg/snmp` and `pkg/network`. `NormaliseTarget` strips
   the brackets people paste around an IPv6 literal, because gosnmp adds its own via `JoinHostPort` and
   `[[::1]]:161` fails naming neither; zones (`fe80::1%eth0`) are kept. `SplitTarget` reads a port the target
@@ -307,7 +329,7 @@ the window for a moment, and `StartTrapListener` returns before the bind, so `Tr
   `utils/targets.js` is the same reading on the renderer's side. `ListenAddress` returns the bare `:port`
   wildcard, which Go opens as a DUAL-STACK socket — `0.0.0.0` behaves identically but reads like a deliberate
   IPv4-only choice, which is how it gets "fixed" into one. `LastAddressIn` parses rather than pattern-matches.
-- `pkg/network/tools.go` — pure-Go ping & traceroute (**pro-bing**); no elevated privileges required. Targets go
+- `pkg/network/tools.go` — pure-Go ping (**pro-bing**, no elevated privileges) and traceroute through the system's `traceroute`, `traceroute6` or `tracert`. Targets go
   through `netaddr.ValidTarget` before they become argv: there is no shell, so nothing can be injected as a
   command, but a value starting with `-` IS read as an option — measured, `tracert -d -w 2000 -h` answers "a value
   must be supplied for the option -h". A whitelist (IP literal or RFC 1123 hostname), not a `-` blacklist. macOS ships
@@ -318,7 +340,7 @@ Multi-target operations run concurrently with goroutines; one `BulkResult` per t
 
 ## MIB lifecycle
 
-Standard SNMPv2 MIBs are embedded via `//go:embed mibs` in `main.go`. On **first run only**, `app.startup` extracts them to the per-user config dir, points gosmi's search path there, and loads core modules (`SNMPv2-SMI`, `SNMPv2-TC`). Users add their own MIBs into that same persistent directory (via the import UI / drag-&-drop), so it is the single source of truth at runtime — not the embedded `mibs/`.
+Standard SNMPv2 MIBs are embedded via `//go:embed mibs` in `main.go`. On **every start**, `app.startup` copies whichever of them is missing to the per-user config dir, which is what heals a partial directory, points gosmi's search path there, and loads core modules (`SNMPv2-SMI`, `SNMPv2-TC`). Users add their own MIBs into that same persistent directory (via the import UI / drag-&-drop), so it is the single source of truth at runtime — not the embedded `mibs/`.
 
 **Folders added in the MIB settings load from where they are** (`pkg/mib/library.go`). Their files were listed with
 a switch each and loaded nothing: the renderer sent their NAMES, and every name was looked up in the MIB folder. Go
@@ -453,10 +475,10 @@ through a limit, names a known folder and a plain file name, and anything else i
 
 ## Frontend layout (`frontend/src/`)
 
-- `App.svelte` — top-level tabbed shell (Operations / Traps / History / Monitor / Dashboard / Discovery), global keyboard shortcuts, resizable MIB panel, file-drop wiring.
-- One `*Panel.svelte` per tab; smaller pieces grouped under `operations/`, `mib/`, `settings/`. `DashboardPanel.svelte` is the eighth tab (Ctrl+8) and draws a bound preset — see **Dashboard presets**.
+- `App.svelte` — top-level tabbed shell (Operations / Traps / History / Monitor / Dashboard / Network — `discovery` in the code — / Events / MIB Editor), global keyboard shortcuts, resizable MIB panel, file-drop wiring.
+- One `*Panel.svelte` per tab; smaller pieces grouped under `operations/`, `history/`, `monitor/`, `mib/`, `mibeditor/`, `network/`, `settings/`, `simulator/`. `DashboardPanel.svelte` is the eighth tab (Ctrl+8) and draws a bound preset — see **Dashboard presets**.
 - `stores/` — Svelte writable stores are the state layer. Most persist to `localStorage` (settings, history, favorites, saved queries, polling sessions, MIB paths).
-- `utils/` — `crypto.js` (AES-256-GCM encryption of credentials in localStorage; key stored as JWK), `anonymize.js` (Anonymous Mode masking), `formatting.js`, `csv.js`, `nativeNotify.js`, `snmpParams.js` (mirrors Go request structs).
+- `utils/` — `crypto.js` (the credentials sealed in localStorage, with the key held in Go; see **Credential custody**), `anonymize.js` (Anonymous Mode masking), `formatting.js`, `csv.js`, `nativeNotify.js`, `snmpParams.js` (mirrors Go request structs).
 - `i18n/` — svelte-i18n with 5 locales (`en`, `fr`, `de`, `es`, `zh`); locale auto-detected, overridable in settings. `setupI18n()` must resolve before the app mounts (`main.js`).
 
 ### Frontend conventions worth knowing
@@ -1539,7 +1561,7 @@ a tile and a chart showing the same reading.
 count. That is the same gate the traffic goes through: an evaluated band raises an incident, which the operator's
 own notification rules may route to a sink, so the file reaching outside the machine is said out loud first.
 
-Two of the five shipped presets watch something, and the three interface ones deliberately do not. `ifOperStatus`
+Two of the six shipped presets watch something, and the four interface ones deliberately do not. `ifOperStatus`
 looks like the obvious candidate and is the wrong one: most ports of a real access switch are legitimately down,
 so a band there opens an episode per unused port the moment the preset is bound — and everything those presets
 chart is a counter.
@@ -1692,7 +1714,7 @@ vendor.
 
 ## Releases
 
-Tagging `v*` triggers `.github/workflows/release.yml`, which builds all three platforms and produces: Windows portable zip + NSIS installer (`build/windows/installer/project.nsi`, version string substituted at build time), macOS `.zip` + `.dmg`, Linux `.tar.gz` + `.deb`.
+Tagging `v*` triggers `.github/workflows/release.yml`, which builds all three platforms and produces: Windows portable zip + NSIS installer (`build/windows/installer/project.nsi`, version string substituted at build time), macOS `.zip` + `.dmg`, Linux `.tar.gz` + `.deb`. To cut one, use the `release` skill (`.claude/skills/release`). `updater-key-check.yml`, run by hand, checks that a key staged for rotation is one the shipped binaries would accept.
 
 Five things about that workflow are security properties rather than packaging, and each answers a different
 question.
@@ -1793,7 +1815,7 @@ took none of them.
 ## The project site (`docs/`)
 
 Hand-written static HTML served by GitHub Pages from `main` + `/docs`. No generator and no
-build step for the pages themselves; three commands generate what they show, and all three
+build step for the pages themselves; four commands generate what they show, and the first three
 drive the REAL application rather than a mock-up, because a picture drawn separately drifts
 from the product the first time anything changes.
 
@@ -1804,8 +1826,9 @@ node tools/demo.mjs                 # the browser demo, into docs/demo/
 node tools/changelog-snapshot.mjs   # bake the release list into changelog.html
 ```
 
-All four use `frontend/screenshots/bridge/`, a stubbed Wails bridge generated by
-`tools/genbridge.mjs` from `tools/screenshot-spec.json`. Three answer sources, in order: a
+The first three use `frontend/screenshots/bridge/`, a stubbed Wails bridge generated by
+`tools/genbridge.mjs` from `tools/screenshot-spec.json`; a fresh checkout has none, so
+`node tools/genbridge.mjs tools/screenshot-spec.json` comes first. Three answer sources, in order: a
 scene override, a computed answer in `dynamic.js`, the static fixture — and a computed
 answer returning `undefined` means "no opinion" and falls through, which is how a resolver
 that knows some OIDs declines the rest. Arguments ARE forwarded: they were not, and

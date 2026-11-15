@@ -57,6 +57,9 @@ func Run(opts Options) error {
 		Title:  "SnmpLens",
 		Width:  1024,
 		Height: 768,
+		// Zero on Windows and macOS; windowmax_linux.go says why not on Linux.
+		MaxWidth:  windowMaxWidth,
+		MaxHeight: windowMaxHeight,
 		AssetServer: &assetserver.Options{
 			Assets: opts.Assets,
 		},

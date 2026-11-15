@@ -1,0 +1,23 @@
+[Desktop Entry]
+Type=Application
+Name=SnmpLens
+GenericName=SNMP MIB Browser
+GenericName[de]=SNMP-MIB-Browser
+GenericName[es]=Navegador de MIB SNMP
+GenericName[fr]=Navigateur de MIB SNMP
+GenericName[zh_CN]=SNMP MIB 浏览器
+Comment=SNMP MIB browser, MIB editor and monitoring
+Comment[de]=SNMP-MIB-Browser, MIB-Editor und Überwachung
+Comment[es]=Navegador de MIB SNMP, editor de MIB y monitorización
+Comment[fr]=Navigateur de MIB SNMP, éditeur de MIB et supervision
+Comment[zh_CN]=SNMP MIB 浏览器、MIB 编辑器与监控
+Keywords=SNMP;MIB;trap;network;monitoring;
+Keywords[de]=SNMP;MIB;Trap;Netzwerk;Überwachung;
+Keywords[es]=SNMP;MIB;trap;red;monitorización;
+Keywords[fr]=SNMP;MIB;trap;réseau;supervision;
+Keywords[zh_CN]=SNMP;MIB;陷阱;网络;监控;
+Exec=/usr/local/bin/snmplens
+Icon=snmplens
+StartupWMClass=snmplens
+Categories=Network;Monitor;
+Terminal=false

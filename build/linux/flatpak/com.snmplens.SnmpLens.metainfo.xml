@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.snmplens.SnmpLens</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>SnmpLens</name>
+  <summary>SNMP MIB browser, MIB editor and monitoring</summary>
+  <developer id="com.snmplens">
+    <name>Geoffrey Lecoq</name>
+  </developer>
+
+  <description>
+    <p>
+      A cross-platform SNMP MIB browser, MIB editor and monitoring desktop application:
+      dashboards drawn from shareable presets, a trap receiver, and alerts routed to
+      syslog, a webhook or email.
+    </p>
+    <ul>
+      <li>GET, SET, GETNEXT, GETBULK and WALK in SNMP v1, v2c and v3, with tables split by their INDEX</li>
+      <li>A MIB tree, a MIB editor and a diagnosis of why a MIB did not load</li>
+      <li>Monitoring with thresholds, and dashboards from presets</li>
+      <li>A trap and INFORM receiver, with notifications routed to syslog, a webhook or email</li>
+      <li>Simulated devices to try all of it without a device</li>
+    </ul>
+    <p>
+      The system service is not available in this package: a sandbox cannot install one.
+      Background mode keeps monitoring with the window closed where the desktop has a tray,
+      and starting at login goes through the desktop's permission for background
+      applications.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">com.snmplens.SnmpLens.desktop</launchable>
+  <provides>
+    <binary>snmplens</binary>
+  </provides>
+
+  <url type="homepage">https://snmplens.com/</url>
+  <url type="bugtracker">https://github.com/SnmpLens/SnmpLens/issues</url>
+  <url type="vcs-browser">https://github.com/SnmpLens/SnmpLens</url>
+
+  <content_rating type="oars-1.1"/>
+
+  <!-- The release workflow adds the release it builds. -->
+  <releases>
+  </releases>
+</component>

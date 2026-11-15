@@ -33,6 +33,12 @@ var iconPNG []byte
 //go:embed build/windows/icon.ico
 var iconICO []byte
 
+// The Linux window's icon: square, and small enough for X11 to carry
+// (internal/app/run.go says why the tray's is not).
+//
+//go:embed build/linux/snmplens.png
+var iconWindow []byte
+
 func main() {
 	// The supervision with no window, and the help: before anything of the
 	// desktop application exists.
@@ -40,11 +46,12 @@ func main() {
 		os.Exit(code)
 	}
 	err := app.Run(app.Options{
-		Assets:  assets,
-		MIBs:    mibs,
-		Presets: presets,
-		TrayPNG: iconPNG,
-		TrayICO: iconICO,
+		Assets:     assets,
+		MIBs:       mibs,
+		Presets:    presets,
+		TrayPNG:    iconPNG,
+		TrayICO:    iconICO,
+		WindowIcon: iconWindow,
 	})
 	if err != nil {
 		println("Error:", err.Error())

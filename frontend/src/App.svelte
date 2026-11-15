@@ -32,7 +32,7 @@
   import { historyStore } from './stores/historyStore';
   import { eventCounts, eventsStore } from './stores/eventsStore';
   import { simulatorStore, runningSimulated } from './stores/simulatorStore';
-  import { GetPersistentMibDirectory, ListMibFiles, ImportMibFiles, ImportPresetFiles, TraySetLabels, MibFileStatuses } from '../wailsjs/go/app/App';
+  import { GetPersistentMibDirectory, ListMibFiles, ImportMibFiles, ImportPresetFiles, TraySetLabels, MibFileStatuses, AppearanceSetTheme } from '../wailsjs/go/app/App';
   import MibEditorPanel from './MibEditorPanel.svelte';
   import { mibEditorStore } from './stores/mibEditorStore';
   import { tabRequest } from './stores/tabRequest';
@@ -171,6 +171,14 @@
 
   // React to settings changes
   $: applyTheme($settingsStore.theme);
+
+  // The window around the page follows the same setting: on Linux, Go gives
+  // GTK the dark variant from it and from the desktop's preference, and the
+  // 'system' case above then follows through the media query (appearance.go).
+  $: tellGoTheTheme($settingsStore.theme);
+  function tellGoTheTheme(theme) {
+    Promise.resolve(AppearanceSetTheme(theme || 'system')).catch(() => {});
+  }
 
   // React to OS theme changes in real time (only when set to 'system')
   function onSystemThemeChange() {

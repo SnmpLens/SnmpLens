@@ -12,6 +12,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -29,6 +30,11 @@ type Options struct {
 	// TrayPNG and TrayICO are the tray artwork: Windows needs an .ico, the
 	// other desktops want a .png.
 	TrayPNG, TrayICO []byte
+	// WindowIcon is the Linux window's icon, 256 pixels square. Not the
+	// tray's: GDK drops an icon too large for one X11 request without a word,
+	// and the tray's 508x517 is — measured under Xwayland, the window then had
+	// no _NET_WM_ICON at all.
+	WindowIcon []byte
 }
 
 // Run starts SnmpLens and returns once it has exited.
@@ -53,6 +59,9 @@ func Run(opts Options) error {
 	a.serviceCfg = svcCfg
 	a.trayIcons = trayIcons{png: opts.TrayPNG, ico: opts.TrayICO}
 
+	// Before GTK starts, for X11's WM_CLASS (gtk_linux.go).
+	setProgramName(programName())
+
 	return wails.Run(&options.App{
 		Title:  "SnmpLens",
 		Width:  1024,
@@ -64,8 +73,18 @@ func Run(opts Options) error {
 			Assets: opts.Assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        a.startup,
-		OnShutdown:       a.shutdown,
+		Linux: &linux.Options{
+			// What the desktop knows the window by (windowid.go).
+			ProgramName: programName(),
+			// The icon an X11 window shows where no desktop file names it.
+			Icon: opts.WindowIcon,
+			// What Wails uses when Linux is nil, as it was: given options it
+			// would switch to on-demand acceleration, which wailsapp/wails#2977
+			// turned off for drawing nothing on some drivers.
+			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
+		},
+		OnStartup:  a.startup,
+		OnShutdown: a.shutdown,
 		// Launching straight to the tray, for a login item. If no tray
 		// materialises, startup shows the window anyway rather than leaving a
 		// process the user cannot reach.

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"SnmpLens/pkg/flatpak"
 )
 
 // On Linux the service is a systemd unit running as a system user of its own.
@@ -26,8 +28,13 @@ const (
 // runFromCommandLine: systemd starts the service as `SnmpLens service run`.
 const runFromCommandLine = true
 
-// Supported reports whether systemd runs this system.
+// Supported reports whether systemd runs this system and this copy can install
+// a unit for it. A Flatpak cannot: the sandbox has no systemctl and no pkexec,
+// and a unit would run /app/bin, which exists only inside it.
 func Supported() bool {
+	if flatpak.Sandboxed() {
+		return false
+	}
 	fi, err := os.Stat("/run/systemd/system")
 	return err == nil && fi.IsDir()
 }

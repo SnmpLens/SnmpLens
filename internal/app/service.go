@@ -6,6 +6,7 @@ import (
 
 	"SnmpLens/pkg/autostart"
 	"SnmpLens/pkg/events"
+	"SnmpLens/pkg/flatpak"
 	"SnmpLens/pkg/service"
 	"SnmpLens/pkg/tray"
 
@@ -41,6 +42,9 @@ func (a *App) initBackgroundMode() {
 		})
 		a.tray, a.trayLive = ctrl, ok
 		if !ok {
+			a.keepRunningWithoutTray()
+		}
+		if !ok && !a.backgroundPortal {
 			// Say it in the journal rather than only in a log line: the user
 			// asked for background mode and is not getting it.
 			a.recordSystemEvent(events.KindSystemInfo, "warning",
@@ -50,7 +54,7 @@ func (a *App) initBackgroundMode() {
 
 	// Launched hidden with nowhere to click? Show the window rather than
 	// leaving a process the user can neither see nor stop.
-	if a.serviceCfg.StartHidden && !a.trayLive {
+	if a.serviceCfg.StartHidden && !a.reachableWithoutWindow() {
 		log.Printf("started hidden but no tray is available; showing the window")
 		a.RevealWindow()
 	}
@@ -61,7 +65,37 @@ func (a *App) initBackgroundMode() {
 // Hiding is only correct when there is a tray icon to bring the window back
 // from. Without one, closing must really close.
 func (a *App) hideInsteadOfClosing() bool {
-	return a.serviceCfg.RunInBackground && a.trayLive
+	return a.serviceCfg.RunInBackground && a.reachableWithoutWindow()
+}
+
+// reachableWithoutWindow: there is somewhere to find the application again and
+// to quit it once its window is gone — its tray icon, or, for a Flatpak the
+// desktop let run in the background, GNOME's Background Apps in the quick
+// settings. Launching it again brings the window back either way.
+func (a *App) reachableWithoutWindow() bool {
+	return a.trayLive || a.backgroundPortal
+}
+
+// keepRunningWithoutTray asks, with no tray, for the other way a window can
+// close and the application stay: a Flatpak's background permission. GNOME —
+// the desktop with no tray by default — lists such an application in its quick
+// settings, where it can be stopped. A process outside a sandbox has no such
+// list, and an application nobody can find to quit is worse than one that
+// does not stay.
+func (a *App) keepRunningWithoutTray() {
+	a.backgroundPortal = false
+	if !flatpak.Sandboxed() {
+		return
+	}
+	ok, err := autostart.KeepRunningInBackground()
+	if err != nil {
+		log.Printf("background: the desktop did not answer (%v); closing the window will quit", err)
+		return
+	}
+	a.backgroundPortal = ok
+	if ok {
+		log.Printf("background: no tray; the desktop lets SnmpLens run with its window closed")
+	}
 }
 
 // RevealWindow brings the window back from the tray, from a hidden start, or
@@ -131,6 +165,13 @@ type ServiceStatus struct {
 	// TrayAvailable is false when the desktop refused a tray icon. The UI uses
 	// it to explain why background mode is not in effect.
 	TrayAvailable bool `json:"trayAvailable"`
+	// BackgroundPortal is a Flatpak with no tray that the desktop lets run with
+	// its window closed (keepRunningWithoutTray).
+	BackgroundPortal bool `json:"backgroundPortal"`
+	// TrayHint says, with no tray, what would give this desktop one
+	// (trayhint.go), and TrayExtension names the extension installed and off.
+	TrayHint      string `json:"trayHint,omitempty"`
+	TrayExtension string `json:"trayExtension,omitempty"`
 	// TrapListenerRunning reflects the auto-started listener.
 	TrapListenerRunning bool   `json:"trapListenerRunning"`
 	Platform            string `json:"platform"`
@@ -138,9 +179,13 @@ type ServiceStatus struct {
 
 // ServiceGetStatus returns the effective state.
 func (a *App) ServiceGetStatus() ServiceStatus {
+	hint, extension := a.currentTrayHint()
 	return ServiceStatus{
 		Config:              a.serviceCfg,
 		TrayAvailable:       a.trayLive,
+		BackgroundPortal:    a.backgroundPortal,
+		TrayHint:            hint,
+		TrayExtension:       extension,
 		TrapListenerRunning: a.host != nil && a.host.TrapListenerRunning(),
 		Platform:            goruntime.GOOS,
 	}
@@ -172,6 +217,7 @@ func (a *App) ServiceSetConfig(cfg service.Config) (ServiceStatus, error) {
 	} else if !saved.RunInBackground && prev.RunInBackground {
 		a.tray.Stop()
 		a.tray, a.trayLive = nil, false
+		a.backgroundPortal = false
 	}
 	return a.ServiceGetStatus(), nil
 }
@@ -189,6 +235,9 @@ func (a *App) initBackgroundModeTrayOnly() {
 		OnQuit:  a.QuitApp,
 	})
 	a.tray, a.trayLive = ctrl, ok
+	if !ok {
+		a.keepRunningWithoutTray()
+	}
 	a.refreshTrayStatus()
 }
 

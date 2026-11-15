@@ -80,6 +80,12 @@ type App struct {
 	trayIcons  trayIcons
 	tray       *tray.Controller
 	trayLive   bool
+	// backgroundPortal: with no tray, a Flatpak may keep running with no
+	// window, the desktop having said so (initBackgroundMode).
+	backgroundPortal bool
+
+	// appearance follows the desktop's light or dark preference (appearance.go).
+	appearance appearanceState
 
 	// sim holds and runs the simulated devices (simulator.go).
 	sim *simulatorService
@@ -168,6 +174,9 @@ func (a *App) startup(ctx context.Context) {
 	// may merely hide it.
 	a.initBackgroundMode()
 	a.refreshTrayStatus()
+
+	// 6. The desktop's light or dark preference, for GTK and the title bar.
+	a.followDesktopAppearance()
 }
 
 // useEngine makes eng the supervision this window runs and drives, with no
@@ -506,6 +515,7 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.sim != nil {
 		a.sim.fleet.StopAll()
 	}
+	a.stopAppearance()
 	a.tray.Stop()
 	// Then the supervision: the service let go of, or the window's own engine
 	// closed — its producers before its consumers.

@@ -9,7 +9,7 @@
   import { notificationStore } from '../stores/notifications';
   import Icon from '../Icon.svelte';
   import MibDiagnosis from '../mib/MibDiagnosis.svelte';
-  import { MibDiagnose, BrowseDialog, ListMibFiles, MibDependencyGraph, OpenFolder } from '../../wailsjs/go/app/App';
+  import { MibDiagnose, BrowseDialog, ListMibFiles, MibDependencyGraph, OpenFolder, ListSystemMibDirectories } from '../../wailsjs/go/app/App';
   import { dependencyRoll, symbolsWanted, ABSENT, FAILED } from '../utils/mibDependencies';
   import { byVerdict, countVerdicts, LEVELS, ICONS as VERDICT_ICONS } from '../utils/mibVerdict';
   import { mibStatusStore } from '../stores/mibStatusStore';
@@ -86,11 +86,28 @@
   $: graphStats = graphSummary(graph);
   $: graphRows = graphRoot ? flattenTree(treeFrom(graph, graphRoot)) : [];
 
+  // Folders other software installed MIBs into (net-snmp's), offered until
+  // added; Go finds the ones that exist and hold files (mibsystem.go).
+  let systemDirs = [];
+  $: offeredSystemDirs = notYetAdded(systemDirs, $mibPathsStore.customPaths);
+
+  function notYetAdded(dirs, added) {
+    return (dirs || []).filter((d) => !(added || []).includes(d.path));
+  }
+
+  async function addSystemDir(path) {
+    mibPathsStore.addPath(path);
+    await scanPathForMibs(path);
+  }
+
   onMount(() => {
     mibPathsStore.load();
     if (defaultMibPath) {
       scanPathForMibs(defaultMibPath);
     }
+    Promise.resolve(ListSystemMibDirectories())
+      .then((dirs) => { systemDirs = dirs || []; })
+      .catch(() => { systemDirs = []; });
   });
 
   async function handleBrowseFolder() {
@@ -279,6 +296,20 @@
       <button class="btn secondary" on:click={handleBrowseFolder}><Icon name="folder-open" size={15} /> {$_('common.browse')}</button>
       <button class="btn" on:click={handleAddPath} disabled={!newMibPath.trim()}><Icon name="plus" size={15} /> {$_('common.add')}</button>
     </div>
+
+    {#if offeredSystemDirs.length > 0}
+      <div class="system-dirs">
+        <h5>{$_('settings.mibs.systemTitle')}</h5>
+        <p class="hint">{$_('settings.mibs.systemHint')}</p>
+        {#each offeredSystemDirs as dir (dir.path)}
+          <div class="system-dir">
+            <span class="path-text" title={dir.path}>{dir.path}</span>
+            <span class="hint">{$_('settings.mibs.systemFiles', { values: { count: dir.files } })}</span>
+            <button class="btn-small" on:click={() => addSystemDir(dir.path)}><Icon name="plus" size={14} /> {$_('common.add')}</button>
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <!-- Reload All MIBs -->
@@ -741,6 +772,24 @@
 
   .add-path-form input {
     flex-grow: 1;
+  }
+
+  .system-dirs {
+    margin-top: 16px;
+  }
+
+  .system-dirs h5 {
+    margin: 0 0 4px 0;
+    font-size: 0.9em;
+    color: var(--text-color);
+  }
+
+  .system-dir {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-top: 1px solid var(--border-color);
   }
 
   .reload-section {

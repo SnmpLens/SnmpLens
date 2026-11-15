@@ -171,12 +171,22 @@ try {
       <div class="btn-row" style="margin-bottom:1rem">
         <a class="btn btn-primary" data-asset="SnmpLens-linux-amd64.deb"
            href="https://github.com/SnmpLens/SnmpLens/releases/latest">Debian package</a>
+        <a class="btn" data-asset="SnmpLens-linux-amd64.rpm"
+           href="https://github.com/SnmpLens/SnmpLens/releases/latest">RPM package</a>
+        <a class="btn" data-asset="SnmpLens-linux-amd64.flatpak"
+           href="https://github.com/SnmpLens/SnmpLens/releases/latest">Flatpak</a>
         <a class="btn" data-asset="SnmpLens-linux-amd64.tar.gz"
            href="https://github.com/SnmpLens/SnmpLens/releases/latest">Tarball</a>
       </div>
+      <p class="small muted" style="margin:0 0 .5rem">
+        The <code>.deb</code> (Debian, Ubuntu) and the <code>.rpm</code> (Fedora, openSUSE)
+        declare their dependencies. With the tarball, install GTK 3 and WebKit2GTK 4.1
+        yourself: <code>libgtk-3-0</code> and <code>libwebkit2gtk-4.1-0</code> on Debian.
+      </p>
       <p class="small muted" style="margin:0">
-        The <code>.deb</code> declares its dependencies. With the tarball, install
-        <code>libgtk-3-0</code> and <code>libwebkit2gtk-4.1-0</code> yourself.
+        The Flatpak carries them in the GNOME runtime:
+        <code>flatpak install SnmpLens-linux-amd64.flatpak</code>. It has no system service,
+        and a new version is installed the same way, from the next release.
       </p>
     </div>
 

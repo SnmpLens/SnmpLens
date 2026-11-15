@@ -363,7 +363,7 @@ SnmpLens updates itself from GitHub Releases. On startup (and via **Settings →
 | --- | --- |
 | Windows (installer) | downloads and runs `SnmpLens-windows-amd64-setup.exe`, then relaunches |
 | Windows / Linux (portable binary) | replaces the running executable in place, then relaunches |
-| macOS, Linux `.deb` | opens the download in the browser (manual install) |
+| macOS, Linux `.deb`, `.rpm` and Flatpak | opens the download in the browser (manual install) |
 
 The running version is embedded at build time via ldflags; local (`wails build`) builds report `dev`, which disables the update check.
 
@@ -463,8 +463,9 @@ Everything SnmpLens writes lives in the user config directory:
 | OS      | Path                              |
 | ------- | --------------------------------- |
 | Windows | `%APPDATA%\SnmpLens\`             |
-| macOS   | `~/.config/SnmpLens/`             |
+| macOS   | `~/Library/Application Support/SnmpLens/` |
 | Linux   | `~/.config/SnmpLens/`             |
+| Linux (Flatpak) | `~/.var/app/com.snmplens.SnmpLens/config/SnmpLens/` |
 
 | Item            | Contents                                                         |
 | --------------- | ---------------------------------------------------------------- |

@@ -86,11 +86,18 @@
         <span>{$_('service.runInBackground')}</span>
       </label>
 
-      {#if trayMissing}
+      {#if trayMissing && status.backgroundPortal}
+        <p class="note">{$_('service.backgroundPortal')}</p>
+      {:else if trayMissing}
         <p class="note warn">
           <Icon name="triangle-alert" size={14} />
           {$_('service.noTray', { values: { platform: status.platform } })}
         </p>
+        {#if status.trayHint === 'gnome-extension-off'}
+          <p class="note">{$_('service.noTrayGnomeOff', { values: { extension: status.trayExtension } })}</p>
+        {:else if status.trayHint === 'gnome-extension-missing'}
+          <p class="note">{$_('service.noTrayGnomeMissing')}</p>
+        {/if}
       {/if}
 
       <label class="toggle" class:disabled={!status.config.runInBackground}>

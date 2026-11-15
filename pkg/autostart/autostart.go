@@ -53,6 +53,15 @@ func Get() Status {
 	return st
 }
 
+// KeepRunningInBackground asks the desktop to let SnmpLens keep running with no
+// window, and reports whether it may. Only a Flatpak needs to ask: GNOME lists
+// a sandboxed application running with no window under Background Apps in its
+// quick settings, where it can be stopped, and without the permission the
+// portal may stop it itself. Anywhere else the answer is no, with an error.
+func KeepRunningInBackground() (bool, error) {
+	return keepRunning()
+}
+
 // Set enables or disables the login entry and returns the resulting state.
 func Set(enabled bool) (Status, error) {
 	if !supported() {

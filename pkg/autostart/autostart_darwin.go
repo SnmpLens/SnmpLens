@@ -17,6 +17,9 @@ var errUnsupported = errors.New("autostart: not supported on this platform")
 
 func supported() bool { return true }
 
+// keepRunning: only a Flatpak asks the desktop to keep running with no window.
+func keepRunning() (bool, error) { return false, errUnsupported }
+
 func plistPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {

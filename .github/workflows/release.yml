@@ -71,7 +71,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev rpm flatpak flatpak-builder
 
       # Windows: install NSIS for installer
       - name: Install NSIS
@@ -147,7 +147,7 @@ jobs:
           cp build/bin/SnmpLens deb-pkg/usr/local/bin/snmplens
           chmod 755 deb-pkg/usr/local/bin/snmplens
 
-          cp docs/assets/img/SnmpLens.png deb-pkg/usr/share/icons/hicolor/256x256/apps/snmplens.png
+          cp build/linux/snmplens.png deb-pkg/usr/share/icons/hicolor/256x256/apps/snmplens.png
 
           cat > deb-pkg/DEBIAN/control << EOF
           Package: snmplens
@@ -186,21 +186,49 @@ jobs:
           EOF
           chmod 755 deb-pkg/DEBIAN/postinst deb-pkg/DEBIAN/prerm
 
-          cat > deb-pkg/usr/share/applications/snmplens.desktop << EOF
-          [Desktop Entry]
-          Name=SnmpLens
-          Comment=SNMP MIB Browser and Network Management
-          Exec=/usr/local/bin/snmplens
-          Icon=snmplens
-          Type=Application
-          Categories=Network;System;Monitor;
-          Terminal=false
-          EOF
-          sed -i 's/^          //' deb-pkg/usr/share/applications/snmplens.desktop
+          # A file of its own, so its StartupWMClass can be held to the name the
+          # window goes by (internal/app/windowid_test.go).
+          cp build/linux/snmplens.desktop deb-pkg/usr/share/applications/snmplens.desktop
 
           # Owned by root once installed, not by the runner's account: the
           # system service runs only a copy no one but root can replace.
           dpkg-deb --build --root-owner-group deb-pkg "SnmpLens-linux-amd64.deb"
+
+      # The .deb's files, from the tree it was built from, so the two packages
+      # cannot install different things (build/linux/snmplens.spec).
+      - name: Package (Linux .rpm)
+        if: runner.os == 'Linux'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # rpm refuses a hyphen in a version; a tilde sorts a pre-release
+          # before its release, as the hyphen does in semver.
+          # _dbpath: an Ubuntu runner has no rpm database, and rpmbuild prints
+          # "error:" three times looking for one, then builds anyway.
+          rpmbuild -bb build/linux/snmplens.spec \
+            --define "_topdir $PWD/rpmbuild" \
+            --define "_dbpath $PWD/rpmbuild/rpmdb" \
+            --define "snmplens_version ${version//-/\~}" \
+            --define "payload $PWD/deb-pkg"
+          cp rpmbuild/RPMS/x86_64/snmplens-*.rpm SnmpLens-linux-amd64.rpm
+
+      # The same binary in the GNOME runtime (build/linux/flatpak). The runtime
+      # and SDK come from Flathub, checked by OSTree against Flathub's key, and
+      # are fetched every time: nothing in this workflow restores a cache.
+      - name: Package (Linux .flatpak)
+        if: runner.os == 'Linux'
+        run: |
+          # The metainfo names the release it describes. The file in the
+          # repository names none, so a release has nothing to bump by hand.
+          sed -i "s|<releases>|<releases>\n    <release version=\"${GITHUB_REF_NAME#v}\" date=\"$(date -u +%F)\"/>|" \
+            build/linux/flatpak/com.snmplens.SnmpLens.metainfo.xml
+          # bubblewrap builds in an unprivileged user namespace, which Ubuntu
+          # lets AppArmor restrict. The runner is thrown away after the job.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean \
+            --repo=flatpak-repo flatpak-build build/linux/flatpak/com.snmplens.SnmpLens.yml
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            flatpak-repo SnmpLens-linux-amd64.flatpak com.snmplens.SnmpLens
 
       - name: Upload artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -214,6 +242,8 @@ jobs:
             SnmpLens-linux-amd64
             SnmpLens-*.dmg
             SnmpLens-*.deb
+            SnmpLens-*.rpm
+            SnmpLens-*.flatpak
 
   release:
     needs: build
@@ -354,6 +384,8 @@ jobs:
             artifacts/SnmpLens-macos-universal.zip
             artifacts/SnmpLens-linux-amd64
             artifacts/SnmpLens-linux-amd64.deb
+            artifacts/SnmpLens-linux-amd64.rpm
+            artifacts/SnmpLens-linux-amd64.flatpak
             artifacts/SnmpLens-linux-amd64.tar.gz
 
       - name: Create GitHub Release
@@ -368,6 +400,8 @@ jobs:
             artifacts/SnmpLens-macos-universal.dmg
             artifacts/SnmpLens-linux-amd64.tar.gz
             artifacts/SnmpLens-linux-amd64.deb
+            artifacts/SnmpLens-linux-amd64.rpm
+            artifacts/SnmpLens-linux-amd64.flatpak
             artifacts/SnmpLens-linux-amd64
             artifacts/SnmpLens-checksums.txt
             artifacts/SnmpLens-checksums.txt.sig

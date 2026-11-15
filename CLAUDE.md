@@ -194,7 +194,7 @@ The frontend calls Go through auto-generated bindings in `frontend/wailsjs/`, wh
   engine**), and every method of that interface is bound as if `App` declared it — which is why what the
   application reaches and the renderer must not (`remote.Host`: journalling an event of the window's own, creating
   a preset's session) sits on a second interface that `App` holds as a field and does NOT embed.
-- `main.go` holds only what the binary embeds — `frontend/dist`, `mibs/`, `presets/`, the tray artwork — because
+- `main.go` holds only what the binary embeds — `frontend/dist`, `mibs/`, `presets/`, the tray and window artwork — because
   `//go:embed` cannot reach above the directory of the file it sits in, and hands it to `app.Run` as `fs.FS`, after
   `cli.Run` has had the command line (`--headless`, `--help`). Tests in `internal/app` read the same directories
   from the tree (`repo_test.go`: `repoRoot`, `mibs`, `presets`).
@@ -321,6 +321,8 @@ the window for a moment, and `StartTrapListener` returns before the bind, so `Tr
 - `internal/engine/router.go` — the event router: routing runs on its own goroutine in bounded batches, with a durable watermark so a crash replays rather than loses. See **The trap path**.
 - `pkg/events/`, `pkg/notify/`, `pkg/secrets/`, `pkg/service/`, `pkg/tray/`, `pkg/autostart/` — the event journal vocabulary, notification routing (syslog over UDP/TCP/**TLS per RFC5425**, webhook, email, with a durable outbox), OS-protected credential storage, the pre-GUI preference file, the fail-soft system-tray icon, and the per-user login entry (HKCU Run key / LaunchAgent / XDG autostart — never machine-wide, so it never needs elevation).
 - `pkg/updater/`, `pkg/imagegate/` — in-app updates from GitHub Releases, checked against the signed manifest (see **Releases**), and the decode that decides whether a file is an image (see **The map**).
+- `pkg/flatpak/` — whether this process is in a Flatpak sandbox (`/.flatpak-info`, never an environment variable). The updater, `pkg/autostart` and `internal/sysvc` each ask it; see **Releases**.
+- `pkg/portal/` — the XDG desktop portals over D-Bus: the Settings portal's color-scheme and the Background portal. See **The Linux desktop**.
 - `pkg/netaddr/address.go` — address handling shared by `pkg/snmp` and `pkg/network`. `NormaliseTarget` strips
   the brackets people paste around an IPv6 literal, because gosnmp adds its own via `JoinHostPort` and
   `[[::1]]:161` fails naming neither; zones (`fe80::1%eth0`) are kept. `SplitTarget` reads a port the target
@@ -369,7 +371,9 @@ Persistent data location (`os.UserConfigDir()` + `SnmpLens/`):
 | OS | Path |
 | --- | --- |
 | Windows | `%APPDATA%\SnmpLens\` |
-| macOS / Linux | `~/.config/SnmpLens/` |
+| macOS | `~/Library/Application Support/SnmpLens/` |
+| Linux | `~/.config/SnmpLens/` |
+| Linux, Flatpak | `~/.var/app/com.snmplens.SnmpLens/config/SnmpLens/` |
 
 Contains `mibs/` (extracted + user MIBs), `presets/` (dashboard presets — a SIBLING of `mibs/`, never inside
 it) and `monitoring.db`.
@@ -1306,6 +1310,43 @@ delivery message the renderer builds.
 One trap for whoever adds a model: a file named `model_linux.go` is compiled on Linux ONLY — `_linux` is a GOOS
 suffix, and the build on Windows reported the model as undefined — so the Linux model lives in `linuxserver.go`.
 
+## The Linux desktop
+
+Four things make the window belong to the desktop it runs on, and each was measured wrong first, in a headless
+GNOME Shell with its own D-Bus session and dconf (screenshots through `org.gnome.Shell.Screenshot`, `WAYLAND_DEBUG`,
+`xprop` under its Xwayland).
+
+**Dark mode follows the Settings portal** (`internal/app/appearance.go`, `pkg/portal`). WebKitGTK answers
+`prefers-color-scheme` from GTK's theme, and GNOME's dark-mode switch sets `color-scheme` and nothing else: on any
+GNOME but Ubuntu's — which changes the GTK theme as well — the window stayed light, title bar and content. Go reads
+`org.freedesktop.appearance color-scheme`, follows `SettingChanged`, and sets GTK's
+`gtk-application-prefer-dark-theme` (`gtk_linux.go`, through `g_idle_add`, since GTK belongs to its main loop's
+thread); the renderer's `'system'` theme then follows through the media query it already listens to. An explicit
+theme in the settings wins, for the title bar too: the renderer tells Go with `AppearanceSetTheme`.
+
+**The window's name is set before GTK starts** (`windowid.go`, `setProgramName`): `snmplens`, the `.deb`'s and the
+`.rpm`'s desktop file, or the application ID in a Flatpak. Without it GTK used the executable's file name, so only
+the `.deb` matched its launcher, by the accident of its binary's name. Wails's `ProgramName` alone is not enough: it
+calls `g_set_prgname` after `gtk_init` and after creating the window, soon enough for the Wayland `app_id` and too
+late for X11's `WM_CLASS`. The desktop files carry the same name as `StartupWMClass`, and `windowid_test.go` holds
+the three together.
+
+Giving Wails `options.Linux` at all changes something else: with `Linux` nil it forces WebKit's GPU policy to
+`Never` (wailsapp/wails#2977), and a struct left at its zero value means on-demand. `run.go` states `Never`. The
+window icon is `build/linux/snmplens.png`, 256 pixels square, and not the tray's 508x517: GDK drops an icon larger
+than one X11 request without a word, and the window then had no `_NET_WM_ICON`.
+
+**Background mode without a tray.** GNOME has none by default (Ubuntu's AppIndicators extension can be switched
+off). Outside a sandbox the window still refuses to hide with nowhere to find it again, and the settings name the
+remedy — the extension installed and off, or not installed (`trayhint.go`). A Flatpak asks the Background portal
+instead (`autostart.KeepRunningInBackground`): GNOME lists a sandboxed application running with no window under
+Background Apps, where it can be stopped. Every Background request states `autostart`, and `false` removes the
+login entry the portal wrote, so the request carries the entry as it stands.
+
+**MIBs other software installed** (`mibsystem.go`): net-snmp's folders, offered in the MIB settings when they hold
+files, and loaded where they are like any added folder. A Flatpak sees the host's `/usr` under `/run/host`
+(`--filesystem=host-os:ro`).
+
 ## Background mode
 
 Three preferences are read by `main()` **before** `wails.Run`, so they cannot live in localStorage: they sit in `service.json` next to `monitoring.db` (`pkg/service`). `HideWindowOnClose` is deliberately NOT used — it is fixed before we know whether a tray icon actually appeared, and an app that refuses to close with no tray to quit from is unusable. `OnBeforeClose` makes the same decision later, once `tray.Start` has answered. Everything about `pkg/tray` is fail-soft for that reason, including a readiness timeout: a desktop with no StatusNotifierItem host never calls back rather than returning an error.
@@ -1714,7 +1755,23 @@ vendor.
 
 ## Releases
 
-Tagging `v*` triggers `.github/workflows/release.yml`, which builds all three platforms and produces: Windows portable zip + NSIS installer (`build/windows/installer/project.nsi`, version string substituted at build time), macOS `.zip` + `.dmg`, Linux `.tar.gz` + `.deb`. To cut one, use the `release` skill (`.claude/skills/release`). `updater-key-check.yml`, run by hand, checks that a key staged for rotation is one the shipped binaries would accept.
+Tagging `v*` triggers `.github/workflows/release.yml`, which builds all three platforms and produces: Windows portable zip + NSIS installer (`build/windows/installer/project.nsi`, version string substituted at build time), macOS `.zip` + `.dmg`, Linux `.tar.gz` + `.deb` + `.rpm` + `.flatpak`. To cut one, use the `release` skill (`.claude/skills/release`). `updater-key-check.yml`, run by hand, checks that a key staged for rotation is one the shipped binaries would accept.
+
+**The `.rpm` is the `.deb`'s files** (`build/linux/snmplens.spec`, fed the `deb-pkg` tree), at the same paths, so
+the system service accepts it as it does the `.deb`. It declares no package names: rpm requires the binary's
+sonames, which Fedora and openSUSE both resolve where their package names differ. The two install the same path,
+so the updater tells them apart by dpkg's file list (`pkg/updater/apply_linux.go`), or an rpm system is sent the
+`.deb`.
+
+**The `.flatpak` is the same binary in the GNOME runtime** (`build/linux/flatpak/`, app ID
+`com.snmplens.SnmpLens`, the domain Flathub verifies), which carries the WebKitGTK 4.1 it links against. Three
+things are different inside the sandbox, each through `pkg/flatpak`: the updater sends the user to the next
+`.flatpak` (`/app` is read-only); autostart asks the Background portal, because the sandbox's `$XDG_CONFIG_HOME`
+is under `~/.var/app` where no desktop looks, and reads back the entry the portal wrote on the host; the system
+service is unsupported, so the settings hide it. The manifest's `--own-name` must be the name Wails really asks
+for, `org.wails_app_<UniqueId with dots as underscores>.SingleInstance`: refused, Wails continues as a first
+instance without a word and a second launch is a second engine. Flathub builds from source with a manifest of its
+own; the app ID, the permissions and the installed files are what it must keep.
 
 Five things about that workflow are security properties rather than packaging, and each answers a different
 question.

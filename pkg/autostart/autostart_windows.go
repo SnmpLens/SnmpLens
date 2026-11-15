@@ -21,6 +21,9 @@ var errUnsupported = errors.New("autostart: not supported on this platform")
 
 func supported() bool { return true }
 
+// keepRunning: only a Flatpak asks the desktop to keep running with no window.
+func keepRunning() (bool, error) { return false, errUnsupported }
+
 func location() string { return `HKEY_CURRENT_USER\` + runKey }
 
 // command is the value written to the registry.

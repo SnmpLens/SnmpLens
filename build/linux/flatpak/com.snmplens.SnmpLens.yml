@@ -1,0 +1,68 @@
+# The release's Flatpak bundle (SnmpLens-linux-amd64.flatpak): the binary
+# `wails build` made for the other Linux formats, in the GNOME runtime, which
+# carries the GTK 3, WebKitGTK 4.1 and libsoup 3 it links against.
+#
+# Flathub builds from source and keeps a manifest of its own; the ID, the
+# permissions and the files installed here are what it should keep, since a
+# copy installed from one and updated from the other must find the same data.
+app-id: com.snmplens.SnmpLens
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: snmplens
+
+finish-args:
+  # SNMP, the trap receiver, ping, traceroute, the update check.
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # MIB folders load from where they are, and Wails's file dialogs are GTK's
+  # own rather than the portal's: they see what the sandbox sees, no more.
+  - --filesystem=home
+  # Read-only, under /run/host: the MIBs the host's packages installed
+  # (net-snmp's, offered in the MIB settings) and its GNOME Shell extensions
+  # (whether the tray's extension is installed and off).
+  - --filesystem=host-os:ro
+  # Notifications are Wails's, over D-Bus rather than the portal.
+  - --talk-name=org.freedesktop.Notifications
+  # The tray icon (fyne.io/systray) is a StatusNotifierItem named after the
+  # process ID, which is 2 in a sandbox.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.kde.StatusNotifierItem-2-1
+  # Wails's single-instance lock, named after the UniqueId in
+  # internal/app/run.go as "org.wails_app_" + the ID with its dots and hyphens
+  # made underscores + ".SingleInstance". Refused this name, Wails carries on
+  # as a first instance without a word, and a second launch is a second engine.
+  - --own-name=org.wails_app_com_wasabules_snmplens.SingleInstance
+
+modules:
+  # pkg/network runs the system's traceroute, and the runtime has none.
+  - name: traceroute
+    buildsystem: simple
+    build-commands:
+      - make
+      - make install prefix=/app
+    sources:
+      - type: archive
+        url: https://downloads.sourceforge.net/project/traceroute/traceroute/traceroute-2.1.6/traceroute-2.1.6.tar.gz
+        # The same as Debian's traceroute_2.1.6.orig.tar.gz.
+        sha256: 9ccef9cdb9d7a98ff7fbf93f79ebd0e48881664b525c4b232a0fcec7dcb9db5e
+
+  - name: snmplens
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 SnmpLens /app/bin/snmplens
+      - install -Dm644 com.snmplens.SnmpLens.desktop /app/share/applications/com.snmplens.SnmpLens.desktop
+      - install -Dm644 com.snmplens.SnmpLens.metainfo.xml /app/share/metainfo/com.snmplens.SnmpLens.metainfo.xml
+      - install -Dm644 snmplens.png /app/share/icons/hicolor/256x256/apps/com.snmplens.SnmpLens.png
+    sources:
+      - type: file
+        path: ../../bin/SnmpLens
+      - type: file
+        path: com.snmplens.SnmpLens.desktop
+      - type: file
+        path: com.snmplens.SnmpLens.metainfo.xml
+      - type: file
+        path: ../snmplens.png

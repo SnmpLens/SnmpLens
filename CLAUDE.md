@@ -507,7 +507,10 @@ through a limit, names a known folder and a plain file name, and anything else i
   code did on any error — turned one locked keychain into permanently lost credentials.
 
   The migration adopts the legacy JWK and removes localStorage's copy only after the store has been observed
-  opening that user's own ciphertext. GCM authenticates, so a successful open IS proof the key is right; there is
+  opening that user's own ciphertext. One store serves every WebView profile, and a profile is per executable
+  NAME (SnmpLens.exe, a renamed copy, a development build), each with a legacy key of its own: a key that finds
+  the store's taken is kept beside it (`SettingsPreviousKeysRef`), opening and never sealing. It used to be
+  refused, which left it in localStorage for good and its credentials "refused" at every start. GCM authenticates, so a successful open IS proof the key is right; there is
   no window in which the credentials exist in neither place.
 
   `secrets.Open` mints a key ONLY when the protector has never held one. Answering any read failure with a new key

@@ -121,22 +121,125 @@ func TestSealIsIdempotent(t *testing.T) {
 	}
 }
 
-// Adopting twice would replace the key that opens the stored blob with one
-// that does not, and the failure would look exactly like a corrupt store.
-func TestAdoptKeyRefusesToReplaceADifferentKey(t *testing.T) {
+// sealWith seals plain the way crypto.js and SettingsSeal do, under key.
+func sealWith(t *testing.T, key []byte, plain string) string {
+	t.Helper()
+	gcm, err := newGCM(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	nonce[0] = 7
+	return settingsPrefix + base64.StdEncoding.EncodeToString(gcm.Seal(nonce, nonce, []byte(plain), nil))
+}
+
+// One store serves every WebView profile, and a profile is per executable name:
+// SnmpLens.exe and a development build each had a legacy key of their own. The
+// second to migrate found the store's key taken and was refused, so its key
+// stayed in localStorage and its credentials stayed sealed under it, reported
+// at every start as "refused to open the stored credentials". Its key is now
+// kept BESIDE the first, never in its place.
+func TestASecondProfilesKeyIsKeptBesideTheFirst(t *testing.T) {
 	a := settingsApp(t)
-	if err := a.SettingsAdoptKey(webcryptoJWKK); err != nil {
+	// The profile that migrated first: the store's key seals its values.
+	first, err := a.SettingsSeal([]string{"first-profile"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := a.secrets.Get(secrets.SettingsKeyRef())
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	other := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("k", 32)))
-	if err := a.SettingsAdoptKey(other); err == nil {
-		t.Error("a second, different key was adopted over the first")
+	if err := a.SettingsAdoptKey(webcryptoJWKK); err != nil {
+		t.Fatalf("the second profile's key was refused: %v", err)
+	}
+	if after, _ := a.secrets.Get(secrets.SettingsKeyRef()); after != before {
+		t.Fatal("adopting a second key replaced the store's key")
 	}
 
-	// Still opens with the original.
-	if _, err := a.SettingsOpen([]string{webcryptoCommunity}); err != nil {
-		t.Errorf("the original key was damaged: %v", err)
+	// A fresh App over the same store, as the next start: both profiles' values
+	// open, alone and in one batch.
+	fresh := &App{secrets: a.secrets}
+	got, err := fresh.SettingsOpen([]string{webcryptoCommunity, first[0], webcryptoUnicode})
+	if err != nil {
+		t.Fatalf("opening both profiles' values: %v", err)
+	}
+	want := []string{"s3cr3t-community", "first-profile", "mot-de-passe-accentue-eaeu"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("value %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	// What is sealed from now on is sealed under the store's key, which the
+	// previous one does not open.
+	resealed, err := fresh.SettingsSeal([]string{"s3cr3t-community"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, _ := base64.StdEncoding.DecodeString(before)
+	gcm, _ := newGCM(key)
+	raw, _ := base64.StdEncoding.DecodeString(strings.TrimPrefix(resealed[0], settingsPrefix))
+	if _, err := gcm.Open(nil, raw[:12], raw[12:], nil); err != nil {
+		t.Error("a value sealed after the adoption is not under the store's key")
+	}
+}
+
+// A value no key opens still fails, and the batch with it: the previous keys
+// are a second chance to open, never a way for a value to come back empty.
+func TestAValueNoKeyOpensStillFailsTheBatch(t *testing.T) {
+	a := settingsApp(t)
+	if _, err := a.SettingsSeal([]string{"first-profile"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SettingsAdoptKey(webcryptoJWKK); err != nil {
+		t.Fatal(err)
+	}
+	stranger := sealWith(t, []byte(strings.Repeat("s", 32)), "nobody's")
+	for _, batch := range [][]string{{stranger}, {webcryptoCommunity, stranger}} {
+		if got, err := a.SettingsOpen(batch); err == nil {
+			t.Errorf("a value no stored key opens came back as %q", got)
+		}
+	}
+}
+
+// Adopting the same second key again — a migration interrupted before the
+// renderer deleted its copy — keeps it once.
+func TestAPreviousKeyIsKeptOnce(t *testing.T) {
+	a := settingsApp(t)
+	if _, err := a.SettingsSeal([]string{"first-profile"}); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := a.SettingsAdoptKey(webcryptoJWKK); err != nil {
+			t.Fatal(err)
+		}
+	}
+	kept, err := a.previousSettingsKeys()
+	if err != nil || len(kept) != 1 {
+		t.Errorf("previous keys = %d, %v; want 1", len(kept), err)
+	}
+}
+
+// "Reset settings" forgets the previous keys too.
+func TestForgetKeyForgetsThePreviousKeys(t *testing.T) {
+	a := settingsApp(t)
+	if _, err := a.SettingsSeal([]string{"first-profile"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SettingsAdoptKey(webcryptoJWKK); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SettingsForgetKey(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.secrets.Get(secrets.SettingsPreviousKeysRef()); !errors.Is(err, secrets.ErrNotFound) {
+		t.Errorf("the previous keys survived ForgetKey: %v", err)
+	}
+	fresh := &App{secrets: a.secrets}
+	if got, err := fresh.SettingsOpen([]string{webcryptoCommunity}); err == nil {
+		t.Errorf("a value sealed under a forgotten previous key opened as %q", got)
 	}
 }
 

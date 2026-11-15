@@ -170,6 +170,9 @@ func (a *App) SettingsSeal(values []string) ([]string, error) {
 // deciding which half of someone's credentials to trust, and the safe
 // response to any failure here is the same one: keep the stored ciphertext,
 // change nothing, and say so.
+//
+// A value the key does not open is tried with the previous keys
+// (SettingsAdoptKey), read only then: the next save seals it under the key.
 func (a *App) SettingsOpen(values []string) ([]string, error) {
 	key, err := a.settingsKey()
 	if err != nil {
@@ -179,6 +182,8 @@ func (a *App) SettingsOpen(values []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	var previous []cipher.AEAD
+	previousRead := false
 
 	out := make([]string, len(values))
 	for i, value := range values {
@@ -195,12 +200,89 @@ func (a *App) SettingsOpen(values []string) ([]string, error) {
 		}
 		nonce, ciphertext := raw[:gcm.NonceSize()], raw[gcm.NonceSize():]
 		plain, err := gcm.Open(nil, nonce, ciphertext, nil)
-		if err != nil {
+		opened := err == nil
+		if !opened {
+			if !previousRead {
+				var rerr error
+				if previous, rerr = a.previousSettingsCiphers(); rerr != nil {
+					return nil, rerr
+				}
+				previousRead = true
+			}
+			for _, old := range previous {
+				if p, oerr := old.Open(nil, nonce, ciphertext, nil); oerr == nil {
+					plain, opened = p, true
+					break
+				}
+			}
+		}
+		if !opened {
 			return nil, fmt.Errorf("value %d cannot be decrypted with the stored key", i)
 		}
 		out[i] = string(plain)
 	}
 	return out, nil
+}
+
+// previousSettingsKeys reads SettingsPreviousKeysRef: base64 keys, one a line.
+func (a *App) previousSettingsKeys() ([]string, error) {
+	stored, err := a.secrets.Get(secrets.SettingsPreviousKeysRef())
+	switch {
+	case errors.Is(err, secrets.ErrNotFound):
+		return nil, nil
+	case err != nil:
+		return nil, fmt.Errorf("read previous settings keys: %w", err)
+	}
+	return strings.Fields(stored), nil
+}
+
+func (a *App) previousSettingsCiphers() ([]cipher.AEAD, error) {
+	encoded, err := a.previousSettingsKeys()
+	if err != nil {
+		return nil, err
+	}
+	var out []cipher.AEAD
+	for _, e := range encoded {
+		key, err := base64.StdEncoding.DecodeString(e)
+		if err != nil || len(key) != 32 {
+			continue
+		}
+		gcm, err := newGCM(key)
+		if err != nil {
+			continue
+		}
+		out = append(out, gcm)
+	}
+	return out, nil
+}
+
+// keepPreviousSettingsKey adds encoded to the previous keys, once, and reads it
+// back before saying so: the renderer deletes its own copy on the strength of
+// this, as it does after adopting a key.
+func (a *App) keepPreviousSettingsKey(encoded string) error {
+	kept, err := a.previousSettingsKeys()
+	if err != nil {
+		return err
+	}
+	for _, k := range kept {
+		if k == encoded {
+			return nil
+		}
+	}
+	kept = append(kept, encoded)
+	if err := a.secrets.Set(secrets.SettingsPreviousKeysRef(), strings.Join(kept, "\n")); err != nil {
+		return fmt.Errorf("keep previous settings key: %w", err)
+	}
+	back, err := a.previousSettingsKeys()
+	if err != nil {
+		return fmt.Errorf("the key was stored but cannot be read back: %w", err)
+	}
+	for _, k := range back {
+		if subtle.ConstantTimeCompare([]byte(k), []byte(encoded)) == 1 {
+			return nil
+		}
+	}
+	return errors.New("the key read back does not match the one stored")
 }
 
 // SettingsAdoptKey takes custody of the key crypto.js used to keep in
@@ -211,9 +293,13 @@ func (a *App) SettingsOpen(values []string) ([]string, error) {
 // value opens unchanged and nothing has to be re-encrypted — which means there
 // is no window in which a user's credentials exist in only one place.
 //
-// It REFUSES to overwrite an existing key. Adopting twice would replace the
-// key that opens the stored blob with one that does not, and the failure would
-// look exactly like a corrupt store.
+// It NEVER overwrites an existing key. Replacing it would leave the blob that
+// key sealed unopenable, and the failure would look exactly like a corrupt
+// store. A different key is kept BESIDE it instead, among the previous keys:
+// the store serves every WebView profile, one per executable name, and each
+// had its own legacy key. The one that migrated second used to be refused,
+// keeping its key in localStorage for good and its credentials sealed under it,
+// reported as "refused to open the stored credentials" at every start.
 func (a *App) SettingsAdoptKey(jwkK string) error {
 	if a.secrets == nil {
 		return errNoSecretStore
@@ -237,7 +323,7 @@ func (a *App) SettingsAdoptKey(jwkK string) error {
 			a.settingsKeyMu.Unlock()
 			return nil
 		}
-		return errors.New("a settings key is already stored; refusing to replace it")
+		return a.keepPreviousSettingsKey(base64.StdEncoding.EncodeToString(key))
 	} else if !errors.Is(err, secrets.ErrNotFound) {
 		return fmt.Errorf("read settings key: %w", err)
 	}
@@ -264,14 +350,18 @@ func (a *App) SettingsAdoptKey(jwkK string) error {
 	return nil
 }
 
-// SettingsForgetKey deletes the key, which makes every sealed value
-// unreadable. Used by "reset settings", which also clears the values.
+// SettingsForgetKey deletes the key and the previous ones, which makes every
+// sealed value unreadable. Used by "reset settings", which also clears the
+// values.
 func (a *App) SettingsForgetKey() error {
 	a.settingsKeyMu.Lock()
 	a.settingsKeyCache = nil
 	a.settingsKeyMu.Unlock()
 	if a.secrets == nil {
 		return nil
+	}
+	if err := a.secrets.Delete(secrets.SettingsPreviousKeysRef()); err != nil {
+		return err
 	}
 	return a.secrets.Delete(secrets.SettingsKeyRef())
 }

@@ -402,10 +402,17 @@ switch ($Scenario) {
     'all-users-service' {
         Step "$tag installed for all users, start at sign-in on, running in background mode"
         Start-Process -FilePath $oldSetup -ArgumentList '/S', '/ALLUSERS' -Wait
-        $dir = Join-Path ${env:ProgramFiles(x86)} 'SnmpLens'
+        # Where the release put itself: up to v1.7.0, Program Files (x86) and
+        # the 32-bit view; from v1.8.0, the 64-bit ones. The update keeps the
+        # copy where it is either way, so the scenario reads the place rather
+        # than assuming the older one, which every release from v1.8.0 on fails.
+        $old32 = Get-RegValue "HKLM:\$uninstall32" 'InstallLocation'
+        $old64 = Get-RegValue "HKLM:\$uninstall" 'InstallLocation'
+        $dir = if ($old32) { $old32 } elseif ($old64) { $old64 } else { Join-Path ${env:ProgramFiles(x86)} 'SnmpLens' }
         Check (Test-Path (Join-Path $dir 'SnmpLens.exe')) "$tag is in $dir"
-        $where = if (Get-RegValue "HKLM:\$uninstall32" 'InstallLocation') { '32-bit view' } elseif (Get-RegValue "HKLM:\$uninstall" 'InstallLocation') { '64-bit view' } else { 'nowhere' }
+        $where = if ($old32) { '32-bit view' } elseif ($old64) { '64-bit view' } else { 'nowhere' }
         Write-Host "  $tag registered itself in the $where"
+        $otherDir = if ($dir -eq (Join-Path $env:ProgramFiles 'SnmpLens')) { Join-Path ${env:ProgramFiles(x86)} 'SnmpLens' } else { Join-Path $env:ProgramFiles 'SnmpLens' }
         # What the old installer writes when its box is ticked: machine-wide and unquoted.
         & reg.exe add "HKLM\$runKey" /v SnmpLens /t REG_SZ /d (Join-Path $dir 'SnmpLens.exe') /f /reg:32 | Out-Null
         Seed-Settings
@@ -419,7 +426,7 @@ switch ($Scenario) {
         Step 'After'
         Check ($null -eq (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) "$tag's window was closed for the update"
         Check ((Get-Sha256 (Join-Path $dir 'SnmpLens.exe')) -eq $nextHash) "the copy in $dir is the new version"
-        Check (-not (Test-Path (Join-Path $env:ProgramFiles 'SnmpLens'))) 'no second copy in the 64-bit Program Files'
+        Check (-not (Test-Path $otherDir)) "no second copy in $otherDir"
         Check ((Get-RegValue "HKLM:\$uninstall" 'InstallLocation') -eq $dir) 'the all-users entry is in the 64-bit view'
         Check ((Get-RegValue "HKLM:\$uninstall" 'DisplayVersion') -eq $NextVersion) "it says $NextVersion"
         Check ($null -eq (Get-RegValue "HKLM:\$uninstall32" 'InstallLocation')) 'the 32-bit entry is gone'

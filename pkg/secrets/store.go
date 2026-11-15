@@ -76,11 +76,17 @@ func TrapUsersRef() string { return "traps/local/usm" }
 
 // SettingsKeyRef is the key the renderer's settings blob is sealed with.
 //
-// One ref with no id: there is exactly one renderer profile. The KEY lives
-// here rather than the credentials themselves — the credentials stay in
-// localStorage, sealed, and what changes is that nothing in that folder can
-// open them any more.
+// The KEY lives here rather than the credentials themselves — the credentials
+// stay in localStorage, sealed, and what changes is that nothing in that folder
+// can open them any more.
 func SettingsKeyRef() string { return "settings/local/key" }
+
+// SettingsPreviousKeysRef holds keys a renderer sealed its settings with before
+// it handed its key over, and found SettingsKeyRef already taken: one store
+// serves every renderer profile, and a WebView profile is per executable NAME
+// (SnmpLens.exe, a renamed copy, a development build), each with a legacy key
+// of its own. They open what was sealed with them and never seal.
+func SettingsPreviousKeysRef() string { return "settings/local/previous-keys" }
 
 // SimulatorDeviceRef is the reference shape for a simulated device's community
 // and passphrases. The device's configuration file holds everything else and

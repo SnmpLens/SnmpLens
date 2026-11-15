@@ -67,8 +67,9 @@ func readDesktopEntry(t *testing.T, rel string) map[string]string {
 		t.Fatal(err)
 	}
 	entry := map[string]string{}
+	// A Windows checkout ends the lines with CRLF.
 	for _, line := range strings.Split(string(raw), "\n") {
-		if k, v, ok := strings.Cut(line, "="); ok {
+		if k, v, ok := strings.Cut(strings.TrimSuffix(line, "\r"), "="); ok {
 			entry[k] = v
 		}
 	}

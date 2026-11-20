@@ -8,6 +8,7 @@ require (
 	fyne.io/systray v1.12.2
 	github.com/Microsoft/go-winio v0.6.4
 	github.com/godbus/dbus/v5 v5.1.0
+	github.com/gosnmp/gomib v0.13.3-0.20261119144159-7184e8af4c20
 	github.com/gosnmp/gosnmp v1.47.0
 	github.com/minio/selfupdate v0.6.0
 	github.com/prometheus-community/pro-bing v0.9.1

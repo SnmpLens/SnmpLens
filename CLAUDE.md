@@ -350,7 +350,10 @@ now holds the added folders (`SetMibDirectories`, given by `mibStore` before eve
 set of files through `mibFS`: the MIB folder first, then each added folder; a name an earlier folder holds is
 shadowed (`Shadowed`). What an added folder holds passes the import gate (`ClassifyImport`) before gosmi sees it,
 because a load error quotes the file and that folder is not curated: a PDF or a key there is never parsed. The
-editor still edits the MIB folder only (`resolveMibPath`).
+editor still writes the MIB folder only (`resolveMibPath`): a file of an added folder opens as one from outside
+(`MibEditorRead` falls back to it by the name the load knows it under, `Service.FilePath`, never a path), and saving
+writes it into the MIB folder, where it loads ahead of the original — never back into a folder that may be the
+system's.
 
 **An import stores a file under the module it declares, once** (`internal/app/mibimport.go`). An archive of MIBs
 can hold one folder per release with the same file name in each, named after products rather than modules: the

@@ -476,13 +476,17 @@ func BuildModule(path string, in *parser.Module) (*Module, error) {
 			parentType = out.GetType(syntax.Name)
 			if parentType == nil {
 				// What do we do here?
-				break
+				// SnmpLens (third_party/README.md): skip this type, not every
+				// one after it. A break left the module's later types
+				// undefined, its SEQUENCEs among them, so their columns were
+				// read as scalars.
+				continue
 			}
 		}
-		if parentType.Decl == types.DeclTextualConvention {
-			// This is invalid
-			break
-		}
+		// A textual convention whose SYNTAX is another one is invalid (RFC 2579
+		// 2), and vendor MIBs are full of them. It used to break out of this
+		// loop as above; it now takes its parent's base type, as net-snmp reads
+		// it.
 		currType.BaseType = parentType.BaseType
 		currType.Parent = parentType
 		if syntax.SubType != nil && currType.Name != "Integer32" {
@@ -510,6 +514,10 @@ func BuildModule(path string, in *parser.Module) (*Module, error) {
 				currType.AddNamedNumber(nn.Name, GetValue(nn.Value, currType.BaseType))
 			}
 			currType.BaseType = types.BaseTypeEnum
+		} else if parentType.Decl == types.DeclTextualConvention && parentType.List != nil {
+			// SnmpLens: a textual convention of another one, with nothing of its
+			// own, has its parent's labels and ranges.
+			currType.List = parentType.List
 		}
 		out.Types.Add(currType)
 	}

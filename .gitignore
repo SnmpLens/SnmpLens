@@ -38,6 +38,8 @@ test_snmpv3.py
 
 # Proprietary vendor MIBs
 *.mib
+# except gosmi's own examples, which its copy keeps whole (third_party/README.md)
+!third_party/gosmi/**/*.mib
 
 # The screenshot harness builds and serves the real interface against fixtures.
 # The bundle is a build artefact; the bridge is generated from the specification.

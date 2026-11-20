@@ -55,3 +55,6 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
+
+// The MIB engine, with one fix upstream has not released: third_party/README.md.
+replace github.com/sleepinggenius2/gosmi => ./third_party/gosmi

@@ -671,6 +671,13 @@ loaded: switching one off is how the choice is overridden), its entry comes firs
 reports the others as stage `duplicate`, naming the one loaded and why. They used to both load, the second
 replacing the first in silence. gosmi then names the directory `[dir]`, which `shortenPaths` strips too.
 
+**gosmi is built from `third_party/gosmi`** (a `replace` in `go.mod`): v0.4.4, whose upstream has had no commit
+since 2022, with the fixes `third_party/README.md` lists and nothing else. One so far: an OID spelt arc by arc —
+`{ iso std(0) 62439 100 }`, or through `org(3) dod(6)` — carried on from a node gosmi had just dropped whenever one
+was already at that arc, so two modules under one prefix lost the second one's objects, loaded "successfully"
+(issue #200; `TestALongOidCrossingANodeInTheTreeStaysInIt`). A fix there is listed in that file and has a test that
+fails against the original; gomib (`github.com/gosnmp/gomib`) is the candidate replacement being studied.
+
 **What gosmi reads is the lenient reading** (`pkg/mib/repair.go`), and so is what the editor and `Diagnose`
 parse (`prepare`), so the three never disagree about a file. Three repairs, each reported as a warning where it
 was made and never written to the file unless the editor's "fix" is pressed (`Repair`): an IMPORTS module named by

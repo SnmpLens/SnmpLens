@@ -681,6 +681,18 @@ was already at that arc, so two modules under one prefix lost the second one's o
 (issue #200; `TestALongOidCrossingANodeInTheTreeStaysInIt`). A fix there is listed in that file and has a test that
 fails against the original; gomib (`github.com/gosnmp/gomib`) is the candidate replacement being studied.
 
+**What the engine tells the rest of SnmpLens is pinned** in `pkg/mib/testdata/reference.jsonl`
+(`TestTheMibEngineMatchesItsReference`): every node of the bundled MIBs, `constructs_test.go`'s module of what they
+leave out (BITS, Opaque, AGENT-CAPABILITIES, OID- and enum-keyed tables) and an SMIv1 module, each with its kind,
+syntax, access, status, units, enumerations, description (hashed, CRs left out) and the name its instances are shown
+under; every table as `Service.Table` describes it; every file's load. Whoever changes the engine reads the
+differences and decides on each, then rewrites it with `-update-reference`. `frontend/tests/mibcontract.test.mjs`
+holds the renderer to the same file, because the renderer decides from two engine strings what it offers
+(`utils/mibNode.js`): the kind — GET on a Scalar or a Column, a walk on a Table, a Row, a Node or a Group, nothing on a
+Notification — and the access — SET when it reads as writable. Its truth is the MIB sources' own MAX-ACCESS, so an
+engine reporting a read-create column as "read-create", which has no "write" in it, fails there instead of quietly
+turning SET off; every kind a component compares `mibType` against must be one the engine emits.
+
 **What gosmi reads is the lenient reading** (`pkg/mib/repair.go`), and so is what the editor and `Diagnose`
 parse (`prepare`), so the three never disagree about a file. Three repairs, each reported as a warning where it
 was made and never written to the file unless the editor's "fix" is pressed (`Repair`): an IMPORTS module named by

@@ -15,6 +15,7 @@
   import NodeDetails from './mib/NodeDetails.svelte';
   import { _ } from 'svelte-i18n';
   import { get } from 'svelte/store';
+  import { canGet, canWalk, canWalkAsTable, isWritable, normalizeAccess } from './utils/mibNode';
 
   const dispatch = createEventDispatcher();
 
@@ -45,15 +46,6 @@
     items: []
   };
 
-  // Check if node is writable based on access
-  function isWritable(node) {
-    if (!node.access) return true; // Default to writable if access is not specified
-    
-    const access = node.access.toLowerCase();
-    // Writable if access is read-write, write-only, or accessible-for-notify
-    return access.includes('write') || access === 'readwrite' || access === 'read-write';
-  }
-
   // Build context menu items based on node type
   function buildContextMenuItems(node) {
     const t = get(_);
@@ -67,7 +59,7 @@
     items.push({ label: '---', action: 'separator' });
 
     // Add SNMP operations for Scalar and Column types
-    if (node.mibType === 'Scalar' || node.mibType === 'Column') {
+    if (canGet(node)) {
       items.push({ label: t('mib.contextMenu.snmpGet'), icon: 'download', action: 'snmpGet' });
       items.push({ label: t('mib.contextMenu.snmpGetNext'), icon: 'arrow-right-to-line', action: 'snmpGetNext' });
 
@@ -83,13 +75,13 @@
     }
 
     // Add SNMP Walk and GETBULK for Table, Row, Node, and Group types
-    if (node.mibType === 'Table' || node.mibType === 'Row' || node.mibType === 'Node' || node.mibType === 'Group') {
+    if (canWalk(node)) {
       items.push({ label: t('mib.contextMenu.snmpWalk'), icon: 'footprints', action: 'snmpWalk' });
       items.push({ label: t('mib.contextMenu.snmpGetBulk'), icon: 'layers', action: 'snmpGetBulk' });
     }
 
     // Add "Walk as Table" for Table and Row nodes
-    if (node.mibType === 'Table' || node.mibType === 'Row') {
+    if (canWalkAsTable(node)) {
       items.push({ label: t('mib.walkAsTable'), icon: 'table', action: 'walkAsTable' });
     }
 
@@ -339,15 +331,6 @@
     } else {
       activeAccessFilters = [...activeAccessFilters, access];
     }
-  }
-
-  function normalizeAccess(access) {
-    if (!access) return 'unknown';
-    const a = access.toLowerCase();
-    if (a.includes('write')) return 'read-write';
-    if (a === 'readonly' || a === 'read-only') return 'read-only';
-    if (a === 'notaccessible' || a === 'not-accessible') return 'not-accessible';
-    return a;
   }
 
   // Reactive statement to filter the tree

@@ -1,7 +1,9 @@
 package app
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -81,13 +83,20 @@ func (a *App) MibEditorList() ([]mib.FileInfo, error) {
 	return out, nil
 }
 
-// MibEditorRead opens a MIB from the persistent directory.
+// MibEditorRead opens a MIB from the persistent directory, or, when the
+// directory has no file of that name, the file of that name the last load read
+// from a folder added in the settings.
 func (a *App) MibEditorRead(name string) (mib.Source, error) {
 	path, err := a.resolveMibPath(name)
 	if err != nil {
 		return mib.Source{}, err
 	}
 	raw, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		if src, ok, err := a.readAddedFolderFile(name); ok {
+			return src, err
+		}
+	}
 	if err != nil {
 		return mib.Source{}, err
 	}
@@ -104,6 +113,34 @@ func (a *App) MibEditorRead(name string) (mib.Source, error) {
 	// before anything is written.
 	content, eol, encoding := mib.DecodeSource(raw)
 	return a.directorySource(name, path, raw, content, eol, encoding), nil
+}
+
+// readAddedFolderFile opens a file of a folder added in the settings, as a file
+// from outside the directory: saving writes it into the MIB folder, where it
+// then loads ahead of the original, and never back into a folder that may be
+// the system's. The MIB settings list what the last load read from those
+// folders too, and "Open in the editor" looked for every one in the MIB folder.
+//
+// By the name the load knows it under (Service.FilePath), never a path: a
+// method reading a path the renderer names would read any file.
+func (a *App) readAddedFolderFile(name string) (mib.Source, bool, error) {
+	if a.mibService == nil {
+		return mib.Source{}, false, nil
+	}
+	path, ok := a.mibService.FilePath(name)
+	if !ok {
+		return mib.Source{}, false, nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return mib.Source{}, true, err
+	}
+	content, eol, encoding := mib.DecodeSource(raw)
+	ext := externalFile{path: path, raw: raw}
+	a.externalMu.Lock()
+	a.lastExternal = ext
+	a.externalMu.Unlock()
+	return a.externalSource(ext, content, eol, encoding), true, nil
 }
 
 // directorySource is a file of the MIB directory as the editor opens it.

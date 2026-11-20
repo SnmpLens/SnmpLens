@@ -212,6 +212,54 @@ END
 	}
 }
 
+// "Open in the editor" on a file of a folder added in the settings looked for
+// it in the MIB folder, and failed (issue #200). It opens as a file from
+// outside the folder — saving writes it into the MIB folder, never back — by
+// the name the load knows it under, and the MIB folder's file of a name wins,
+// as it does in the load.
+func TestAFileOfAnAddedFolderOpensInTheEditor(t *testing.T) {
+	a, dir, _ := verdictApp(t, nil)
+	added := t.TempDir()
+	if err := os.WriteFile(filepath.Join(added, "twice.txt"), []byte(twiceMib), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.SetMibDirectories([]string{added}); len(got) != 1 {
+		t.Fatalf("taken: %v", got)
+	}
+	a.LoadMibsWithDiagnostics([]string{"SNMPv2-SMI", "twice.txt"})
+
+	src, err := a.MibEditorRead("twice.txt")
+	if err != nil {
+		t.Fatalf("the added folder's file did not open: %v", err)
+	}
+	if !src.External || src.Path != filepath.Join(added, "twice.txt") || src.Content != twiceMib {
+		t.Errorf("opened as %+v", src)
+	}
+	if src.Name != "TWICE-MIB" {
+		t.Errorf("the name offered for saving is %q, want the module's", src.Name)
+	}
+	// Read again in another encoding from the bytes kept, as any external file.
+	if again, err := a.MibEditorReopenExternalAs("windows-1252"); err != nil || again.Content != twiceMib {
+		t.Errorf("reopened as %q, %v", again.Content, err)
+	}
+
+	// A name nothing loaded is still not found, and a path is still refused.
+	if _, err := a.MibEditorRead("nowhere.txt"); err == nil {
+		t.Error("a file no folder holds opened")
+	}
+	if _, err := a.MibEditorRead("../twice.txt"); err == nil {
+		t.Error("a path opened")
+	}
+
+	// The MIB folder's file of the same name is the one opened.
+	if err := os.WriteFile(filepath.Join(dir, "twice.txt"), []byte(twiceMib), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if src, err := a.MibEditorRead("twice.txt"); err != nil || src.External {
+		t.Errorf("the MIB folder's file did not win: external=%v, %v", src.External, err)
+	}
+}
+
 // A file of a folder added in the settings is judged as the MIB folder's are,
 // analysis included.
 func TestAFileOfAnAddedFolderHasAVerdict(t *testing.T) {

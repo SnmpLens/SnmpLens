@@ -96,7 +96,10 @@ function createMibEditorStore() {
     // A draft for this file means a previous session left work behind.
     let draft = '';
     try {
-      draft = await MibEditorReadDraft(name);
+      // Under the key it was saved under: a file of a folder added in the
+      // settings opens as an external one, keyed by its path, and read by its
+      // bare name it recovered the MIB folder's file's draft of the same name.
+      draft = await MibEditorReadDraft(draftKey(source));
     } catch (e) {
       draft = '';
     }

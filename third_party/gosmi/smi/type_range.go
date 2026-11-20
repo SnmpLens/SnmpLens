@@ -17,7 +17,12 @@ func GetFirstRange(smiTypePtr *types.SmiType) *types.SmiRange {
 	if typePtr.List == nil || typePtr.List.Ptr == nil || typePtr.BaseType == types.BaseTypeEnum || typePtr.BaseType == types.BaseTypeBits {
 		return nil
 	}
-	return &typePtr.List.Ptr.(*internal.Range).SmiRange
+	// SnmpLens (third_party/README.md): checked, as GetFirstNamedNumber is.
+	r, ok := typePtr.List.Ptr.(*internal.Range)
+	if !ok {
+		return nil
+	}
+	return &r.SmiRange
 }
 
 // SmiRange *smiGetNextRange(SmiRange *smiRangePtr)
@@ -32,7 +37,11 @@ func GetNextRange(smiRangePtr *types.SmiRange) *types.SmiRange {
 	if rangePtr.List == nil || rangePtr.List.Next == nil || rangePtr.List.Next.Ptr == nil {
 		return nil
 	}
-	return &rangePtr.List.Next.Ptr.(*internal.Range).SmiRange
+	r, ok := rangePtr.List.Next.Ptr.(*internal.Range)
+	if !ok {
+		return nil
+	}
+	return &r.SmiRange
 }
 
 // int smiGetMinMaxRange(SmiType *smiType, SmiValue *min, SmiValue *max)

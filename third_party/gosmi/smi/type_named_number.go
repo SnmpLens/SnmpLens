@@ -16,7 +16,14 @@ func GetFirstNamedNumber(smiTypePtr *types.SmiType) *types.SmiNamedNumber {
 	if typePtr.List == nil || typePtr.List.Ptr == nil || (typePtr.BaseType != types.BaseTypeEnum && typePtr.BaseType != types.BaseTypeBits) {
 		return nil
 	}
-	return &typePtr.List.Ptr.(*internal.NamedNumber).SmiNamedNumber
+	// SnmpLens (third_party/README.md): an enumerated type restricted by a
+	// value, SYNTAX InetAddressType(1), holds a range where a named number is
+	// expected, and the unchecked assertion here was a panic.
+	nn, ok := typePtr.List.Ptr.(*internal.NamedNumber)
+	if !ok {
+		return nil
+	}
+	return &nn.SmiNamedNumber
 }
 
 // SmiNamedNumber *smiGetNextNamedNumber(SmiNamedNumber *smiNamedNumberPtr)
@@ -31,5 +38,9 @@ func GetNextNamedNumber(smiNamedNumberPtr *types.SmiNamedNumber) *types.SmiNamed
 	if nnPtr.List == nil || nnPtr.List.Next == nil || nnPtr.List.Next.Ptr == nil {
 		return nil
 	}
-	return &nnPtr.List.Next.Ptr.(*internal.NamedNumber).SmiNamedNumber
+	nn, ok := nnPtr.List.Next.Ptr.(*internal.NamedNumber)
+	if !ok {
+		return nil
+	}
+	return &nn.SmiNamedNumber
 }

@@ -186,16 +186,7 @@ func treeFromGomib(m *gm.Mib) []*Node {
 			out.Access = gomibAccess(o.Access())
 			out.Syntax = gomibSyntax(o)
 			out.Units = o.Units()
-			values := o.EffectiveEnums()
-			if len(values) == 0 {
-				values = o.EffectiveBits()
-			}
-			if len(values) > 0 {
-				out.EnumValues = make(map[string]int64, len(values))
-				for _, v := range values {
-					out.EnumValues[v.Label] = v.Value
-				}
-			}
+			out.EnumValues = gomibEnums(o)
 		}
 		nodes[oid] = out
 		order = append(order, n)
